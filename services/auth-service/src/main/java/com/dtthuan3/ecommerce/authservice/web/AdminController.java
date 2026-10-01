@@ -1,23 +1,23 @@
-package com.dtthuan3.ecommerce.userservice.web;
+package com.dtthuan3.ecommerce.authservice.web;
 
-import com.dtthuan3.ecommerce.userservice.security.SecurityUtils;
+import com.dtthuan3.ecommerce.authservice.security.SecurityUtils;
 import java.util.Map;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-public class MeController {
+@RequestMapping("/auth/admin")
+public class AdminController {
 
     @GetMapping("/me")
-    @PreAuthorize("isAuthenticated()")
-    public Map<String, Object> me() {
+    @PreAuthorize("hasRole('ADMIN')")
+    public Map<String, Object> adminMe() {
         var user = SecurityUtils.requireUser();
         return Map.of(
                 "subject", String.valueOf(user.subject()),
                 "username", String.valueOf(user.username()),
-                "email", String.valueOf(user.email()),
-                "roles", user.roles() == null ? java.util.List.of() : user.roles(),
-                "admin", user.isAdmin());
+                "roles", user.roles() == null ? java.util.List.of() : user.roles());
     }
 }
