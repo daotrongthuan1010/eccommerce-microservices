@@ -15,7 +15,7 @@ public class SecurityConfig {
         JwtAuthenticationConverter jwtConverter = new JwtAuthenticationConverter();
         jwtConverter.setJwtGrantedAuthoritiesConverter(new JwtRoleConverter());
         http.csrf(ServerHttpSecurity.CsrfSpec::disable)
-                .authorizeExchange(exchange -> exchange.pathMatchers("/api/auth/login", "/actuator/**")
+                .authorizeExchange(exchange -> exchange.pathMatchers("/api/auth/**", "/actuator/**")
                         .permitAll()
                         .pathMatchers("/api/*/admin/**")
                         .hasRole("ADMIN")
