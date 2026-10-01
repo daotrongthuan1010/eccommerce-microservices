@@ -37,6 +37,9 @@ public class AuthController {
                 .body(form)
                 .retrieve()
                 .body(Map.class);
-        return Map.copyOf(token == null ? Map.of() : token);
+        if (token == null) {
+            return Map.of();
+        }
+        return Map.<String, Object>copyOf((Map<String, Object>) (Map<?, ?>) token);
     }
 }
