@@ -1,0 +1,61 @@
+{
+  "realm": "ecommerce",
+  "displayName": "Ecommerce Local",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "verifyEmail": false,
+  "roles": {
+    "realm": [
+      { "name": "ADMIN", "description": "Quan tri vien" },
+      { "name": "USER", "description": "Nguoi dung" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "ecommerce-app",
+      "name": "Public client cho hoc sinh (curl/Postman)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:8080/*",
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": ["*"],
+      "fullScopeAllowed": true
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "email": "admin@ecommerce.local",
+      "emailVerified": true,
+      "firstName": "Admin",
+      "lastName": "Local",
+      "credentials": [
+        { "type": "password", "value": "Admin123!", "temporary": false }
+      ],
+      "realmRoles": ["ADMIN", "USER"]
+    },
+    {
+      "username": "student",
+      "enabled": true,
+      "email": "student@ecommerce.local",
+      "emailVerified": true,
+      "firstName": "Student",
+      "lastName": "Local",
+      "credentials": [
+        { "type": "password", "value": "Student123!", "temporary": false }
+      ],
+      "realmRoles": ["USER"]
+    }
+  ]
+}

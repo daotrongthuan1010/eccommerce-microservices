@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package ecommerce.search.v1;
+
+option java_multiple_files = true;
+option java_package = "com.dtthuan3.ecommerce.searchservice.grpc";
+option java_outer_classname = "SearchProto";
+
+// Base contract only — replace Ping with real search RPCs when implementing.
+service SearchService {
+  rpc Ping(PingRequest) returns (PingResponse);
+}
+
+message PingRequest {
+  string message = 1;
+}
+
+message PingResponse {
+  string message = 1;
+}

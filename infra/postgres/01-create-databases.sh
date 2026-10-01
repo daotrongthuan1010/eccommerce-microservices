@@ -9,6 +9,7 @@ REVOKE CONNECT ON DATABASE :"db" FROM PUBLIC;
 GRANT CONNECT ON DATABASE :"db" TO :"role";
 SQL
 }
+create_database keycloak "$KEYCLOAK_DB_PASSWORD"
 create_database catalog "$CATALOG_DB_PASSWORD"
 create_database inventory "$INVENTORY_DB_PASSWORD"
 create_database order "$ORDER_DB_PASSWORD"

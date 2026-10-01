@@ -10,6 +10,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Copy .env.example to .env}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Set DB password}
       CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Set DB password}
       INVENTORY_DB_PASSWORD: ${INVENTORY_DB_PASSWORD:?Set DB password}
       ORDER_DB_PASSWORD: ${ORDER_DB_PASSWORD:?Set DB password}
@@ -128,7 +129,7 @@ services:
       retries: 20
       start_period: 60s
   minio:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: bitnamilegacy/minio:latest
     restart: unless-stopped
     networks:
     - ecommerce
@@ -138,13 +139,10 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MinIO user}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MinIO password}
-    command:
-    - server
-    - /data
-    - --console-address
-    - :9001
+      MINIO_API_PORT_NUMBER: '9000'
+      MINIO_CONSOLE_PORT_NUMBER: '9001'
     volumes:
-    - minio-data:/data
+    - minio-data:/bitnami/minio/data
     healthcheck:
       test:
       - CMD
@@ -156,7 +154,7 @@ services:
       retries: 20
       start_period: 30s
   minio-init:
-    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    image: bitnamilegacy/minio:latest
     networks:
     - ecommerce
     depends_on:
@@ -166,11 +164,145 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     entrypoint:
+    - /bin/bash
+    - -ec
+    command:
+    - /opt/bitnami/minio-client/bin/mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD";
+      /opt/bitnami/minio-client/bin/mc mb --ignore-existing local/product-assets
+  kafka-init:
+    image: confluentinc/cp-kafka:7.9.2
+    networks:
+    - ecommerce
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint:
     - /bin/sh
     - -ec
     command:
-    - mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD";
-      mc mb --ignore-existing local/product-assets
+    - kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ecommerce.auth.events --partitions 3 --replication-factor 1;
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ecommerce.user.events --partitions 3 --replication-factor 1;
+      kafka-topics --bootstrap-server kafka:29092 --list
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    networks:
+    - ecommerce
+    ports:
+    - 127.0.0.1:7080:8080
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set Keycloak admin password}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: keycloak_user
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Set DB password}
+      KC_HTTP_ENABLED: 'true'
+      KC_HOSTNAME_STRICT: 'false'
+      KC_PROXY_HEADERS: xforwarded
+    volumes:
+    - ./infra/keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
+    command:
+    - start-dev
+    - --import-realm
+    - --health-enabled=true
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - curl -fsS http://localhost:8080/health/ready
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+    depends_on:
+      postgres:
+        condition: service_healthy
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    restart: unless-stopped
+    networks:
+    - ecommerce
+    ports:
+    - 127.0.0.1:8090:8080
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    depends_on:
+      kafka:
+        condition: service_healthy
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    restart: unless-stopped
+    networks:
+    - ecommerce
+    ports:
+    - 127.0.0.1:8091:8081
+    environment:
+      REDIS_HOSTS: local:redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set Redis password}
+  prometheus:
+    image: prom/prometheus:v3.0.0
+    restart: unless-stopped
+    networks:
+    - ecommerce
+    ports:
+    - 127.0.0.1:9090:9090
+    volumes:
+    - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    - prometheus-data:/prometheus
+  grafana:
+    image: grafana/grafana:11.3.0
+    restart: unless-stopped
+    networks:
+    - ecommerce
+    ports:
+    - 127.0.0.1:3000:3000
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set Grafana password}
+    volumes:
+    - grafana-data:/var/lib/grafana
+    - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+  zipkin:
+    image: openzipkin/zipkin:3.4.1
+    restart: unless-stopped
+    networks:
+    - ecommerce
+    ports:
+    - 127.0.0.1:9411:9411
+  discovery-service:
+    profiles:
+    - apps
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: discovery-service
+    image: eccommerce/discovery-service:local
+    restart: unless-stopped
+    networks:
+    - ecommerce
+    ports:
+    - 127.0.0.1:8761:8761
+    environment:
+      SERVER_PORT: '8761'
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0
+      EUREKA_HOSTNAME: discovery-service
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+    mem_limit: 384m
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -fsS
+      - http://localhost:8761/actuator/health
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
   api-gateway:
     profiles:
     - apps
@@ -196,6 +328,10 @@ services:
       PAYMENT_SERVICE_URL: http://payment-service:8086
       NOTIFICATION_SERVICE_URL: http://notification-service:8087
       SEARCH_SERVICE_URL: http://search-service:8088
+      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+      EUREKA_HOSTNAME: api-gateway
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
     mem_limit: 384m
     healthcheck:
       test:
@@ -207,6 +343,9 @@ services:
       timeout: 5s
       retries: 20
       start_period: 60s
+    depends_on:
+      discovery-service:
+        condition: service_started
   auth-service:
     profiles:
     - apps
@@ -230,6 +369,13 @@ services:
       DB_URL: jdbc:mysql://mysql:3306/auth_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
       DB_USERNAME: auth_user
       DB_PASSWORD: ${AUTH_DB_PASSWORD}
+      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+      EUREKA_HOSTNAME: auth-service
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/ecommerce/protocol/openid-connect/certs
+      KEYCLOAK_TOKEN_URI: http://keycloak:8080/realms/ecommerce/protocol/openid-connect/token
+      KEYCLOAK_CLIENT_ID: ecommerce-app
     mem_limit: 384m
     healthcheck:
       test:
@@ -242,12 +388,16 @@ services:
       retries: 20
       start_period: 60s
     depends_on:
+      discovery-service:
+        condition: service_started
       redis:
         condition: service_healthy
       kafka:
         condition: service_healthy
       mysql:
         condition: service_healthy
+      keycloak:
+        condition: service_started
   user-service:
     profiles:
     - apps
@@ -271,6 +421,10 @@ services:
       DB_URL: jdbc:mysql://mysql:3306/user_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
       DB_USERNAME: user_user
       DB_PASSWORD: ${USER_DB_PASSWORD}
+      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+      EUREKA_HOSTNAME: user-service
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
     mem_limit: 384m
     healthcheck:
       test:
@@ -283,6 +437,8 @@ services:
       retries: 20
       start_period: 60s
     depends_on:
+      discovery-service:
+        condition: service_started
       redis:
         condition: service_healthy
       kafka:
@@ -316,6 +472,10 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       MINIO_BUCKET: product-assets
+      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+      EUREKA_HOSTNAME: catalog-service
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
     mem_limit: 384m
     healthcheck:
       test:
@@ -328,6 +488,8 @@ services:
       retries: 20
       start_period: 60s
     depends_on:
+      discovery-service:
+        condition: service_started
       redis:
         condition: service_healthy
       kafka:
@@ -359,6 +521,10 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/inventory_db
       DB_USERNAME: inventory_user
       DB_PASSWORD: ${INVENTORY_DB_PASSWORD}
+      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+      EUREKA_HOSTNAME: inventory-service
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
     mem_limit: 384m
     healthcheck:
       test:
@@ -371,6 +537,8 @@ services:
       retries: 20
       start_period: 60s
     depends_on:
+      discovery-service:
+        condition: service_started
       redis:
         condition: service_healthy
       kafka:
@@ -400,6 +568,10 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/order_db
       DB_USERNAME: order_user
       DB_PASSWORD: ${ORDER_DB_PASSWORD}
+      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+      EUREKA_HOSTNAME: order-service
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
     mem_limit: 384m
     healthcheck:
       test:
@@ -412,6 +584,8 @@ services:
       retries: 20
       start_period: 60s
     depends_on:
+      discovery-service:
+        condition: service_started
       redis:
         condition: service_healthy
       kafka:
@@ -441,6 +615,10 @@ services:
       DB_URL: jdbc:mysql://mysql:3306/payment_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
       DB_USERNAME: payment_user
       DB_PASSWORD: ${PAYMENT_DB_PASSWORD}
+      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+      EUREKA_HOSTNAME: payment-service
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
     mem_limit: 384m
     healthcheck:
       test:
@@ -453,6 +631,8 @@ services:
       retries: 20
       start_period: 60s
     depends_on:
+      discovery-service:
+        condition: service_started
       redis:
         condition: service_healthy
       kafka:
@@ -482,6 +662,10 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/notification_db
       DB_USERNAME: notification_user
       DB_PASSWORD: ${NOTIFICATION_DB_PASSWORD}
+      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+      EUREKA_HOSTNAME: notification-service
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
     mem_limit: 384m
     healthcheck:
       test:
@@ -494,6 +678,8 @@ services:
       retries: 20
       start_period: 60s
     depends_on:
+      discovery-service:
+        condition: service_started
       redis:
         condition: service_healthy
       kafka:
@@ -521,6 +707,10 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       ELASTICSEARCH_URIS: http://elasticsearch:9200
+      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+      EUREKA_HOSTNAME: search-service
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/ecommerce
     mem_limit: 384m
     healthcheck:
       test:
@@ -533,6 +723,8 @@ services:
       retries: 20
       start_period: 60s
     depends_on:
+      discovery-service:
+        condition: service_started
       redis:
         condition: service_healthy
       kafka:
@@ -549,3 +741,5 @@ volumes:
   kafka-data: {}
   minio-data: {}
   elasticsearch-data: {}
+  prometheus-data: {}
+  grafana-data: {}

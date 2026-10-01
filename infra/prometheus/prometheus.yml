@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+  - job_name: spring-apps
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - discovery-service:8761
+          - api-gateway:8080
+          - auth-service:8081
+          - user-service:8082

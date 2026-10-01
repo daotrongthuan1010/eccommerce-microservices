@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package ecommerce.auth.v1;
+
+option java_multiple_files = true;
+option java_package = "com.dtthuan3.ecommerce.authservice.grpc";
+option java_outer_classname = "AuthProto";
+
+// Base contract only — replace Ping with real auth RPCs when implementing.
+service AuthService {
+  rpc Ping(PingRequest) returns (PingResponse);
+}
+
+message PingRequest {
+  string message = 1;
+}
+
+message PingResponse {
+  string message = 1;
+}
