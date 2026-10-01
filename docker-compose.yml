@@ -317,14 +317,14 @@ services:
     environment:
       SERVER_PORT: '8080'
       JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0
-      AUTH_SERVICE_URL: http://auth-service:8081
-      USER_SERVICE_URL: http://user-service:8082
-      CATALOG_SERVICE_URL: http://catalog-service:8083
-      INVENTORY_SERVICE_URL: http://inventory-service:8084
-      ORDER_SERVICE_URL: http://order-service:8085
-      PAYMENT_SERVICE_URL: http://payment-service:8086
-      NOTIFICATION_SERVICE_URL: http://notification-service:8087
-      SEARCH_SERVICE_URL: http://search-service:8088
+      AUTH_SERVICE_URL: lb://auth-service
+      USER_SERVICE_URL: lb://user-service
+      CATALOG_SERVICE_URL: lb://catalog-service
+      INVENTORY_SERVICE_URL: lb://inventory-service
+      ORDER_SERVICE_URL: lb://order-service
+      PAYMENT_SERVICE_URL: lb://payment-service
+      NOTIFICATION_SERVICE_URL: lb://notification-service
+      SEARCH_SERVICE_URL: lb://search-service
       EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
       EUREKA_HOSTNAME: api-gateway
       ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
