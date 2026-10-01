@@ -13,7 +13,7 @@ spring:
             predicates:
             - Path=/api/auth/**
             filters:
-            - StripPrefix=2
+            - StripPrefix=1
           - id: user-service
             uri: ${USER_SERVICE_URL:lb://user-service}
             predicates:
@@ -60,14 +60,14 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:7080/realms/ecommerce/protocol/openid-connect/certs}
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs}
 eureka:
   client:
     service-url:
-      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+      defaultZone: ${EUREKA_SERVER_URL:http://162.4.177.91:8761/eureka/}
     registry-fetch-interval-seconds: 15
   instance:
-    hostname: ${EUREKA_HOSTNAME:localhost}
+    hostname: ${EUREKA_HOSTNAME:api-gateway}
     prefer-ip-address: false
 management:
   endpoints:
@@ -79,7 +79,7 @@ management:
       probability: 1.0
   zipkin:
     tracing:
-      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
+      endpoint: ${ZIPKIN_ENDPOINT:http://162.4.177.91:9411/api/v2/spans}
   endpoint:
     health:
       show-details: never

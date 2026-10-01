@@ -14,3 +14,21 @@ scrape_configs:
           - api-gateway:8080
           - auth-service:8081
           - user-service:8082
+          - catalog-service:8083
+          - inventory-service:8084
+          - order-service:8085
+          - payment-service:8086
+          - notification-service:8087
+          - search-service:8088
+  - job_name: infra-host
+    static_configs:
+      - targets:
+          - node-exporter:9100
+  - job_name: infra-containers
+    static_configs:
+      - targets:
+          - cadvisor:8080
+  - job_name: infra-search
+    static_configs:
+      - targets:
+          - elasticsearch-exporter:9114

@@ -5,11 +5,11 @@ spring:
     name: discovery-service
 eureka:
   instance:
-    hostname: ${EUREKA_HOSTNAME:localhost}
+    hostname: ${EUREKA_HOSTNAME:discovery-service}
     register-with-eureka: false
     fetch-registry: false
     service-url:
-      defaultZone: http://${EUREKA_HOSTNAME:localhost}:${SERVER_PORT:8761}/eureka/
+      defaultZone: http://${EUREKA_HOSTNAME:discovery-service}:${SERVER_PORT:8761}/eureka/
   server:
     enable-self-preservation: false
     eviction-interval-timer-in-ms: 10000
@@ -23,7 +23,7 @@ management:
       probability: 1.0
   zipkin:
     tracing:
-      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
+      endpoint: ${ZIPKIN_ENDPOINT:http://162.4.177.91:9411/api/v2/spans}
   endpoint:
     health:
       show-details: never

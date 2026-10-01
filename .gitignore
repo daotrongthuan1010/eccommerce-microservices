@@ -11,3 +11,6 @@
 *.key
 vps-deploy*.sh
 install-docker*.sh
+
+# Local helper scripts (giu local, khong push len remote)
+scripts/

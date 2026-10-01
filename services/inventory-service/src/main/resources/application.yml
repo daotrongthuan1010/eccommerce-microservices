@@ -5,12 +5,12 @@ spring:
     name: inventory-service
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
+      host: ${REDIS_HOST:162.4.177.91}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:local_redis_change_me}
       timeout: 3s
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:162.4.177.91:9092}
     consumer:
       group-id: inventory-service
       auto-offset-reset: earliest
@@ -20,7 +20,7 @@ spring:
       properties:
         enable.idempotence: true
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/inventory_db}
+    url: ${DB_URL:jdbc:postgresql://162.4.177.91:5432/inventory_db}
     username: ${DB_USERNAME:inventory_user}
     password: ${DB_PASSWORD:local_inventory_change_me}
     driver-class-name: org.postgresql.Driver
@@ -36,14 +36,14 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:7080/realms/ecommerce/protocol/openid-connect/certs}
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs}
 eureka:
   client:
     service-url:
-      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+      defaultZone: ${EUREKA_SERVER_URL:http://162.4.177.91:8761/eureka/}
     registry-fetch-interval-seconds: 15
   instance:
-    hostname: ${EUREKA_HOSTNAME:localhost}
+    hostname: ${EUREKA_HOSTNAME:inventory-service}
     prefer-ip-address: false
 grpc:
   server:
@@ -59,7 +59,7 @@ management:
       probability: 1.0
   zipkin:
     tracing:
-      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
+      endpoint: ${ZIPKIN_ENDPOINT:http://162.4.177.91:9411/api/v2/spans}
   endpoint:
     health:
       show-details: never
