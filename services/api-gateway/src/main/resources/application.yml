@@ -1,0 +1,75 @@
+server:
+  port: ${SERVER_PORT:8080}
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+          - id: auth-service
+            uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+            predicates:
+            - Path=/api/auth/**
+            filters:
+            - StripPrefix=2
+          - id: user-service
+            uri: ${USER_SERVICE_URL:http://localhost:8082}
+            predicates:
+            - Path=/api/user/**
+            filters:
+            - StripPrefix=2
+          - id: catalog-service
+            uri: ${CATALOG_SERVICE_URL:http://localhost:8083}
+            predicates:
+            - Path=/api/catalog/**
+            filters:
+            - StripPrefix=2
+          - id: inventory-service
+            uri: ${INVENTORY_SERVICE_URL:http://localhost:8084}
+            predicates:
+            - Path=/api/inventory/**
+            filters:
+            - StripPrefix=2
+          - id: order-service
+            uri: ${ORDER_SERVICE_URL:http://localhost:8085}
+            predicates:
+            - Path=/api/order/**
+            filters:
+            - StripPrefix=2
+          - id: payment-service
+            uri: ${PAYMENT_SERVICE_URL:http://localhost:8086}
+            predicates:
+            - Path=/api/payment/**
+            filters:
+            - StripPrefix=2
+          - id: notification-service
+            uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8087}
+            predicates:
+            - Path=/api/notification/**
+            filters:
+            - StripPrefix=2
+          - id: search-service
+            uri: ${SEARCH_SERVICE_URL:http://localhost:8088}
+            predicates:
+            - Path=/api/search/**
+            filters:
+            - StripPrefix=2
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+info:
+  app:
+    name: api-gateway
+    stage: scaffold
