@@ -1,6 +1,6 @@
 # Ecommerce microservices — infrastructure & project scaffold
 
-Khung dự án cho **dtthuan3** (`thuanptit1010.work@gmail.com`). Java 21, Maven multi-module, Spring Boot 3.5.6, Spring Cloud 2025.0.0. Không có controller nghiệp vụ, entity, repository, migration bảng, Kafka producer/consumer hay xử lý giao dịch. Mỗi service chỉ có lớp `Application` để chạy Spring Boot và file cấu hình. Gateway có route cấu hình; các URL nghiệp vụ trả 404 cho đến khi bạn triển khai API.
+Khung dự án cho với công nghệ Java 21, Maven multi-module, Spring Boot 3.5.6, Spring Cloud 2025.0.0. Không có controller nghiệp vụ, entity, repository, migration bảng, Kafka producer/consumer hay xử lý giao dịch. Mỗi service chỉ có lớp `Application` để chạy Spring Boot và file cấu hình. Gateway có route cấu hình; các URL nghiệp vụ trả 404 cho đến khi bạn triển khai API.
 
 ## Phân chia service và dữ liệu
 
