@@ -4,3 +4,10 @@
 *.iml
 .vscode/
 *.log
+.claude/
+.settings/
+*.pw
+*.pem
+*.key
+vps-deploy*.sh
+install-docker*.sh
