@@ -62,7 +62,6 @@ spring:
         jwt:
           jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:7080/realms/ecommerce/protocol/openid-connect/certs}
 eureka:
-  client:
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
     registry-fetch-interval-seconds: 15

@@ -38,7 +38,6 @@ spring:
         jwt:
           jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:7080/realms/ecommerce/protocol/openid-connect/certs}
 eureka:
-  client:
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
     registry-fetch-interval-seconds: 15
@@ -48,7 +47,6 @@ eureka:
 grpc:
   server:
     port: ${GRPC_SERVER_PORT:9082}
-  client:
     # Base gRPC client config. Uncomment and point at a real service when calling it.
     # Example:
     # auth-service:
