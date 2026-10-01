@@ -209,7 +209,7 @@ services:
     healthcheck:
       test:
       - CMD-SHELL
-      - curl -fsS http://localhost:8080/health/ready
+      - curl -fsS http://localhost:9000/health/ready
       interval: 15s
       timeout: 5s
       retries: 20
@@ -238,8 +238,7 @@ services:
     ports:
     - 127.0.0.1:8091:8081
     environment:
-      REDIS_HOSTS: local:redis:6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set Redis password}
+      REDIS_HOSTS: local:redis:6379:0:${REDIS_PASSWORD:?Set Redis password}
   prometheus:
     image: prom/prometheus:v3.0.0
     restart: unless-stopped
