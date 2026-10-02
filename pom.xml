@@ -24,6 +24,9 @@
     <module>services/payment-service</module>
     <module>services/notification-service</module>
     <module>services/search-service</module>
+    <module>services/product-service</module>
+    <module>services/review-service</module>
+    <module>services/analytics-service</module>
   </modules>
   <dependencies>
     <dependency>
