@@ -20,6 +20,9 @@ scrape_configs:
           - payment-service:8086
           - notification-service:8087
           - search-service:8088
+          - product-service:8092
+          - review-service:8093
+          - analytics-service:8094
   - job_name: infra-host
     static_configs:
       - targets:

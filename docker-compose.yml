@@ -15,6 +15,9 @@ services:
       INVENTORY_DB_PASSWORD: ${INVENTORY_DB_PASSWORD:?Set DB password}
       ORDER_DB_PASSWORD: ${ORDER_DB_PASSWORD:?Set DB password}
       NOTIFICATION_DB_PASSWORD: ${NOTIFICATION_DB_PASSWORD:?Set DB password}
+      PRODUCT_DB_PASSWORD: ${PRODUCT_DB_PASSWORD:?Set DB password}
+      REVIEW_DB_PASSWORD: ${REVIEW_DB_PASSWORD:?Set DB password}
+      ANALYTICS_DB_PASSWORD: ${ANALYTICS_DB_PASSWORD:?Set DB password}
     volumes:
     - postgres-data:/var/lib/postgresql/data
     - ./infra/postgres:/docker-entrypoint-initdb.d:ro
@@ -363,6 +366,9 @@ services:
       PAYMENT_SERVICE_URL: lb://payment-service
       NOTIFICATION_SERVICE_URL: lb://notification-service
       SEARCH_SERVICE_URL: lb://search-service
+      PRODUCT_SERVICE_URL: lb://product-service
+      REVIEW_SERVICE_URL: lb://review-service
+      ANALYTICS_SERVICE_URL: lb://analytics-service
       EUREKA_SERVER_URL: http://162.4.177.91:8761/eureka/
       EUREKA_HOSTNAME: api-gateway
       ZIPKIN_ENDPOINT: http://162.4.177.91:9411/api/v2/spans
@@ -764,6 +770,153 @@ services:
       kafka:
         condition: service_healthy
       elasticsearch:
+        condition: service_healthy
+  product-service:
+    profiles:
+    - apps
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: product-service
+    image: eccommerce/product-service:local
+    restart: unless-stopped
+    networks:
+    - ecommerce
+    ports:
+    - 0.0.0.0:8092:8092
+    environment:
+      SERVER_PORT: '8092'
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0
+      REDIS_HOST: 162.4.177.91
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: 162.4.177.91:9092
+      DB_URL: jdbc:postgresql://162.4.177.91:5432/product_db
+      DB_USERNAME: product_user
+      DB_PASSWORD: ${PRODUCT_DB_PASSWORD}
+      MINIO_ENDPOINT: http://162.4.177.91:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: product-assets
+      EUREKA_SERVER_URL: http://162.4.177.91:8761/eureka/
+      EUREKA_HOSTNAME: product-service
+      ZIPKIN_ENDPOINT: http://162.4.177.91:9411/api/v2/spans
+      KEYCLOAK_JWK_SET_URI: http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs
+    mem_limit: 384m
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -fsS
+      - http://localhost:8092/actuator/health
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    depends_on:
+      discovery-service:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+  review-service:
+    profiles:
+    - apps
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: review-service
+    image: eccommerce/review-service:local
+    restart: unless-stopped
+    networks:
+    - ecommerce
+    ports:
+    - 0.0.0.0:8093:8093
+    environment:
+      SERVER_PORT: '8093'
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0
+      REDIS_HOST: 162.4.177.91
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: 162.4.177.91:9092
+      DB_URL: jdbc:postgresql://162.4.177.91:5432/review_db
+      DB_USERNAME: review_user
+      DB_PASSWORD: ${REVIEW_DB_PASSWORD}
+      EUREKA_SERVER_URL: http://162.4.177.91:8761/eureka/
+      EUREKA_HOSTNAME: review-service
+      ZIPKIN_ENDPOINT: http://162.4.177.91:9411/api/v2/spans
+      KEYCLOAK_JWK_SET_URI: http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs
+    mem_limit: 384m
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -fsS
+      - http://localhost:8093/actuator/health
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    depends_on:
+      discovery-service:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+  analytics-service:
+    profiles:
+    - apps
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: analytics-service
+    image: eccommerce/analytics-service:local
+    restart: unless-stopped
+    networks:
+    - ecommerce
+    ports:
+    - 0.0.0.0:8094:8094
+    environment:
+      SERVER_PORT: '8094'
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0
+      REDIS_HOST: 162.4.177.91
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: 162.4.177.91:9092
+      DB_URL: jdbc:postgresql://162.4.177.91:5432/analytics_db
+      DB_USERNAME: analytics_user
+      DB_PASSWORD: ${ANALYTICS_DB_PASSWORD}
+      EUREKA_SERVER_URL: http://162.4.177.91:8761/eureka/
+      EUREKA_HOSTNAME: analytics-service
+      ZIPKIN_ENDPOINT: http://162.4.177.91:9411/api/v2/spans
+      KEYCLOAK_JWK_SET_URI: http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs
+    mem_limit: 384m
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -fsS
+      - http://localhost:8094/actuator/health
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    depends_on:
+      discovery-service:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
 networks:
   ecommerce:

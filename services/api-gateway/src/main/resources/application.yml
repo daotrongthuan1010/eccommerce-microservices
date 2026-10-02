@@ -56,6 +56,24 @@ spring:
             - Path=/api/search/**
             filters:
             - StripPrefix=2
+          - id: product-service
+            uri: ${PRODUCT_SERVICE_URL:lb://product-service}
+            predicates:
+            - Path=/api/product/**
+            filters:
+            - StripPrefix=2
+          - id: review-service
+            uri: ${REVIEW_SERVICE_URL:lb://review-service}
+            predicates:
+            - Path=/api/review/**
+            filters:
+            - StripPrefix=2
+          - id: analytics-service
+            uri: ${ANALYTICS_SERVICE_URL:lb://analytics-service}
+            predicates:
+            - Path=/api/analytics/**
+            filters:
+            - StripPrefix=2
   security:
     oauth2:
       resourceserver:
