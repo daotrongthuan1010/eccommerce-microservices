@@ -1,13 +1,18 @@
 package com.dtthuan3.ecommerce.catalogservice.service.impl;
 
 import com.dtthuan3.ecommerce.catalogservice.service.MinioService;
-import io.minio.*;
+import io.minio.GetPresignedObjectUrlArgs;
+import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import io.minio.http.Method;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -24,6 +29,12 @@ public class MinioServiceImpl implements MinioService {
     public String upload(MultipartFile file, String folder) {
 
         try {
+
+            if (file == null || file.isEmpty()) {
+                throw new IllegalArgumentException("File không được để trống");
+            }
+
+            // Lấy extension của file
             String originalFilename = file.getOriginalFilename();
 
             String extension = "";
@@ -34,9 +45,31 @@ public class MinioServiceImpl implements MinioService {
                 );
             }
 
-            String objectKey =
-                    folder + "/" + UUID.randomUUID() + extension;
+            // Ngày hiện tại
+            LocalDate today = LocalDate.now();
 
+            String year = today.format(
+                    DateTimeFormatter.ofPattern("yyyy")
+            );
+
+            String month = today.format(
+                    DateTimeFormatter.ofPattern("MM")
+            );
+
+            String day = today.format(
+                    DateTimeFormatter.ofPattern("dd")
+            );
+
+            // Tạo object key
+            String objectKey =
+                    folder + "/"
+                            + year + "/"
+                            + month + "/"
+                            + day + "/"
+                            + UUID.randomUUID()
+                            + extension;
+
+            // Upload lên MinIO
             minioClient.putObject(
                     PutObjectArgs.builder()
                             .bucket(bucket)
@@ -53,8 +86,10 @@ public class MinioServiceImpl implements MinioService {
             return objectKey;
 
         } catch (Exception e) {
+
             throw new RuntimeException(
-                    "Upload file lên MinIO thất bại", e
+                    "Upload file lên MinIO thất bại",
+                    e
             );
         }
     }
@@ -67,6 +102,7 @@ public class MinioServiceImpl implements MinioService {
         }
 
         try {
+
             return minioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .method(Method.GET)
@@ -77,8 +113,10 @@ public class MinioServiceImpl implements MinioService {
             );
 
         } catch (Exception e) {
+
             throw new RuntimeException(
-                    "Không thể tạo URL MinIO", e
+                    "Không thể tạo URL MinIO",
+                    e
             );
         }
     }
@@ -91,6 +129,7 @@ public class MinioServiceImpl implements MinioService {
         }
 
         try {
+
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
                             .bucket(bucket)
@@ -99,8 +138,10 @@ public class MinioServiceImpl implements MinioService {
             );
 
         } catch (Exception e) {
+
             throw new RuntimeException(
-                    "Xóa file trên MinIO thất bại", e
+                    "Xóa file trên MinIO thất bại",
+                    e
             );
         }
     }

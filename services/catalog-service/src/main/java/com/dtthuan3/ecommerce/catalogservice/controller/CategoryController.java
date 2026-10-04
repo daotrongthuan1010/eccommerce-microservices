@@ -26,10 +26,6 @@ public class CategoryController {
     private final CategoryService categoryService;
 
 
-    // =========================
-    // CREATE
-    // =========================
-
     @PostMapping
     @Operation(
             summary = "Tạo danh mục"
@@ -57,9 +53,7 @@ public class CategoryController {
     }
 
 
-    // =========================
-    // GET BY ID
-    // =========================
+
 
     @GetMapping("/{id}")
     @Operation(
@@ -90,9 +84,6 @@ public class CategoryController {
     }
 
 
-    // =========================
-    // UPDATE
-    // =========================
 
     @PutMapping("/{id}")
     @Operation(
@@ -129,9 +120,7 @@ public class CategoryController {
     }
 
 
-    // =========================
-    // DELETE
-    // =========================
+
 
     @DeleteMapping("/{id}")
     @Operation(
