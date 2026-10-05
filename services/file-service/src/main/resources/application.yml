@@ -1,0 +1,67 @@
+server:
+  port: ${SERVER_PORT:8095}
+spring:
+  application:
+    name: file-service
+  servlet:
+    multipart:
+      max-file-size: ${MAX_FILE_SIZE:200MB}
+      max-request-size: ${MAX_REQUEST_SIZE:500MB}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs}
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://162.4.177.91:8761/eureka/}
+    registry-fetch-interval-seconds: 15
+  instance:
+    hostname: ${EUREKA_HOSTNAME:file-service}
+    prefer-ip-address: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://162.4.177.91:9411/api/v2/spans}
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+info:
+  app:
+    name: file-service
+    stage: scaffold
+
+storage:
+  minio:
+    # Endpoint file-service dung de noi toi MinIO (noi bo).
+    endpoint: ${MINIO_ENDPOINT:http://162.4.177.91:9000}
+    # Endpoint ma CLIENT (trinh duyet/app) truy cap duoc, dung de ky presigned URL.
+    # De trong = dung chung `endpoint`.
+    public-endpoint: ${MINIO_PUBLIC_ENDPOINT:}
+    access-key: ${MINIO_ACCESS_KEY:local_minio_admin}
+    secret-key: ${MINIO_SECRET_KEY:local_minio_change_me}
+    bucket: ${MINIO_BUCKET:ecommerce-files}
+    region: ${MINIO_REGION:us-east-1}
+    auto-create-bucket: ${MINIO_AUTO_CREATE_BUCKET:true}
+  upload:
+    default-presign-expiry-seconds: 900
+    max-presign-expiry-seconds: 86400
+    # Ho tro wildcard dang image/*. Dat danh sach rong de cho phep moi loai.
+    allowed-content-types:
+      - image/*
+      - video/*
+      - application/pdf
