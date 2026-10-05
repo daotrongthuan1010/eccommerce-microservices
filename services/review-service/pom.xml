@@ -18,6 +18,15 @@
     <dependency><groupId>io.zipkin.reporter2</groupId><artifactId>zipkin-reporter-brave</artifactId></dependency>
     <dependency><groupId>net.devh</groupId><artifactId>grpc-spring-boot-starter</artifactId><version>${grpc-spring-boot-starter.version}</version></dependency>
     <dependency><groupId>com.google.protobuf</groupId><artifactId>protobuf-java</artifactId><version>${protobuf.version}</version></dependency>
+      <dependency>
+          <groupId>org.projectlombok</groupId>
+          <artifactId>lombok</artifactId>
+          <scope>provided</scope>
+      </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
   </dependencies>
   <build>
     <plugins>
