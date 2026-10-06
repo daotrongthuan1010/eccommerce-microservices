@@ -13,7 +13,6 @@ public record MinioProperties(
         @DefaultValue("us-east-1") String region,
         @DefaultValue("true") boolean autoCreateBucket) {
 
-    /** Endpoint dung de ky presigned URL (client truy cap duoc). */
     public String effectivePublicEndpoint() {
         return (publicEndpoint == null || publicEndpoint.isBlank()) ? endpoint : publicEndpoint;
     }

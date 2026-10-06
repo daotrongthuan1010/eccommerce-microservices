@@ -1,12 +1,8 @@
 package com.dtthuan3.ecommerce.productservice.domain;
 
-
 import com.dtthuan3.ecommerce.productservice.constant.ProductStatus;
 import jakarta.persistence.*;
 import lombok.*;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(
@@ -37,6 +33,10 @@ import java.util.List;
                 @Index(
                         name = "idx_product_manufacturer",
                         columnList = "manufacturer_id"
+                ),
+                @Index(
+                        name = "idx_product_attribute_template",
+                        columnList = "attribute_template_id"
                 )
         }
 )
@@ -46,11 +46,11 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class Product extends BaseEntity {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
 
-    /**
-     * Mã sản phẩm gốc.
-     * Không phải SKU.
-     */
+
     @Column(
             name = "product_code",
             nullable = false,
@@ -58,7 +58,10 @@ public class Product extends BaseEntity {
     )
     private String productCode;
 
-    @Column(nullable = false, length = 255)
+    @Column(
+            nullable = false,
+            length = 255
+    )
     private String name;
 
     @Column(
@@ -98,16 +101,10 @@ public class Product extends BaseEntity {
     private Long manufacturerId;
 
     /**
-     * Template thuộc product-service.
+     * ID của AttributeTemplate trong product-service.
      */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(
-            name = "attribute_template_id",
-            foreignKey = @ForeignKey(
-                    name = "fk_product_attribute_template"
-            )
-    )
-    private AttributeTemplate attributeTemplate;
+    @Column(name = "attribute_template_id")
+    private Long attributeTemplateId;
 
     @Enumerated(EnumType.STRING)
     @Column(
@@ -116,22 +113,4 @@ public class Product extends BaseEntity {
     )
     @Builder.Default
     private ProductStatus status = ProductStatus.DRAFT;
-
-    @OneToMany(
-            mappedBy = "product",
-            cascade = CascadeType.ALL,
-            orphanRemoval = true
-    )
-    @Builder.Default
-    private List<ProductAttributeValue> attributeValues =
-            new ArrayList<>();
-
-    @OneToMany(
-            mappedBy = "product",
-            cascade = CascadeType.ALL,
-            orphanRemoval = true
-    )
-    @Builder.Default
-    private List<ProductVariant> variants =
-            new ArrayList<>();
 }

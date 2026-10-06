@@ -1,6 +1,5 @@
 package com.dtthuan3.ecommerce.productservice.domain;
 
-
 import com.dtthuan3.ecommerce.productservice.constant.MediaType;
 import jakarta.persistence.*;
 import lombok.*;
@@ -21,16 +20,15 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class ProductMedia extends BaseEntity {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
+    @Column(
             name = "product_id",
-            nullable = false,
-            foreignKey = @ForeignKey(
-                    name = "fk_product_media_product"
-            )
+            nullable = false
     )
-    private Product product;
+    private Long productId;
 
     @Enumerated(EnumType.STRING)
     @Column(
@@ -44,6 +42,7 @@ public class ProductMedia extends BaseEntity {
      * Object key trong MinIO.
      *
      * Ví dụ:
+     *
      * products/100/datasheet/esp32.pdf
      */
     @Column(
@@ -68,7 +67,10 @@ public class ProductMedia extends BaseEntity {
     @Column(name = "display_order")
     private Integer displayOrder;
 
-    @Column(name = "is_primary", nullable = false)
+    @Column(
+            name = "is_primary",
+            nullable = false
+    )
     @Builder.Default
     private Boolean primary = false;
 }

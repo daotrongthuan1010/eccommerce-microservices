@@ -3,9 +3,6 @@ package com.dtthuan3.ecommerce.productservice.domain;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.util.ArrayList;
-import java.util.List;
-
 @Entity
 @Table(
         name = "product_variants",
@@ -28,16 +25,16 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class ProductVariant extends BaseEntity {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
+
+    @Column(
             name = "product_id",
-            nullable = false,
-            foreignKey = @ForeignKey(
-                    name = "fk_variant_product"
-            )
+            nullable = false
     )
-    private Product product;
+    private Long productId;
 
     @Column(
             name = "variant_code",
@@ -46,27 +43,16 @@ public class ProductVariant extends BaseEntity {
     )
     private String variantCode;
 
-    @Column(nullable = false, length = 255)
+    @Column(
+            nullable = false,
+            length = 255
+    )
     private String name;
 
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @OneToMany(
-            mappedBy = "variant",
-            cascade = CascadeType.ALL,
-            orphanRemoval = true
-    )
+    @Column(nullable = false)
     @Builder.Default
-    private List<VariantAttributeValue> attributeValues =
-            new ArrayList<>();
-
-    @OneToMany(
-            mappedBy = "variant",
-            cascade = CascadeType.ALL,
-            orphanRemoval = true
-    )
-    @Builder.Default
-    private List<Sku> skus =
-            new ArrayList<>();
+    private Boolean active = true;
 }

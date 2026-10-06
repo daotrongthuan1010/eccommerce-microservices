@@ -26,16 +26,12 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class AttributeOption extends BaseEntity {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
-            name = "attribute_id",
-            nullable = false,
-            foreignKey = @ForeignKey(
-                    name = "fk_attribute_option_attribute"
-            )
-    )
-    private Attribute attribute;
+
+    private Long attribute_id;
 
     @Column(nullable = false, length = 150)
     private String value;
