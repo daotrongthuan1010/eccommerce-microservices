@@ -11,10 +11,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class CategoryRequest {
-    @Size(
-            max = 50,
-            message = "ID của cha không vượt quá 50 ký tự"
-    )
+
     private Long parentId;
 
     @NotBlank(message = "Tên danh mục không được để trống")

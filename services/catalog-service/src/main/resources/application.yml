@@ -73,12 +73,13 @@ management:
         include: health,info,prometheus
 
   tracing:
+    enabled: false
     sampling:
       probability: 1.0
 
   zipkin:
     tracing:
-      endpoint: ${ZIPKIN_ENDPOINT:http://162.4.177.91:9411/api/v2/spans}
+      endpoint: http://162.4.177.91:9411/api/v2/spans
 
   endpoint:
     health:

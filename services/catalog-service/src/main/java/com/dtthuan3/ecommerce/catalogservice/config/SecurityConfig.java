@@ -1,35 +1,60 @@
 package com.dtthuan3.ecommerce.catalogservice.config;
 
+import com.dtthuan3.ecommerce.catalogservice.security.JwtRoleConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
+    JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtAuthenticationConverter converter =
+                new JwtAuthenticationConverter();
+
+        converter.setJwtGrantedAuthoritiesConverter(
+                new JwtRoleConverter()
+        );
+
+        return converter;
+    }
+
+    @Bean
     SecurityFilterChain securityFilterChain(
-            HttpSecurity http
+            HttpSecurity http,
+            JwtAuthenticationConverter jwtAuthenticationConverter
     ) throws Exception {
 
         http
-                // Không dùng CSRF
                 .csrf(AbstractHttpConfigurer::disable)
 
-                // Không tạo session
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(
                                 SessionCreationPolicy.STATELESS
                         )
                 )
 
-                // Tạm thời cho phép tất cả API
                 .authorizeHttpRequests(auth -> auth
-                        .anyRequest()
+                        .requestMatchers("/actuator/**")
                         .permitAll()
+
+                        .anyRequest()
+                        .authenticated()
+                )
+
+                .oauth2ResourceServer(oauth2 ->
+                        oauth2.jwt(jwt ->
+                                jwt.jwtAuthenticationConverter(
+                                        jwtAuthenticationConverter
+                                )
+                        )
                 );
 
         return http.build();

@@ -4,6 +4,7 @@ import com.dtthuan3.ecommerce.catalogservice.contstant.CacheTtl;
 import com.dtthuan3.ecommerce.catalogservice.dto.request.CategoryRequest;
 import com.dtthuan3.ecommerce.catalogservice.dto.response.CategoryResponse;
 import com.dtthuan3.ecommerce.catalogservice.entity.Category;
+import com.dtthuan3.ecommerce.catalogservice.exception.DuplicateResourceException;
 import com.dtthuan3.ecommerce.catalogservice.exception.ResourceNotFoundException;
 import com.dtthuan3.ecommerce.catalogservice.mapper.CategoryMapper;
 import com.dtthuan3.ecommerce.catalogservice.repository.CategoryRepository;
@@ -12,9 +13,11 @@ import com.dtthuan3.ecommerce.catalogservice.service.CategoryService;
 import com.dtthuan3.ecommerce.catalogservice.service.MinioService;
 import com.dtthuan3.ecommerce.catalogservice.service.RedisCacheService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 
@@ -180,7 +183,7 @@ public class CategoryServiceImpl
 
         if (categoryRepository.existsBySlug(slug)) {
 
-            throw new IllegalArgumentException("Slug đã tồn tại: " + slug);
+            throw new DuplicateResourceException("Slug đã tồn tại: " + slug);
         }
     }
 
@@ -188,7 +191,7 @@ public class CategoryServiceImpl
 
         if (categoryRepository.existsBySlugAndIdNot(slug, id)) {
 
-            throw new IllegalArgumentException(
+            throw new DuplicateResourceException(
                     "Slug đã tồn tại: " + slug
             );
         }
@@ -200,7 +203,8 @@ public class CategoryServiceImpl
 
         if (!categoryRepository.existsById(parentId)) {
 
-            throw new ResourceNotFoundException(
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
                     "Không tìm thấy category cha: "
                             + parentId
             );

@@ -1,22 +1,30 @@
 package com.dtthuan3.ecommerce.catalogservice.service.impl;
 
 
+import com.dtthuan3.ecommerce.catalogservice.contstant.BrandsStatus;
 import com.dtthuan3.ecommerce.catalogservice.dto.request.BrandsRequest;
 import com.dtthuan3.ecommerce.catalogservice.dto.response.BrandsRespone;
+import com.dtthuan3.ecommerce.catalogservice.dto.response.PageResponse;
 import com.dtthuan3.ecommerce.catalogservice.entity.Brands;
 import com.dtthuan3.ecommerce.catalogservice.mapper.BrandsMapper;
+import com.dtthuan3.ecommerce.catalogservice.mapper.PageMapper;
 import com.dtthuan3.ecommerce.catalogservice.repository.BrandsRepository;
 import com.dtthuan3.ecommerce.catalogservice.service.BrandsService;
 import com.dtthuan3.ecommerce.catalogservice.service.CacheKeys;
 import com.dtthuan3.ecommerce.catalogservice.service.MinioService;
 import com.dtthuan3.ecommerce.catalogservice.service.RedisCacheService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -168,6 +176,11 @@ public class BrandsServiceImpl implements BrandsService {
         }
     }
 
+    @Override
+    public PageResponse<BrandsRespone> search(String keyword, int page, int size, String sortBy, String direction) {
+        return null;
+    }
+
     private Brands findBrandById(Long id) {
 
         return brandsRepository
@@ -179,6 +192,56 @@ public class BrandsServiceImpl implements BrandsService {
                         )
                 );
     }
+
+
+//    @Override
+//    public PageResponse<BrandsRespone> search(
+//            String keyword,
+//            int page,
+//            int size,
+//            String sortBy,
+//            String direction
+//    ) {
+//
+//        // Không cho page âm
+//        page = Math.max(page, 0);
+//
+//        // Không cho size <= 0 hoặc quá lớn
+//        size = Math.min(Math.max(size, 1), 100);
+//
+//        // Các field được phép sort
+//        if (!Set.of("name", "createdAt", "updatedAt")
+//                .contains(sortBy)) {
+//
+//            sortBy = "name";
+//        }
+//
+//        Sort sort = direction.equalsIgnoreCase("desc")
+//                ? Sort.by(sortBy).descending()
+//                : Sort.by(sortBy).ascending();
+//
+//        Pageable pageable = PageRequest.of(
+//                page,
+//                size,
+//                sort
+//        );
+//
+//        String searchKeyword = keyword == null
+//                ? ""
+//                : keyword.trim();
+//
+//        Page<Brands> result = brandsRepository.search(
+//                searchKeyword,
+//                BrandsStatus.ACTIVE,
+//                pageable
+//        );
+//
+//        return PageMapper.toResponse(
+//                result,
+//                brandsMapper::toResponse
+//        );
+//    }
+
 
     private void validateSlugForCreate(String slug) {
 

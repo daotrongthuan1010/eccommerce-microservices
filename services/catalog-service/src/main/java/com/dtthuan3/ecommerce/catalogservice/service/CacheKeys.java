@@ -29,4 +29,10 @@ public final class CacheKeys {
 
     public static final String BRAND_PATTERN =
             PREFIX + "brand:*";
+
+    public static final String MANUFACTURER =
+            "catalog:manufacturer:";
+
+    public static final String MANUFACTURER_PATTERN =
+            "catalog:manufacturer:*";
 }
