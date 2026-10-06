@@ -1,0 +1,201 @@
+### Cấu hình: dán access token của user có role ADMIN vào accessToken.
+### Chạy tuần tự từ trên xuống để các request sau dùng ID/version của response trước. Đổi runId mỗi lần chạy lại.
+@baseUrl = http://localhost:8080
+@accessToken = paste-admin-access-token-here
+@runId = inventory-api-test-20261006-01
+
+### 01. Tạo inventory nguồn
+# @name createSource
+POST {{baseUrl}}/inventory
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "enterpriseId": "ENT-{{runId}}",
+  "warehouseId": "WH-{{runId}}",
+  "locationId": "LOC-SOURCE-{{runId}}",
+  "sku": "SKU-TRANSFER-{{runId}}"
+}
+
+### 02. Tạo nhiều inventory bằng batch (dòng đầu là inventory đích)
+# @name createBatch
+POST {{baseUrl}}/inventory/batch
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+[
+  {
+    "enterpriseId": "ENT-{{runId}}",
+    "warehouseId": "WH-{{runId}}",
+    "locationId": "LOC-DEST-{{runId}}",
+    "sku": "SKU-TRANSFER-{{runId}}"
+  },
+  {
+    "enterpriseId": "ENT-{{runId}}",
+    "warehouseId": "WH-{{runId}}",
+    "locationId": "LOC-OTHER-{{runId}}",
+    "sku": "SKU-OTHER-{{runId}}"
+  }
+]
+
+### ID được lấy từ response của hai request tạo ở trên
+@inventoryId = {{createSource.response.body.$.id}}
+@destinationInventoryId = {{createBatch.response.body.$[0].id}}
+
+### 03. Đọc inventory theo ID
+# @name getById
+GET {{baseUrl}}/inventory/{{inventoryId}}
+Authorization: Bearer {{accessToken}}
+
+### 04. Đọc inventory theo enterprise/warehouse/location/SKU
+# @name getByPosition
+GET {{baseUrl}}/inventory?enterpriseId=ENT-{{runId}}&warehouseId=WH-{{runId}}&locationId=LOC-SOURCE-{{runId}}&sku=SKU-TRANSFER-{{runId}}
+Authorization: Bearer {{accessToken}}
+
+### 05. Tra inventory theo SKU
+# @name bySku
+GET {{baseUrl}}/inventory/sku/SKU-TRANSFER-{{runId}}
+Authorization: Bearer {{accessToken}}
+
+### 06. Tra inventory theo warehouse
+# @name byWarehouse
+GET {{baseUrl}}/inventory/warehouse/WH-{{runId}}
+Authorization: Bearer {{accessToken}}
+
+### 07. Tra inventory theo location
+# @name byLocation
+GET {{baseUrl}}/inventory/location/LOC-SOURCE-{{runId}}
+Authorization: Bearer {{accessToken}}
+
+### 08. Nhập 100 hàng vào inventory nguồn
+# @name receiveInventory
+POST {{baseUrl}}/inventory/receive
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "inventoryId": "{{inventoryId}}",
+  "quantity": 100,
+  "expectedVersion": 0
+}
+
+### 09. Reserve 20 hàng (version lấy từ response nhập hàng)
+# @name reserveInventory
+POST {{baseUrl}}/inventory/reserve
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "inventoryId": "{{inventoryId}}",
+  "quantity": 20,
+  "expectedVersion": {{receiveInventory.response.body.$.version}}
+}
+
+### 10. Tra tồn khả dụng theo SKU, warehouse và location
+# @name availableByLocation
+GET {{baseUrl}}/inventory/available?sku=SKU-TRANSFER-{{runId}}&warehouseId=WH-{{runId}}&locationId=LOC-SOURCE-{{runId}}
+Authorization: Bearer {{accessToken}}
+
+### 11. Release 5 hàng đã reserve
+# @name releaseInventory
+POST {{baseUrl}}/inventory/release
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "inventoryId": "{{inventoryId}}",
+  "quantity": 5,
+  "expectedVersion": {{reserveInventory.response.body.$.version}}
+}
+
+### 12. Issue 10 hàng
+# @name issueInventory
+POST {{baseUrl}}/inventory/issue
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "inventoryId": "{{inventoryId}}",
+  "quantity": 10,
+  "expectedVersion": {{releaseInventory.response.body.$.version}}
+}
+
+### 13. Điều chỉnh tồn vật lý về 80
+# @name adjustInventory
+POST {{baseUrl}}/inventory/adjust
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "inventoryId": "{{inventoryId}}",
+  "actualQuantity": 80,
+  "reason": "Kiem ke trong API smoke test",
+  "expectedVersion": {{issueInventory.response.body.$.version}}
+}
+
+### 14. Transfer 10 hàng; response gồm cả nguồn và đích
+# @name transferInventory
+POST {{baseUrl}}/inventory/transfer
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "fromInventoryId": "{{inventoryId}}",
+  "toInventoryId": "{{destinationInventoryId}}",
+  "quantity": 10,
+  "referenceType": "API_TEST",
+  "referenceId": "TRANSFER-{{runId}}",
+  "reason": "Kiem thu chuyen kho",
+  "expectedSourceVersion": {{adjustInventory.response.body.$.version}},
+  "expectedDestinationVersion": {{createBatch.response.body.$[0].version}}
+}
+
+### 15. Tra tồn khả dụng theo SKU và warehouse (không lọc location)
+# @name availableByWarehouse
+GET {{baseUrl}}/inventory/available?sku=SKU-TRANSFER-{{runId}}&warehouseId=WH-{{runId}}
+Authorization: Bearer {{accessToken}}
+
+### 16. Nhập hàng theo vị trí; API tự tạo inventory mới
+# @name receiveStock
+POST {{baseUrl}}/inventory/receive-stock
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "enterpriseId": "ENT-{{runId}}",
+  "warehouseId": "WH-{{runId}}",
+  "locationId": "LOC-RECEIVE-{{runId}}",
+  "sku": "SKU-RECEIVE-{{runId}}",
+  "quantity": 7,
+  "referenceType": "API_TEST",
+  "referenceId": "RECEIVE-{{runId}}",
+  "reason": "Kiem thu nhap theo vi tri"
+}
+
+### 17. Đọc lại inventory vừa tạo bởi receive-stock
+GET {{baseUrl}}/inventory/{{receiveStock.response.body.$.id}}
+Authorization: Bearer {{accessToken}}
+
+### 18. Lấy lịch sử movement theo inventory, có phân trang
+# @name movementHistory
+GET {{baseUrl}}/inventory/movements?inventoryId={{inventoryId}}&page=0&size=50
+Authorization: Bearer {{accessToken}}
+
+### 19. Lọc lịch sử theo inventory, loại movement và mã tham chiếu
+GET {{baseUrl}}/inventory/movements?inventoryId={{inventoryId}}&type=TRANSFER_OUT&referenceId=TRANSFER-{{runId}}&page=0&size=10
+Authorization: Bearer {{accessToken}}
+
+### 20. Lọc lịch sử theo khoảng thời gian (đổi thời gian nếu dữ liệu test đã cũ)
+GET {{baseUrl}}/inventory/movements?inventoryId={{inventoryId}}&from=2026-01-01T00:00:00&to=2027-01-01T00:00:00&page=0&size=50
+Authorization: Bearer {{accessToken}}
+
+### 21. Kiểm tra optimistic lock: cố tình gửi version cũ, kỳ vọng HTTP 409
+POST {{baseUrl}}/inventory/receive
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "inventoryId": "{{inventoryId}}",
+  "quantity": 1,
+  "expectedVersion": 0
+}
