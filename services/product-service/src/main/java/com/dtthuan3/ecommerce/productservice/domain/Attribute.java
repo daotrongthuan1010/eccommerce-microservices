@@ -27,6 +27,10 @@ import lombok.*;
 @Builder
 public class Attribute extends BaseEntity {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
+
     @Column(nullable = false, length = 150)
     private String name;
 

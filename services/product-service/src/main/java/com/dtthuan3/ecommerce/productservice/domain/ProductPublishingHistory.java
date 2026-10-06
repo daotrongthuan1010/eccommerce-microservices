@@ -1,6 +1,5 @@
 package com.dtthuan3.ecommerce.productservice.domain;
 
-
 import com.dtthuan3.ecommerce.productservice.constant.ProductStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -27,16 +26,16 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class ProductPublishingHistory extends BaseEntity {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
+
+    @Column(
             name = "product_id",
-            nullable = false,
-            foreignKey = @ForeignKey(
-                    name = "fk_publishing_history_product"
-            )
+            nullable = false
     )
-    private Product product;
+    private Long productId;
 
     @Enumerated(EnumType.STRING)
     @Column(
@@ -59,7 +58,7 @@ public class ProductPublishingHistory extends BaseEntity {
     /**
      * ID của user/admin bên identity/user-service.
      *
-     * Không tạo @ManyToOne User.
+     * Không dùng @ManyToOne.
      */
     @Column(name = "changed_by")
     private Long changedBy;
