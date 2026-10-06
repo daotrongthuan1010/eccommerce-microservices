@@ -26,6 +26,10 @@ import java.time.LocalDate;
                 @Index(
                         name = "idx_variant_attribute_attribute",
                         columnList = "attribute_id"
+                ),
+                @Index(
+                        name = "idx_variant_attribute_option",
+                        columnList = "option_id"
                 )
         }
 )
@@ -35,26 +39,22 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @Builder
 public class VariantAttributeValue extends BaseEntity {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
+
+    @Column(
             name = "variant_id",
-            nullable = false,
-            foreignKey = @ForeignKey(
-                    name = "fk_variant_attribute_variant"
-            )
+            nullable = false
     )
-    private ProductVariant variant;
+    private Long variantId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
+    @Column(
             name = "attribute_id",
-            nullable = false,
-            foreignKey = @ForeignKey(
-                    name = "fk_variant_attribute_attribute"
-            )
+            nullable = false
     )
-    private Attribute attribute;
+    private Long attributeId;
 
     @Column(
             name = "value_text",
@@ -75,12 +75,9 @@ public class VariantAttributeValue extends BaseEntity {
     @Column(name = "value_boolean")
     private Boolean valueBoolean;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(
-            name = "option_id",
-            foreignKey = @ForeignKey(
-                    name = "fk_variant_attribute_option"
-            )
-    )
-    private AttributeOption option;
+    /**
+     * ID của AttributeOption.
+     */
+    @Column(name = "option_id")
+    private Long optionId;
 }

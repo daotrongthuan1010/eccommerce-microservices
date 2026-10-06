@@ -1,6 +1,5 @@
 package com.dtthuan3.ecommerce.productservice.domain;
 
-
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -34,16 +33,16 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class Sku extends BaseEntity {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
+
+    @Column(
             name = "variant_id",
-            nullable = false,
-            foreignKey = @ForeignKey(
-                    name = "fk_sku_variant"
-            )
+            nullable = false
     )
-    private ProductVariant variant;
+    private Long variantId;
 
     @Column(
             name = "sku_code",
