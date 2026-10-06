@@ -1,6 +1,5 @@
 package com.dtthuan3.ecommerce.productservice.domain;
 
-
 import com.dtthuan3.ecommerce.productservice.constant.MediaType;
 import jakarta.persistence.*;
 import lombok.*;
@@ -21,16 +20,16 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class SkuMedia extends BaseEntity {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
+
+    @Column(
             name = "sku_id",
-            nullable = false,
-            foreignKey = @ForeignKey(
-                    name = "fk_sku_media_sku"
-            )
+            nullable = false
     )
-    private Sku sku;
+    private Long skuId;
 
     @Enumerated(EnumType.STRING)
     @Column(
@@ -62,7 +61,10 @@ public class SkuMedia extends BaseEntity {
     @Column(name = "display_order")
     private Integer displayOrder;
 
-    @Column(name = "is_primary", nullable = false)
+    @Column(
+            name = "is_primary",
+            nullable = false
+    )
     @Builder.Default
     private Boolean primary = false;
 }

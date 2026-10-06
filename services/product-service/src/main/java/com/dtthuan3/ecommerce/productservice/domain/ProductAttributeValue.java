@@ -26,6 +26,10 @@ import java.time.LocalDate;
                 @Index(
                         name = "idx_product_attribute_attribute",
                         columnList = "attribute_id"
+                ),
+                @Index(
+                        name = "idx_product_attribute_option",
+                        columnList = "option_id"
                 )
         }
 )
@@ -35,26 +39,22 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @Builder
 public class ProductAttributeValue extends BaseEntity {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
+
+    @Column(
             name = "product_id",
-            nullable = false,
-            foreignKey = @ForeignKey(
-                    name = "fk_product_attribute_product"
-            )
+            nullable = false
     )
-    private Product product;
+    private Long productId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
+    @Column(
             name = "attribute_id",
-            nullable = false,
-            foreignKey = @ForeignKey(
-                    name = "fk_product_attribute_attribute"
-            )
+            nullable = false
     )
-    private Attribute attribute;
+    private Long attributeId;
 
     /**
      * TEXT
@@ -89,13 +89,9 @@ public class ProductAttributeValue extends BaseEntity {
 
     /**
      * SELECT
+     *
+     * ID của AttributeOption.
      */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(
-            name = "option_id",
-            foreignKey = @ForeignKey(
-                    name = "fk_product_attribute_option"
-            )
-    )
-    private AttributeOption option;
+    @Column(name = "option_id")
+    private Long optionId;
 }

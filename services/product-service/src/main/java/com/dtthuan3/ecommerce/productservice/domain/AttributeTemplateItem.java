@@ -9,10 +9,7 @@ import lombok.*;
         uniqueConstraints = {
                 @UniqueConstraint(
                         name = "uk_template_attribute",
-                        columnNames = {
-                                "template_id",
-                                "attribute_id"
-                        }
+                        columnNames = {"template_id", "attribute_id"}
                 )
         },
         indexes = {
@@ -33,33 +30,24 @@ import lombok.*;
 @Builder
 public class AttributeTemplateItem extends BaseEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
-            name = "template_id",
-            nullable = false,
-            foreignKey = @ForeignKey(
-                    name = "fk_template_item_template"
-            )
-    )
-    private AttributeTemplate template;
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
-            name = "attribute_id",
-            nullable = false,
-            foreignKey = @ForeignKey(
-                    name = "fk_template_item_attribute"
-            )
-    )
-    private Attribute attribute;
+    @Column(name = "template_id", nullable = false)
+    private Long templateId;
+
+    @Column(name = "attribute_id", nullable = false)
+    private Long attributeId;
 
     @Column(name = "display_order")
     private Integer displayOrder;
 
-    /**
-     * Có bắt buộc Product phải nhập attribute này không.
-     */
     @Column(nullable = false)
     @Builder.Default
     private Boolean required = false;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean active = true;
 }

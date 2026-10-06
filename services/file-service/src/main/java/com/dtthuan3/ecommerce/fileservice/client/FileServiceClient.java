@@ -1,6 +1,5 @@
-package com.dtthuan3.ecommerce;
+package com.dtthuan3.ecommerce.fileservice.client;
 
-import java.util.Map;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ByteArrayResource;

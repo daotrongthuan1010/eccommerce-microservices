@@ -6,8 +6,7 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class MinioConfig {
-
-    /** Client chinh: upload/download/xoa, noi toi MinIO qua endpoint noi bo. */
+    //dùng để upload delete stat download
     @Bean
     public MinioClient minioClient(MinioProperties props) {
         return MinioClient.builder()
@@ -16,11 +15,7 @@ public class MinioConfig {
                 .region(props.region())
                 .build();
     }
-
-    /**
-     * Client chi dung de ky presigned URL. Chu ky S3 gan voi host nen URL phai duoc ky bang
-     * endpoint ma client ben ngoai truy cap duoc. Da set region nen khong goi mang khi ky.
-     */
+    //dùng để tạo URL tạm thời.
     @Bean
     public MinioClient presignMinioClient(MinioProperties props) {
         return MinioClient.builder()
