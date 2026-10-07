@@ -1,30 +1,331 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
-  <parent><groupId>com.dtthuan3.ecommerce</groupId><artifactId>eccommerce-microservices</artifactId><version>0.0.1-SNAPSHOT</version><relativePath>../../pom.xml</relativePath></parent>
-  <artifactId>review-service</artifactId>
-  <dependencies>
-    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
-    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
-    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-redis</artifactId></dependency>
-    <dependency><groupId>org.springframework.kafka</groupId><artifactId>spring-kafka</artifactId></dependency>
-    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-jdbc</artifactId></dependency>
-    <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><scope>runtime</scope></dependency>
-    <dependency><groupId>org.springframework.cloud</groupId><artifactId>spring-cloud-starter-netflix-eureka-client</artifactId></dependency>
-    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-security</artifactId></dependency>
-    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-oauth2-resource-server</artifactId></dependency>
-    <dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-prometheus</artifactId></dependency>
-    <dependency><groupId>io.micrometer</groupId><artifactId>micrometer-tracing-bridge-brave</artifactId></dependency>
-    <dependency><groupId>io.zipkin.reporter2</groupId><artifactId>zipkin-reporter-brave</artifactId></dependency>
-    <dependency><groupId>net.devh</groupId><artifactId>grpc-spring-boot-starter</artifactId><version>${grpc-spring-boot-starter.version}</version></dependency>
-    <dependency><groupId>com.google.protobuf</groupId><artifactId>protobuf-java</artifactId><version>${protobuf.version}</version></dependency>
-    <dependency><groupId>com.dtthuan3.ecommerce</groupId><artifactId>common</artifactId><version>0.0.1-SNAPSHOT</version></dependency>
-  </dependencies>
-  <build>
-    <plugins>
-      <plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin>
-      <plugin><groupId>kr.motd.maven</groupId><artifactId>os-maven-plugin</artifactId><extensions>true</extensions></plugin>
-      <plugin><groupId>org.xolstice.maven.plugins</groupId><artifactId>protobuf-maven-plugin</artifactId></plugin>
-    </plugins>
-  </build>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="
+            http://maven.apache.org/POM/4.0.0
+            https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ====================================================== -->
+    <!-- PARENT                                                 -->
+    <!-- ====================================================== -->
+
+    <parent>
+        <groupId>com.dtthuan3.ecommerce</groupId>
+        <artifactId>eccommerce-microservices</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+
+    <!-- ====================================================== -->
+    <!-- MODULE                                                 -->
+    <!-- ====================================================== -->
+
+    <artifactId>review-service</artifactId>
+
+
+    <!-- ====================================================== -->
+    <!-- VERSION                                                -->
+    <!-- ====================================================== -->
+
+    <properties>
+
+        <!-- Đồng bộ với file-service -->
+        <grpc.version>1.68.1</grpc.version>
+
+        <protobuf.version>3.25.5</protobuf.version>
+
+        <grpc.spring.version>3.1.0.RELEASE</grpc.spring.version>
+
+    </properties>
+
+
+    <!-- ====================================================== -->
+    <!-- DEPENDENCIES                                           -->
+    <!-- ====================================================== -->
+
+    <dependencies>
+
+
+        <!-- ================================================== -->
+        <!-- SPRING BOOT                                        -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- DATABASE                                           -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- REDIS                                              -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- KAFKA                                              -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- EUREKA                                             -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+        </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- SECURITY                                           -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- MONITORING                                         -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-brave</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.zipkin.reporter2</groupId>
+            <artifactId>zipkin-reporter-brave</artifactId>
+        </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- gRPC CLIENT                                        -->
+        <!-- ================================================== -->
+
+        <!--
+            review-service đóng vai trò CLIENT.
+
+            review-service
+                  |
+                  | gRPC
+                  v
+            file-service
+        -->
+
+        <dependency>
+            <groupId>net.devh</groupId>
+            <artifactId>grpc-client-spring-boot-starter</artifactId>
+            <version>${grpc.spring.version}</version>
+        </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- gRPC PROTOBUF                                      -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-protobuf</artifactId>
+            <version>${grpc.version}</version>
+        </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- gRPC STUB                                          -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-stub</artifactId>
+            <version>${grpc.version}</version>
+        </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- PROTOBUF JAVA                                      -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <version>${protobuf.version}</version>
+        </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- GENERATED ANNOTATION                               -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>javax.annotation</groupId>
+            <artifactId>javax.annotation-api</artifactId>
+            <version>1.3.2</version>
+        </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- LOMBOK                                             -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+    </dependencies>
+
+
+    <!-- ====================================================== -->
+    <!-- BUILD                                                  -->
+    <!-- ====================================================== -->
+
+    <build>
+
+
+        <!-- ================================================== -->
+        <!-- DETECT OS                                          -->
+        <!-- ================================================== -->
+
+        <extensions>
+
+            <extension>
+                <groupId>kr.motd.maven</groupId>
+                <artifactId>os-maven-plugin</artifactId>
+                <version>1.7.1</version>
+            </extension>
+
+        </extensions>
+
+
+        <plugins>
+
+
+            <!-- ================================================== -->
+            <!-- PROTOBUF COMPILER                                  -->
+            <!-- ================================================== -->
+
+            <plugin>
+
+                <groupId>org.xolstice.maven.plugins</groupId>
+                <artifactId>protobuf-maven-plugin</artifactId>
+                <version>0.6.1</version>
+
+                <configuration>
+
+                    <!-- Compile message .proto -> Java -->
+
+                    <protocArtifact>
+                        com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}
+                    </protocArtifact>
+
+
+                    <!-- Generate gRPC stub -->
+
+                    <pluginId>
+                        grpc-java
+                    </pluginId>
+
+                    <pluginArtifact>
+                        io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}
+                    </pluginArtifact>
+
+                </configuration>
+
+
+                <executions>
+
+                    <execution>
+
+                        <goals>
+
+                            <!--
+                                UploadFileRequest
+                                UploadFileResponse
+                            -->
+                            <goal>compile</goal>
+
+                            <!--
+                                FileGrpcServiceGrpc
+                            -->
+                            <goal>compile-custom</goal>
+
+                        </goals>
+
+                    </execution>
+
+                </executions>
+
+            </plugin>
+
+
+            <!-- ================================================== -->
+            <!-- SPRING BOOT                                       -->
+            <!-- ================================================== -->
+
+            <plugin>
+
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+
+            </plugin>
+
+
+        </plugins>
+
+    </build>
+
 </project>

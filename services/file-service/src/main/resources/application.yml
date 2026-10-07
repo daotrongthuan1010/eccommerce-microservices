@@ -1,0 +1,142 @@
+server:
+  port: ${SERVER_PORT:8095}
+
+
+spring:
+  application:
+    name: file-service
+
+  servlet:
+    multipart:
+      max-file-size: ${MAX_FILE_SIZE:200MB}
+      max-request-size: ${MAX_REQUEST_SIZE:500MB}
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs}
+
+
+# =========================================================
+# EUREKA
+# =========================================================
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://162.4.177.91:8761/eureka/}
+
+    registry-fetch-interval-seconds: 15
+
+  instance:
+    hostname: ${EUREKA_HOSTNAME:file-service}
+    prefer-ip-address: false
+
+
+# =========================================================
+# ACTUATOR / MONITORING
+# =========================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+  tracing:
+    sampling:
+      probability: 1.0
+
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://162.4.177.91:9411/api/v2/spans}
+
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+
+  info:
+    env:
+      enabled: true
+
+
+info:
+  app:
+    name: file-service
+    stage: scaffold
+
+
+# =========================================================
+# FILE STORAGE
+# =========================================================
+storage:
+
+  # =======================================================
+  # MINIO
+  # =======================================================
+  minio:
+
+    # file-service chạy bằng IntelliJ:
+    # localhost:9000
+    #
+    # file-service chạy trong Docker:
+    # MINIO_ENDPOINT=http://minio:9000
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+
+    # URL mà browser/client có thể truy cập.
+    public-endpoint: ${MINIO_PUBLIC_ENDPOINT:http://localhost:9000}
+
+    access-key: ${MINIO_ACCESS_KEY:local_minio_admin}
+
+    secret-key: ${MINIO_SECRET_KEY:local_minio_change_me}
+
+    bucket: ${MINIO_BUCKET:ecommerce-files}
+
+    region: ${MINIO_REGION:us-east-1}
+
+    auto-create-bucket: ${MINIO_AUTO_CREATE_BUCKET:true}
+
+
+  # =======================================================
+  # UPLOAD CONFIG
+  # =======================================================
+  upload:
+
+    # Presigned URL mặc định: 15 phút
+    default-presign-expiry-seconds: 900
+
+    # Presigned URL tối đa: 24 giờ
+    max-presign-expiry-seconds: 86400
+
+    # Các loại file được phép upload
+    allowed-content-types:
+      - image/*
+      - video/*
+      - application/pdf
+
+
+# =========================================================
+# ANTIVIRUS / CLAMAV
+# =========================================================
+security:
+  antivirus:
+    clamav:
+
+      # Nếu file-service chạy từ IntelliJ
+      # và ClamAV chạy Docker với port 3310:3310
+      host: ${CLAMAV_HOST:localhost}
+
+      # Port của ClamAV daemon
+      port: ${CLAMAV_PORT:3310}
+
+      # Timeout khi kết nối tới ClamAV
+      # 5000 ms = 5 giây
+      connect-timeout: ${CLAMAV_CONNECT_TIMEOUT:5000}
+
+      # Timeout khi quét file
+      # 120000 ms = 2 phút
+      read-timeout: ${CLAMAV_READ_TIMEOUT:120000}
+
+      # Bật / tắt chức năng quét virus
+      enabled: ${CLAMAV_ENABLED:true}
