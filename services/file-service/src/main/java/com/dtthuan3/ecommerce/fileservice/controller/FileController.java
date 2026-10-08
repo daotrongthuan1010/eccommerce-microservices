@@ -1,5 +1,6 @@
 package com.dtthuan3.ecommerce.fileservice.controller;
 
+import com.dtthuan3.ecommerce.common.response.ApiResponse;
 import com.dtthuan3.ecommerce.fileservice.dto.request.PresignUploadRequest;
 import com.dtthuan3.ecommerce.fileservice.dto.response.*;
 import com.dtthuan3.ecommerce.fileservice.service.FileStorageService;
@@ -20,6 +21,10 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 import java.io.InputStream;
 import java.util.List;
 
+/**
+ * Mẫu enterprise cho service — trả ApiResponse chuẩn.
+ * Service khác học theo: mọi endpoint trả ApiResponse<T>, trừ download stream.
+ */
 @RestController
 @RequestMapping("/files")
 @RequiredArgsConstructor
@@ -29,41 +34,42 @@ public class FileController {
     private final FileStorageService fileStorageService;
 
     @PostMapping
-    public ResponseEntity<FileResponse> upload(
+    public ResponseEntity<ApiResponse<FileResponse>> upload(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "folder", required = false) @Size(max = 128) String folder
     ) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(fileStorageService.upload(file, folder));
+        FileResponse data = fileStorageService.upload(file, folder);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(data));
     }
 
     @PostMapping("/batch")
-    public ResponseEntity<BatchUploadResponse> uploadBatch(
+    public ResponseEntity<ApiResponse<BatchUploadResponse>> uploadBatch(
             @RequestParam("files") List<MultipartFile> files,
             @RequestParam(value = "folder", required = false) @Size(max = 128) String folder
     ) {
         BatchUploadResponse resp = fileStorageService.uploadBatch(files, folder);
-        // 207 when partial failure else 200/201
+        ApiResponse<BatchUploadResponse> body = ApiResponse.ok(resp);
         if (resp.getFailures() != null && !resp.getFailures().isEmpty()) {
-            return ResponseEntity.status(HttpStatus.MULTI_STATUS).body(resp);
+            return ResponseEntity.status(HttpStatus.MULTI_STATUS).body(body);
         }
-        return ResponseEntity.ok(resp);
+        return ResponseEntity.status(HttpStatus.CREATED).body(body);
     }
 
     @GetMapping("/info")
-    public ResponseEntity<FileInfoResponse> getInfo(@RequestParam("key") @Size(max = 1024) String key) {
-        return ResponseEntity.ok(fileStorageService.getInfo(key));
+    public ResponseEntity<ApiResponse<FileInfoResponse>> getInfo(@RequestParam("key") @Size(max = 1024) String key) {
+        return ResponseEntity.ok(ApiResponse.ok(fileStorageService.getInfo(key)));
     }
 
     @GetMapping("/url")
-    public ResponseEntity<UrlResponse> getUrl(@RequestParam("key") @Size(max = 1024) String key,
+    public ResponseEntity<ApiResponse<UrlResponse>> getUrl(@RequestParam("key") @Size(max = 1024) String key,
                                               @RequestParam(value = "expirySeconds", required = false) @Min(60) @Max(86400) Integer expirySeconds
     ) {
-        return ResponseEntity.ok(fileStorageService.getUrl(key, expirySeconds));
+        return ResponseEntity.ok(ApiResponse.ok(fileStorageService.getUrl(key, expirySeconds)));
     }
 
     @PostMapping("/presign-upload")
-    public ResponseEntity<PresignUploadResponse> presignUpload(@Valid @RequestBody PresignUploadRequest request) {
-        return ResponseEntity.ok(fileStorageService.presignUpload(request));
+    public ResponseEntity<ApiResponse<PresignUploadResponse>> presignUpload(@Valid @RequestBody PresignUploadRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(fileStorageService.presignUpload(request)));
     }
 
     @GetMapping("/download")
@@ -84,8 +90,8 @@ public class FileController {
     }
 
     @DeleteMapping
-    public ResponseEntity<Void> delete(@RequestParam("key") @Size(max = 1024) String key) {
+    public ResponseEntity<ApiResponse<Void>> delete(@RequestParam("key") @Size(max = 1024) String key) {
         fileStorageService.delete(key);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.ok());
     }
 }
