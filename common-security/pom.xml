@@ -9,7 +9,16 @@
   </parent>
   <artifactId>common-security</artifactId>
   <name>common-security</name>
-  <description>Shared security: JwtRoleConverter, SecuritySupport (Keycloak RBAC)</description>
+  <description>Shared security: JwtRoleConverter, SecuritySupport, CommonSecurityAutoConfiguration (enterprise)</description>
+  <url>https://github.com/daotrongthuan1010/eccommerce-microservices</url>
+  <licenses><license><name>Internal — All Rights Reserved</name><url>https://github.com/daotrongthuan1010/eccommerce-microservices</url></license></licenses>
+
+  <properties>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
   <dependencies>
     <dependency><groupId>com.dtthuan3.ecommerce</groupId><artifactId>common</artifactId><version>${project.version}</version></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-autoconfigure</artifactId></dependency>
@@ -20,10 +29,14 @@
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-security</artifactId><optional>true</optional></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-oauth2-resource-server</artifactId><optional>true</optional></dependency>
     <dependency><groupId>org.slf4j</groupId><artifactId>slf4j-api</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
   </dependencies>
+
   <build>
     <plugins>
       <plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId><configuration><skip>true</skip></configuration></plugin>
+      <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-source-plugin</artifactId><version>3.3.1</version><executions><execution><id>attach-sources</id><goals><goal>jar-no-fork</goal></goals></execution></executions></plugin>
+      <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-javadoc-plugin</artifactId><version>3.11.2</version><executions><execution><id>attach-javadocs</id><goals><goal>jar</goal></goals></execution></executions><configuration><source>21</source><doclint>none</doclint></configuration></plugin>
     </plugins>
   </build>
 </project>

@@ -9,7 +9,16 @@
   </parent>
   <artifactId>common-web</artifactId>
   <name>common-web</name>
-  <description>Shared web: correlation filter, request logging, web helpers (Servlet)</description>
+  <description>Shared web: CorrelationIdFilter, ApiResponseAdvice, GlobalExceptionHandler web extras (enterprise)</description>
+  <url>https://github.com/daotrongthuan1010/eccommerce-microservices</url>
+  <licenses><license><name>Internal — All Rights Reserved</name><url>https://github.com/daotrongthuan1010/eccommerce-microservices</url></license></licenses>
+
+  <properties>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
   <dependencies>
     <dependency><groupId>com.dtthuan3.ecommerce</groupId><artifactId>common</artifactId><version>${project.version}</version></dependency>
     <dependency><groupId>org.springframework</groupId><artifactId>spring-web</artifactId></dependency>
@@ -17,10 +26,14 @@
     <dependency><groupId>jakarta.servlet</groupId><artifactId>jakarta.servlet-api</artifactId><scope>provided</scope></dependency>
     <dependency><groupId>org.slf4j</groupId><artifactId>slf4j-api</artifactId></dependency>
     <dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-annotations</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
   </dependencies>
+
   <build>
     <plugins>
       <plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId><configuration><skip>true</skip></configuration></plugin>
+      <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-source-plugin</artifactId><version>3.3.1</version><executions><execution><id>attach-sources</id><goals><goal>jar-no-fork</goal></goals></execution></executions></plugin>
+      <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-javadoc-plugin</artifactId><version>3.11.2</version><executions><execution><id>attach-javadocs</id><goals><goal>jar</goal></goals></execution></executions><configuration><source>21</source><doclint>none</doclint></configuration></plugin>
     </plugins>
   </build>
 </project>

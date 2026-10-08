@@ -1,1 +1,2 @@
 com.dtthuan3.ecommerce.common.security.CommonSecurityAutoConfiguration
+com.dtthuan3.ecommerce.common.security.DefaultSecurityAutoConfiguration
