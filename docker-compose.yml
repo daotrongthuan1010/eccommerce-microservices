@@ -144,6 +144,8 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MinIO password}
       MINIO_API_PORT_NUMBER: '9000'
       MINIO_CONSOLE_PORT_NUMBER: '9001'
+      MINIO_SCHEME: http
+    command: minio server /bitnami/minio/data --console-address ":9001"
     volumes:
     - minio-data:/bitnami/minio/data
     healthcheck:
