@@ -3,6 +3,7 @@ FROM maven:3.9.11-eclipse-temurin-21 AS build
 ARG SERVICE
 WORKDIR /workspace
 COPY pom.xml .
+COPY common ./common
 COPY services ./services
 RUN --mount=type=cache,target=/root/.m2 mvn -B -pl services/${SERVICE} -am package -DskipTests && cp services/${SERVICE}/target/${SERVICE}-0.0.1-SNAPSHOT.jar /tmp/app.jar
 

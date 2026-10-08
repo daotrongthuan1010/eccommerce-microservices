@@ -74,6 +74,12 @@ spring:
             - Path=/api/analytics/**
             filters:
             - StripPrefix=2
+          - id: file-service
+            uri: ${FILE_SERVICE_URL:lb://file-service}
+            predicates:
+            - Path=/api/file/**
+            filters:
+            - StripPrefix=2
   security:
     oauth2:
       resourceserver:

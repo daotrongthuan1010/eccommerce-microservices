@@ -14,6 +14,7 @@
     <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
   </properties>
   <modules>
+    <module>common</module>
     <module>services/discovery-service</module>
     <module>services/api-gateway</module>
     <module>services/auth-service</module>
@@ -27,6 +28,7 @@
     <module>services/product-service</module>
     <module>services/review-service</module>
     <module>services/analytics-service</module>
+    <module>services/file-service</module>
   </modules>
   <dependencies>
     <dependency>

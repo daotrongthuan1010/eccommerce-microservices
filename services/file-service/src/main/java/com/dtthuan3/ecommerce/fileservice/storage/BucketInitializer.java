@@ -1,4 +1,4 @@
-package com.dtthuan3.ecommerce.fileservice.storage.minio;
+package com.dtthuan3.ecommerce.fileservice.storage;
 
 import com.dtthuan3.ecommerce.fileservice.config.MinioProperties;
 import io.minio.BucketExistsArgs;
@@ -27,69 +27,44 @@ public class BucketInitializer implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-
-        // Nếu không cho phép tự động tạo bucket thì bỏ qua
         if (!minioProperties.autoCreateBucket()) {
             log.info("MinIO auto create bucket is disabled");
             return;
         }
-
-        try {
-
-            String bucket = minioProperties.bucket();
-
-            // Kiểm tra bucket đã tồn tại chưa
-            boolean exists = minioClient.bucketExists(
-                    BucketExistsArgs.builder()
-                            .bucket(bucket)
-                            .build()
-            );
-
-            // Nếu chưa tồn tại thì tạo mới
-            if (!exists) {
-
-                MakeBucketArgs.Builder builder =
-                        MakeBucketArgs.builder()
-                                .bucket(bucket);
-
-                // Nếu có region thì thêm region
-                if (minioProperties.region() != null
-                        && !minioProperties.region().isBlank()) {
-
-                    builder.region(
-                            minioProperties.region()
-                    );
+        int maxRetries = 3;
+        long backoffMs = 5000;
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                String bucket = minioProperties.bucket();
+                boolean exists = minioClient.bucketExists(
+                        BucketExistsArgs.builder().bucket(bucket).build()
+                );
+                if (!exists) {
+                    MakeBucketArgs.Builder builder = MakeBucketArgs.builder().bucket(bucket);
+                    if (minioProperties.region() != null && !minioProperties.region().isBlank()) {
+                        builder.region(minioProperties.region());
+                    }
+                    minioClient.makeBucket(builder.build());
+                    log.info("Created MinIO bucket: {}", bucket);
+                } else {
+                    log.info("MinIO bucket already exists: {}", bucket);
                 }
-
-                minioClient.makeBucket(
-                        builder.build()
-                );
-
-                log.info(
-                        "Created MinIO bucket: {}",
-                        bucket
-                );
-
-            } else {
-
-                log.info(
-                        "MinIO bucket already exists: {}",
-                        bucket
-                );
+                return;
+            } catch (Exception e) {
+                log.warn("Bucket init attempt {}/{} failed: {}", attempt, maxRetries, e.getMessage());
+                if (attempt == maxRetries) {
+                    log.error("Cannot initialize MinIO bucket {} after {} attempts — service continues in degraded mode", minioProperties.bucket(), maxRetries, e);
+                    // do NOT throw — let service start, health indicator will report DOWN
+                    return;
+                }
+                try {
+                    Thread.sleep(backoffMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    log.error("Bucket init interrupted");
+                    return;
+                }
             }
-
-        } catch (Exception e) {
-
-            log.error(
-                    "Cannot initialize MinIO bucket: {}",
-                    minioProperties.bucket(),
-                    e
-            );
-
-            throw new IllegalStateException(
-                    "Không thể khởi tạo MinIO bucket",
-                    e
-            );
         }
     }
 }

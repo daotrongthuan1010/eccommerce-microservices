@@ -171,7 +171,7 @@ services:
     - -ec
     command:
     - /opt/bitnami/minio-client/bin/mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD";
-      /opt/bitnami/minio-client/bin/mc mb --ignore-existing local/product-assets
+      /opt/bitnami/minio-client/bin/mc mb --ignore-existing local/product-assets; /opt/bitnami/minio-client/bin/mc mb --ignore-existing local/ecommerce-files
   kafka-init:
     image: confluentinc/cp-kafka:7.9.2
     networks:
@@ -311,6 +311,13 @@ services:
     depends_on:
       elasticsearch:
         condition: service_healthy
+  clamav:
+    image: clamav/clamav:1.4.3_base
+    restart: unless-stopped
+    networks:
+    - ecommerce
+    ports:
+    - 0.0.0.0:3310:3310
   discovery-service:
     profiles:
     - apps
@@ -369,6 +376,7 @@ services:
       PRODUCT_SERVICE_URL: lb://product-service
       REVIEW_SERVICE_URL: lb://review-service
       ANALYTICS_SERVICE_URL: lb://analytics-service
+      FILE_SERVICE_URL: lb://file-service
       EUREKA_SERVER_URL: http://162.4.177.91:8761/eureka/
       EUREKA_HOSTNAME: api-gateway
       ZIPKIN_ENDPOINT: http://162.4.177.91:9411/api/v2/spans
@@ -917,6 +925,53 @@ services:
       kafka:
         condition: service_healthy
       postgres:
+        condition: service_healthy
+  file-service:
+    profiles:
+    - apps
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: file-service
+    image: eccommerce/file-service:local
+    restart: unless-stopped
+    networks:
+    - ecommerce
+    ports:
+    - 0.0.0.0:8095:8095
+    - 0.0.0.0:9095:9090
+    environment:
+      SERVER_PORT: '8095'
+      GRPC_SERVER_PORT: '9090'
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_PUBLIC_ENDPOINT: http://162.4.177.91:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ecommerce-files
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: '3310'
+      CLAMAV_ENABLED: 'true'
+      EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
+      EUREKA_HOSTNAME: file-service
+      ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/ecommerce/protocol/openid-connect/certs
+    mem_limit: 512m
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -fsS
+      - http://localhost:8095/actuator/health
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    depends_on:
+      discovery-service:
+        condition: service_started
+      minio:
         condition: service_healthy
 networks:
   ecommerce:

@@ -4,10 +4,13 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -29,9 +32,39 @@ public class GlobalExceptionHandler {
         return body(HttpStatus.BAD_REQUEST, e.getMessage());
     }
 
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    ResponseEntity<Map<String, Object>> methodArgNotValid(MethodArgumentNotValidException e) {
+        String msg = e.getBindingResult().getFieldErrors().stream()
+                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+                .reduce((a, b) -> a + "; " + b).orElse(e.getMessage());
+        return body(HttpStatus.BAD_REQUEST, msg);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    ResponseEntity<Map<String, Object>> constraintViolation(ConstraintViolationException e) {
+        return body(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+
     @ExceptionHandler(FileNotFoundInStorageException.class)
     ResponseEntity<Map<String, Object>> notFound(FileNotFoundInStorageException e) {
         return body(HttpStatus.NOT_FOUND, e.getMessage());
+    }
+
+    @ExceptionHandler(VirusDetectedException.class)
+    ResponseEntity<Map<String, Object>> virusDetected(VirusDetectedException e) {
+        log.warn("Virus detected: {}", e.getMessage());
+        return body(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
+    }
+
+    @ExceptionHandler(VirusScanException.class)
+    ResponseEntity<Map<String, Object>> virusScan(VirusScanException e) {
+        log.error("Virus scan error", e);
+        return body(HttpStatus.SERVICE_UNAVAILABLE, "Virus scan temporarily unavailable");
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    ResponseEntity<Map<String, Object>> accessDenied(AccessDeniedException e) {
+        return body(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
