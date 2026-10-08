@@ -102,6 +102,29 @@
 
 
         <!-- ================================================== -->
+        <!-- COMMON (chuẩn chung) — file-service làm mẫu trước -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>com.dtthuan3.ecommerce</groupId>
+            <artifactId>common</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.dtthuan3.ecommerce</groupId>
+            <artifactId>common-security</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.dtthuan3.ecommerce</groupId>
+            <artifactId>common-web</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+
+        <!-- ================================================== -->
         <!-- SECURITY                                           -->
         <!-- ================================================== -->
 
