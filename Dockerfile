@@ -4,6 +4,8 @@ ARG SERVICE
 WORKDIR /workspace
 COPY pom.xml .
 COPY common ./common
+COPY common-security ./common-security
+COPY common-web ./common-web
 COPY services ./services
 RUN --mount=type=cache,target=/root/.m2 mvn -B -pl services/${SERVICE} -am package -DskipTests && cp services/${SERVICE}/target/${SERVICE}-0.0.1-SNAPSHOT.jar /tmp/app.jar
 

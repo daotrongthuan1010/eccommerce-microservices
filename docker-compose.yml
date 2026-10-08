@@ -973,6 +973,23 @@ services:
         condition: service_started
       minio:
         condition: service_healthy
+  nexus:
+    image: sonatype/nexus3:3.78.0
+    restart: unless-stopped
+    networks:
+    - ecommerce
+    ports:
+    - 0.0.0.0:18081:8081
+    environment:
+      INSTALL4J_ADD_VM_PARAMS: -Xms512m -Xmx1024m -XX:MaxDirectMemorySize=512m
+    volumes:
+    - nexus-data:/nexus-data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/service/rest/v1/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
 networks:
   ecommerce:
     driver: bridge
@@ -985,3 +1002,4 @@ volumes:
   elasticsearch-data: {}
   prometheus-data: {}
   grafana-data: {}
+  nexus-data: {}
