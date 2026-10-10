@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package file;
+
+option java_multiple_files = true;
+option java_package = "com.dtthuan3.ecommerce.grpc.file";
+option java_outer_classname = "FileServiceProto";
+
+service FileGrpcService {
+  rpc UploadFile(UploadFileRequest)
+      returns (UploadFileResponse);
+}
+
+message UploadFileRequest {
+  bytes data = 1;
+  string filename = 2;
+  string content_type = 3;
+  string folder = 4;
+}
+
+message UploadFileResponse {
+  string key = 1;
+  string bucket = 2;
+  string original_name = 3;
+  string content_type = 4;
+  int64 size = 5;
+  string url = 6;
+  int64 url_expires_in_seconds = 7;
+}
