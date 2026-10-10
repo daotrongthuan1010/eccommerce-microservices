@@ -1,7 +1,7 @@
 package com.dtthuan3.ecommerce.catalogservice.dto.request;
 
 import com.dtthuan3.ecommerce.catalogservice.contstant.CategoryStatus;
-import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -10,9 +10,9 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class CategoryRequest {
+public class CategoryCreateRequest {
 
-    private Long parentId;
+    private String parentId;
 
     @NotBlank(message = "Tên danh mục không được để trống")
     @Size(
@@ -30,15 +30,15 @@ public class CategoryRequest {
 
     private String description;
 
-    @Size(
-            max = 500,
-            message = "URL hình ảnh không được vượt quá 500 ký tự"
-    )
-    private String logoUrl;
 
-    @NotNull(message = "Thứ tự hiển thị không được để trống")
+    @Min(
+            value = 0,
+            message = "Thứ tự hiển thị không được nhỏ hơn 0"
+    )
     private Integer displayOrder = 0;
 
     @NotNull(message = "Trạng thái không được để trống")
-    private CategoryStatus status;
+    private CategoryStatus status = CategoryStatus.ACTIVE;
+
+
 }

@@ -1,75 +1,60 @@
 package com.dtthuan3.ecommerce.catalogservice.entity;
 
-import com.dtthuan3.ecommerce.catalogservice.contstant.ManufacturerStatus;
-import jakarta.persistence.*;
-import lombok.*;
 
+import com.dtthuan3.ecommerce.catalogservice.contstant.ManufacturerStatus;
+import com.dtthuan3.ecommerce.catalogservice.generator.StringUuidSequenceGenerator;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import org.hibernate.annotations.GenericGenerator;
+import org.hibernate.annotations.Parameter;
+
+@Getter
+@Setter
 @Entity
 @Table(
         name = "manufacturers",
         indexes = {
-                @Index(
-                        name = "idx_manufacturers_status",
-                        columnList = "status"
-                ),
-                @Index(
-                        name = "idx_manufacturers_name",
-                        columnList = "name"
-                )
+                @Index(name = "idx_manufacturers_status", columnList = "status"),
+                @Index(name = "idx_manufacturers_country", columnList = "country")
         }
 )
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class Manufacturers extends BaseEntity {
 
+    // ID duy nhất của nhà sản xuất
     @Id
-    @GeneratedValue(
-            strategy = GenerationType.SEQUENCE,
-            generator = "manufacturers_seq"
+    @GeneratedValue(generator = "manufacturer_uuid_generator")
+    @GenericGenerator(
+            name = "manufacturer_uuid_generator",
+            type = StringUuidSequenceGenerator.class,
+            parameters = {
+                    @Parameter(
+                            name = "sequence_name",
+                            value = "manufacturers_id_seq"
+                    )
+            }
     )
-    @SequenceGenerator(
-            name = "manufacturers_seq",
-            sequenceName = "manufacturers_id_seq",
-            allocationSize = 50
-    )
-    private Long id;
+    @Column(name = "id", nullable = false, updatable = false, length = 36)
+    private String id;
 
-    @Column(
-            name = "name",
-            nullable = false,
-            length = 255
-    )
+    // Tên nhà sản xuất
+    @Column(name = "name", nullable = false, length = 255)
     private String name;
 
-    @Column(
-            name = "country",
-            nullable = false,
-            length = 50
-    )
+    // Quốc gia của nhà sản xuất
+    @Column(name = "country", length = 100)
     private String country;
 
-    @Column(
-            name = "description",
-            columnDefinition = "TEXT"
-    )
+    // Mô tả nhà sản xuất
+    @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    @Column(
-            name = "website",
-            length = 500
-    )
+    // Website chính thức của nhà sản xuất
+    @Column(name = "website", length = 500)
     private String website;
 
+    // Trạng thái hoạt động của nhà sản xuất
     @Enumerated(EnumType.STRING)
-    @Column(
-            name = "status",
-            nullable = false,
-            length = 30
-    )
-    @Builder.Default
-    private ManufacturerStatus status =
-            ManufacturerStatus.ACTIVE;
+    @Column(name = "status", nullable = false, length = 20)
+    private ManufacturerStatus status;
 }

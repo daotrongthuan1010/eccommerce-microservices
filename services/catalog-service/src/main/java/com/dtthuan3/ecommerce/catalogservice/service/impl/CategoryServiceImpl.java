@@ -1,7 +1,7 @@
 package com.dtthuan3.ecommerce.catalogservice.service.impl;
 
 import com.dtthuan3.ecommerce.catalogservice.contstant.CacheTtl;
-import com.dtthuan3.ecommerce.catalogservice.dto.request.CategoryRequest;
+import com.dtthuan3.ecommerce.catalogservice.dto.request.CategoryCreateRequest;
 import com.dtthuan3.ecommerce.catalogservice.dto.response.CategoryResponse;
 import com.dtthuan3.ecommerce.catalogservice.entity.Category;
 import com.dtthuan3.ecommerce.catalogservice.exception.DuplicateResourceException;
@@ -37,7 +37,7 @@ public class CategoryServiceImpl
     @Override
     @Transactional
     public CategoryResponse create(
-            CategoryRequest request,
+            CategoryCreateRequest request,
             MultipartFile image
     ) {
 
@@ -106,7 +106,7 @@ public class CategoryServiceImpl
     @Transactional
     public CategoryResponse update(
             Long id,
-            CategoryRequest request,
+            CategoryCreateRequest request,
             MultipartFile image) {
 
         Category category = categoryRepository.findById(id)

@@ -1,6 +1,6 @@
 package com.dtthuan3.ecommerce.catalogservice.controller;
 
-import com.dtthuan3.ecommerce.catalogservice.dto.request.CategoryRequest;
+import com.dtthuan3.ecommerce.catalogservice.dto.request.CategoryCreateRequest;
 import com.dtthuan3.ecommerce.catalogservice.dto.response.CategoryResponse;
 import com.dtthuan3.ecommerce.catalogservice.service.CategoryService;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -26,7 +26,7 @@ public class CategoryController {
     )
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CategoryResponse> create(
-            @Valid @RequestBody CategoryRequest request
+            @Valid @RequestBody CategoryCreateRequest request
     ) {
 
         CategoryResponse response =
@@ -72,7 +72,7 @@ public class CategoryController {
             )
             @PathVariable Long id,
 
-            @Valid @RequestBody CategoryRequest request
+            @Valid @RequestBody CategoryCreateRequest request
     ) {
 
         return ResponseEntity.ok(
