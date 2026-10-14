@@ -8,6 +8,7 @@
 
     <modelVersion>4.0.0</modelVersion>
 
+
     <!-- ====================================================== -->
     <!-- PARENT                                                 -->
     <!-- ====================================================== -->
@@ -33,12 +34,13 @@
 
     <properties>
 
-        <!-- Đồng bộ với file-service -->
         <grpc.version>1.68.1</grpc.version>
 
         <protobuf.version>3.25.5</protobuf.version>
 
         <grpc.spring.version>3.1.0.RELEASE</grpc.spring.version>
+
+        <lombok.version>1.18.40</lombok.version>
 
     </properties>
 
@@ -51,13 +53,18 @@
 
 
         <!-- ================================================== -->
-        <!-- SPRING BOOT                                        -->
+        <!-- SPRING WEB                                         -->
         <!-- ================================================== -->
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- ACTUATOR                                           -->
+        <!-- ================================================== -->
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -66,7 +73,7 @@
 
 
         <!-- ================================================== -->
-        <!-- DATABASE                                           -->
+        <!-- JPA                                                -->
         <!-- ================================================== -->
 
         <dependency>
@@ -74,10 +81,20 @@
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
 
+
+        <!-- ================================================== -->
+        <!-- JDBC                                               -->
+        <!-- ================================================== -->
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- POSTGRESQL                                         -->
+        <!-- ================================================== -->
 
         <dependency>
             <groupId>org.postgresql</groupId>
@@ -132,13 +149,18 @@
 
 
         <!-- ================================================== -->
-        <!-- MONITORING                                         -->
+        <!-- PROMETHEUS                                         -->
         <!-- ================================================== -->
 
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- TRACING / ZIPKIN                                   -->
+        <!-- ================================================== -->
 
         <dependency>
             <groupId>io.micrometer</groupId>
@@ -154,16 +176,6 @@
         <!-- ================================================== -->
         <!-- gRPC CLIENT                                        -->
         <!-- ================================================== -->
-
-        <!--
-            review-service đóng vai trò CLIENT.
-
-            review-service
-                  |
-                  | gRPC
-                  v
-            file-service
-        -->
 
         <dependency>
             <groupId>net.devh</groupId>
@@ -196,6 +208,7 @@
 
         <!-- ================================================== -->
         <!-- PROTOBUF JAVA                                      -->
+        <!-- ByteString nằm trong dependency này                -->
         <!-- ================================================== -->
 
         <dependency>
@@ -223,8 +236,26 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>com.dtthuan3.ecommerce</groupId>
+            <artifactId>file-service</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+
+
+        <!--
+            KHÔNG dependency trực tiếp tới file-service.
+
+            review-service
+                    |
+                    | gRPC
+                    v
+            file-service
+        -->
 
     </dependencies>
 
@@ -255,7 +286,33 @@
 
 
             <!-- ================================================== -->
-            <!-- PROTOBUF COMPILER                                  -->
+            <!-- JAVA COMPILER + LOMBOK                              -->
+            <!-- ================================================== -->
+
+            <plugin>
+
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+
+                <configuration>
+
+                    <annotationProcessorPaths>
+
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+
+                    </annotationProcessorPaths>
+
+                </configuration>
+
+            </plugin>
+
+
+            <!-- ================================================== -->
+            <!-- PROTOBUF + gRPC GENERATOR                           -->
             <!-- ================================================== -->
 
             <plugin>
@@ -266,14 +323,9 @@
 
                 <configuration>
 
-                    <!-- Compile message .proto -> Java -->
-
                     <protocArtifact>
                         com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}
                     </protocArtifact>
-
-
-                    <!-- Generate gRPC stub -->
 
                     <pluginId>
                         grpc-java
@@ -293,12 +345,16 @@
                         <goals>
 
                             <!--
+                                Sinh:
+                                FileServiceProto
                                 UploadFileRequest
                                 UploadFileResponse
                             -->
                             <goal>compile</goal>
 
+
                             <!--
+                                Sinh:
                                 FileGrpcServiceGrpc
                             -->
                             <goal>compile-custom</goal>
