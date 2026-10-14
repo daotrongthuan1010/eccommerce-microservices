@@ -13,16 +13,16 @@ public record IssueInventoryRequest(
         /**
          * ID inventory cần xuất hàng.
          */
-        @NotBlank(message = "Inventory id is required")
+        @NotBlank(message = "inventoryId là bắt buộc")
         String inventoryId,
 
         /**
          * Số lượng cần xuất khỏi kho.
          */
-        @NotNull(message = "Quantity is required")
-        @Positive(message = "Quantity must be greater than 0")
+        @NotNull(message = "quantity là bắt buộc")
+        @Positive(message = "quantity phải lớn hơn 0")
         BigDecimal quantity,
         /** Version client đã đọc; giúp phát hiện dữ liệu tồn đã thay đổi trước khi xử lý. */
-        @PositiveOrZero Long expectedVersion
+        @PositiveOrZero(message = "expectedVersion phải lớn hơn hoặc bằng 0") Long expectedVersion
 ) {
 }

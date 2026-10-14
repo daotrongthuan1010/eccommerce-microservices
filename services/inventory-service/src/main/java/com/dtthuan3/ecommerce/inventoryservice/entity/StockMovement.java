@@ -28,14 +28,9 @@ public class StockMovement {
     @Column(name = "id", nullable = false, updatable = false, length = 36)
     private String id;
 
-    /** Inventory chịu tác động; mỗi movement chỉ thuộc về một inventory. */
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
-            name = "inventory_id",
-            nullable = false,
-            foreignKey = @ForeignKey(name = "fk_stock_movement_inventory")
-    )
-    private Inventory inventory;
+    /** Chỉ lưu ID Inventory để tránh quan hệ JPA; database vẫn có FK kiểm soát inventory_id. */
+    @Column(name = "inventory_id", nullable = false, length = 255)
+    private String inventoryId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "movement_type", nullable = false, length = 50)

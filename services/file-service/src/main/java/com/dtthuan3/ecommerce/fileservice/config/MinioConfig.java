@@ -3,11 +3,12 @@ package com.dtthuan3.ecommerce.fileservice.config;
 import io.minio.MinioClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 @Configuration
 public class MinioConfig {
-    //dùng để upload delete stat download
     @Bean
+    @Primary
     public MinioClient minioClient(MinioProperties props) {
         return MinioClient.builder()
                 .endpoint(props.endpoint())
@@ -15,7 +16,7 @@ public class MinioConfig {
                 .region(props.region())
                 .build();
     }
-    //dùng để tạo URL tạm thời.
+
     @Bean
     public MinioClient presignMinioClient(MinioProperties props) {
         return MinioClient.builder()

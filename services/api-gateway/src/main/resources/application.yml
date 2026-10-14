@@ -8,6 +8,20 @@ spring:
       server:
         webflux:
           routes:
+          # Chuyển API tạo phiếu nhập phiên bản 1 đến Inventory; bỏ /api/v1 để khớp route của service.
+          - id: inventory-v1-supplier-receipt-create
+            uri: ${INVENTORY_SERVICE_URL:lb://inventory-service}
+            predicates:
+            - Path=/api/v1/warehouses/*/receipts
+            filters:
+            - StripPrefix=2
+          # Định tuyến cập nhật số lượng thực nhận của phiếu nhập về Inventory Service.
+          - id: inventory-v1-supplier-receipt-actuals
+            uri: ${INVENTORY_SERVICE_URL:lb://inventory-service}
+            predicates:
+            - Path=/api/v1/receipts/*/actuals
+            filters:
+            - StripPrefix=2
           - id: auth-service
             uri: ${AUTH_SERVICE_URL:lb://auth-service}
             predicates:
@@ -72,6 +86,12 @@ spring:
             uri: ${ANALYTICS_SERVICE_URL:lb://analytics-service}
             predicates:
             - Path=/api/analytics/**
+            filters:
+            - StripPrefix=2
+          - id: file-service
+            uri: ${FILE_SERVICE_URL:lb://file-service}
+            predicates:
+            - Path=/api/file/**
             filters:
             - StripPrefix=2
   security:

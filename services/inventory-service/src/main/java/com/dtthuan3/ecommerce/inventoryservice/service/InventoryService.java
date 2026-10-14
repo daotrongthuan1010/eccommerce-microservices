@@ -31,13 +31,13 @@ public interface InventoryService {
 
     TransferInventoryResponse transfer(TransferInventoryRequest request);
 
-    List<InventoryResponse> bySku(String sku);
+    Page<InventoryResponse> bySku(String sku, Pageable pageable);
 
-    List<InventoryResponse> byWarehouse(String warehouseId);
+    Page<InventoryResponse> byWarehouse(String warehouseId, Pageable pageable);
 
-    List<InventoryResponse> byLocation(String locationId);
+    Page<InventoryResponse> byLocation(String locationId, Pageable pageable);
 
-    List<InventoryResponse> available(String sku, String warehouseId, String locationId);
+    Page<InventoryResponse> available(String sku, String warehouseId, String locationId, Pageable pageable);
 
     Page<StockMovementResponse> movementHistory(String inventoryId, MovementType type,
                                                 String referenceId, LocalDateTime from,

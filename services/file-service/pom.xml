@@ -28,6 +28,26 @@
     <artifactId>file-service</artifactId>
 
 
+    <repositories>
+        <repository>
+            <id>nexus-public</id>
+            <name>Nexus Public (qua 162.4.177.91:18081)</name>
+            <url>http://162.4.177.91:18081/repository/maven-public/</url>
+            <releases><enabled>true</enabled></releases>
+            <snapshots><enabled>true</enabled></snapshots>
+        </repository>
+    </repositories>
+    <pluginRepositories>
+        <pluginRepository>
+            <id>nexus-public</id>
+            <name>Nexus Public</name>
+            <url>http://162.4.177.91:18081/repository/maven-public/</url>
+            <releases><enabled>true</enabled></releases>
+            <snapshots><enabled>true</enabled></snapshots>
+        </pluginRepository>
+    </pluginRepositories>
+
+
     <!-- ====================================================== -->
     <!-- VERSION                                                -->
     <!-- ====================================================== -->
@@ -98,6 +118,29 @@
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+        </dependency>
+
+
+        <!-- ================================================== -->
+        <!-- COMMON (chuẩn chung) — file-service làm mẫu trước -->
+        <!-- ================================================== -->
+
+        <dependency>
+            <groupId>com.dtthuan3.ecommerce</groupId>
+            <artifactId>common</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.dtthuan3.ecommerce</groupId>
+            <artifactId>common-security</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.dtthuan3.ecommerce</groupId>
+            <artifactId>common-web</artifactId>
+            <version>${project.version}</version>
         </dependency>
 
 

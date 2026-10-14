@@ -18,6 +18,7 @@
     <dependency><groupId>io.zipkin.reporter2</groupId><artifactId>zipkin-reporter-brave</artifactId></dependency>
     <dependency><groupId>net.devh</groupId><artifactId>grpc-spring-boot-starter</artifactId><version>${grpc-spring-boot-starter.version}</version></dependency>
     <dependency><groupId>com.google.protobuf</groupId><artifactId>protobuf-java</artifactId><version>${protobuf.version}</version></dependency>
+    <dependency><groupId>com.dtthuan3.ecommerce</groupId><artifactId>common</artifactId><version>0.0.1-SNAPSHOT</version></dependency>
   </dependencies>
   <build>
     <plugins>
