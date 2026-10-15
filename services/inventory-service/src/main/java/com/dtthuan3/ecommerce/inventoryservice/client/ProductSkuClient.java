@@ -2,6 +2,7 @@ package com.dtthuan3.ecommerce.inventoryservice.client;
 
 import com.dtthuan3.ecommerce.common.exception.BusinessException;
 import com.dtthuan3.ecommerce.common.exception.ErrorCode;
+
 import com.dtthuan3.ecommerce.inventoryservice.entity.SkuCatalogProjection;
 import com.dtthuan3.ecommerce.inventoryservice.repository.SkuCatalogProjectionRepository;
 import com.dtthuan3.ecommerce.inventoryservice.port.ActiveSkuValidator;
@@ -98,7 +99,7 @@ public class ProductSkuClient implements ActiveSkuValidator {
                 .filter(code -> !Boolean.TRUE.equals(activeByCode.get(code)))
                 .toList();
         if (!invalidSkus.isEmpty()) {
-            throw new BusinessException("INVALID_SKU", org.springframework.http.HttpStatus.BAD_REQUEST,
+            throw new BusinessException(ErrorCode.INVALID_OPERATION,
                     "SKU không tồn tại hoặc đã ngừng hoạt động: " + String.join(", ", invalidSkus));
         }
     }

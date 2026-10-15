@@ -3,14 +3,13 @@ package com.dtthuan3.ecommerce.inventoryservice.integration;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.dtthuan3.ecommerce.inventoryservice.integration.event.ProductSkuEvent;
-import com.dtthuan3.ecommerce.inventoryservice.integration.event.WarehouseStatusChangedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Nhận event từ Product/Warehouse và chuyển cho lớp nghiệp vụ cập nhật projection cục bộ.
+ * Nhận event Product và chuyển cho lớp nghiệp vụ cập nhật projection SKU cục bộ.
  * Consumer này không sở hữu dữ liệu gốc và không ghi trực tiếp vào bảng nghiệp vụ tồn kho.
  */
 @Slf4j
@@ -31,18 +30,6 @@ public class InventoryProjectionKafkaListener {
             return;
         }
         projectionEventService.applyProductEvent(event);
-    }
-
-    /** Đồng bộ trạng thái/enterprise của Warehouse mà không tạo foreign key sang database service khác. */
-    @KafkaListener(topics = "${inventory.kafka.warehouse-events-topic:warehouse-events}")
-    public void onWarehouseEvent(String payload) {
-        WarehouseStatusChangedEvent event = readEvent(payload, WarehouseStatusChangedEvent.class);
-        // Bỏ qua các event khác trên cùng topic để consumer có thể mở rộng mà không ảnh hưởng projection hiện tại.
-        if (!"WarehouseStatusChanged".equals(event.eventType())) {
-            log.debug("Bỏ qua Warehouse event không thuộc projection trạng thái kho: {}", event.eventType());
-            return;
-        }
-        projectionEventService.applyWarehouseEvent(event);
     }
 
     /** Payload dùng JSON phẳng theo hợp đồng INV-01; payload sai định dạng được đẩy cho listener container xử lý lỗi. */

@@ -32,7 +32,7 @@ public class SupplierReceipt {
     @Column(nullable = false, updatable = false, length = 36)
     private String id;
 
-    /** ID tham chiếu sang Warehouse Service; không tạo quan hệ JPA xuyên microservice. */
+    /** ID Warehouse nội bộ; không tạo quan hệ JPA, database giữ khóa ngoại trên header phiếu. */
     @Column(name = "warehouse_id", nullable = false, length = 100)
     private String warehouseId;
 

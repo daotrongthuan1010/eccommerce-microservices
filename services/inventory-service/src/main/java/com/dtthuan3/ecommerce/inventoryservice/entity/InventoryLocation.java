@@ -11,7 +11,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Location do Inventory quản lý; warehouseId là ID tham chiếu bên ngoài, không phải liên kết JPA. */
+/** Location thuộc Warehouse nội bộ; warehouseId là scalar ID với khóa ngoại do database quản lý. */
 @Entity
 @Table(name = "inventory_location",
         uniqueConstraints = @UniqueConstraint(
@@ -29,7 +29,7 @@ public class InventoryLocation {
     @Column(nullable = false, updatable = false, length = 100)
     private String id;
 
-    /** ID tham chiếu sang Warehouse Service; không có @ManyToOne vì khác service/database. */
+    /** ID Warehouse; không tạo quan hệ JPA, database giữ khóa ngoại từ inventory_location. */
     @Column(name = "warehouse_id", nullable = false, length = 100)
     private String warehouseId;
 

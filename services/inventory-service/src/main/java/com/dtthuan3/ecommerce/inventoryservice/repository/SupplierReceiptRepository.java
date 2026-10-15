@@ -2,6 +2,9 @@ package com.dtthuan3.ecommerce.inventoryservice.repository;
 
 import com.dtthuan3.ecommerce.inventoryservice.repository.model.SupplierReceiptHeader;
 import com.dtthuan3.ecommerce.inventoryservice.repository.model.SupplierReceiptLineRecord;
+import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptSummaryResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -13,6 +16,12 @@ import java.util.Optional;
 public interface SupplierReceiptRepository {
     /** Tìm header theo operationId để trả lại kết quả cũ khi caller retry. */
     Optional<SupplierReceiptHeader> findByOperationId(String operationId);
+
+    /** Đọc header theo ID để dựng trang chi tiết phiếu nhập. */
+    Optional<SupplierReceiptHeader> findById(String receiptId);
+
+    /** Liệt kê tóm tắt phiếu thuộc một kho, không tải các dòng chi tiết của từng phiếu. */
+    Page<SupplierReceiptSummaryResponse> findByWarehouseId(String warehouseId, Pageable pageable);
 
     /** Đọc và khóa header trong transaction để serialize cập nhật số lượng trên cùng một phiếu. */
     Optional<SupplierReceiptHeader> findByIdForUpdate(String receiptId);

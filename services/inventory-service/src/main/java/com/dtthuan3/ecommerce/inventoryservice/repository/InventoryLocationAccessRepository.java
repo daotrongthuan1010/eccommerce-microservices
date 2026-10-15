@@ -21,6 +21,6 @@ public interface InventoryLocationAccessRepository {
     /** Dữ liệu tối thiểu của Location cần để kiểm tra warehouse ownership và trạng thái hoạt động. */
     record LocationSnapshot(String id, String warehouseId, boolean active) {}
 
-    /** Dữ liệu projection tối thiểu dùng để xác minh trạng thái kho và enterprise sở hữu. */
+    /** Dữ liệu Warehouse tối thiểu dùng để xác minh trạng thái kho và enterprise sở hữu. */
     record WarehouseSnapshot(String warehouseId, String enterpriseId, String status) {}
 }

@@ -3,7 +3,11 @@ package com.dtthuan3.ecommerce.inventoryservice.repository.customrepo;
 import com.dtthuan3.ecommerce.inventoryservice.repository.SupplierReceiptRepository;
 import com.dtthuan3.ecommerce.inventoryservice.repository.model.SupplierReceiptHeader;
 import com.dtthuan3.ecommerce.inventoryservice.repository.model.SupplierReceiptLineRecord;
+import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptSummaryResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -61,6 +65,60 @@ public class SupplierReceiptRepositoryImpl implements SupplierReceiptRepository 
     public Optional<SupplierReceiptHeader> findByOperationId(String operationId) {
         List<SupplierReceiptHeader> matches = jdbcTemplate.query(FIND_HEADER_SQL, HEADER_ROW_MAPPER, operationId);
         return matches.stream().findFirst();
+    }
+
+    /**
+     * Đọc đúng một phiếu bằng primary key; chỉ lấy các cột của header cần cho response.
+     * Không dùng SELECT FOR UPDATE vì đây là API đọc và không được giữ khóa ghi.
+     */
+    @Override
+    public Optional<SupplierReceiptHeader> findById(String receiptId) {
+        List<SupplierReceiptHeader> matches = jdbcTemplate.query("""
+                        SELECT id, warehouse_id, supplier_ref, operation_id, payload_hash, status, version, created_at
+                        FROM inventory_supplier_receipt
+                        WHERE id = ?
+                        """,
+                HEADER_ROW_MAPPER, receiptId);
+        return matches.stream().findFirst();
+    }
+
+    /**
+     * Trả danh sách tóm tắt có phân trang. LEFT JOIN và COUNT cho biết số dòng mỗi phiếu,
+     * nhưng không kéo toàn bộ dữ liệu SKU/chứng từ của mọi phiếu vào bộ nhớ.
+     */
+    @Override
+    public Page<SupplierReceiptSummaryResponse> findByWarehouseId(String warehouseId, Pageable pageable) {
+        List<SupplierReceiptSummaryResponse> content = jdbcTemplate.query("""
+                        SELECT receipt.id, receipt.warehouse_id, receipt.supplier_ref, receipt.status,
+                               receipt.version, receipt.operation_id, receipt.created_at,
+                               COUNT(line.id) AS line_count
+                        FROM inventory_supplier_receipt receipt
+                        LEFT JOIN inventory_supplier_receipt_line line ON line.receipt_id = receipt.id
+                        WHERE receipt.warehouse_id = ?
+                        GROUP BY receipt.id, receipt.warehouse_id, receipt.supplier_ref, receipt.status,
+                                 receipt.version, receipt.operation_id, receipt.created_at
+                        ORDER BY receipt.created_at DESC, receipt.id DESC
+                        LIMIT ? OFFSET ?
+                        """,
+                (rs, rowNumber) -> new SupplierReceiptSummaryResponse(
+                        rs.getString("id"),
+                        rs.getString("warehouse_id"),
+                        rs.getString("supplier_ref"),
+                        rs.getString("status"),
+                        rs.getLong("version"),
+                        rs.getString("operation_id"),
+                        rs.getLong("line_count"),
+                        rs.getTimestamp("created_at").toInstant()),
+                warehouseId, pageable.getPageSize(), pageable.getOffset());
+
+        return PageableExecutionUtils.getPage(content, pageable, () -> {
+            Long total = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*)
+                    FROM inventory_supplier_receipt
+                    WHERE warehouse_id = ?
+                    """, Long.class, warehouseId);
+            return total == null ? 0 : total;
+        });
     }
 
     /**

@@ -2,9 +2,11 @@ package com.dtthuan3.ecommerce.inventoryservice.service.impl;
 
 import com.dtthuan3.ecommerce.common.exception.BusinessException;
 import com.dtthuan3.ecommerce.common.exception.ErrorCode;
+
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.CreateSupplierReceiptRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.UpdateSupplierReceiptActualsRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptResponse;
+import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptSummaryResponse;
 import com.dtthuan3.ecommerce.inventoryservice.repository.SupplierReceiptRepository;
 import com.dtthuan3.ecommerce.inventoryservice.repository.model.SupplierReceiptHeader;
 import com.dtthuan3.ecommerce.inventoryservice.repository.model.SupplierReceiptLineRecord;
@@ -15,6 +17,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
@@ -55,6 +60,33 @@ public class SupplierReceiptServiceImpl implements SupplierReceiptService {
     /** Ranh giới transaction cục bộ bao trùm header, lines và document references. */
     private final TransactionTemplate transactionTemplate;
 
+    /** Đọc phiếu cùng toàn bộ dữ liệu con để response API luôn có cấu trúc đầy đủ. */
+    @Override
+    @Transactional(readOnly = true)
+    public SupplierReceiptResponse getById(String receiptId) {
+        // Bước 1: tìm header; ID không tồn tại được trả thành lỗi 404 qua BusinessException chung.
+        SupplierReceiptHeader header = receiptRepository.findById(receiptId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "Không tìm thấy phiếu nhập: " + receiptId));
+
+        // Bước 2: đọc các dòng theo line_number để giữ nguyên thứ tự đã nhập trên phiếu.
+        List<SupplierReceiptLineRecord> lines = receiptRepository.findLines(receiptId);
+
+        // Bước 3: đọc chứng từ đã gắn; thứ tự ổn định giúp các lần GET trả nội dung nhất quán.
+        List<String> assetIds = receiptRepository.findDocumentAssetIds(receiptId);
+
+        // Bước 4: ẩn payload hash và model lưu trữ, chỉ trả DTO công khai của API.
+        return toResponse(header, lines, assetIds);
+    }
+
+    /** Đọc danh sách phiếu theo kho; dữ liệu dòng hàng chi tiết chỉ tải khi gọi API getById. */
+    @Override
+    @Transactional(readOnly = true)
+    public Page<SupplierReceiptSummaryResponse> listByWarehouse(String warehouseId, Pageable pageable) {
+        // Chuẩn hóa ID để tránh truy vấn sai chỉ vì khoảng trắng đầu/cuối từ query/path parameter.
+        return receiptRepository.findByWarehouseId(warehouseId.trim(), pageable);
+    }
+
     /**
      * Kiểm tra dữ liệu phụ thuộc bên ngoài trước, sau đó mới mở transaction ghi ngắn vào Inventory.
      * Nếu operationId đã được xử lý, kết quả cũ được trả lại mà không gọi lại Product Service;
@@ -72,7 +104,7 @@ public class SupplierReceiptServiceImpl implements SupplierReceiptService {
 
         // Tài liệu là tập liên kết, không mang thứ tự nghiệp vụ; sắp xếp để retry trả response như nhau.
         if (assetIds.stream().distinct().count() != assetIds.size()) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST,
+            throw new BusinessException(ErrorCode.INVALID_OPERATION_CONTENT,
                     "documentAssetIds không được chứa giá trị trùng");
         }
 
@@ -232,13 +264,13 @@ public class SupplierReceiptServiceImpl implements SupplierReceiptService {
                         "Không tìm thấy phiếu nhập: " + receiptId));
 
         if (!"DRAFT".equals(header.status())) {
-            throw new BusinessException(ErrorCode.CONFLICT,
+            throw new BusinessException(ErrorCode.INVALID_RESOURCE_STATE,
                     "Chỉ được cập nhật số lượng thực nhận khi phiếu còn ở trạng thái DRAFT");
         }
         // version trong model là long nguyên thủy, còn expectedVersion là Long từ request DTO.
         // So sánh giá trị sau khi chặn null để tránh gọi equals() trên kiểu nguyên thủy.
         if (request.expectedVersion() == null || header.version() != request.expectedVersion().longValue()) {
-            throw new BusinessException(ErrorCode.CONFLICT,
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT,
                     "Phiếu đã được cập nhật bởi người khác; hãy tải lại dữ liệu mới nhất");
         }
 
@@ -248,33 +280,33 @@ public class SupplierReceiptServiceImpl implements SupplierReceiptService {
         Set<String> requestedIds = new HashSet<>();
         for (UpdateSupplierReceiptActualsRequest.Line input : request.lines()) {
             if (!requestedIds.add(input.lineId())) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST,
+                throw new BusinessException(ErrorCode.INVALID_OPERATION_CONTENT,
                         "Danh sách lines không được chứa lineId trùng: " + input.lineId());
             }
             if (!currentById.containsKey(input.lineId())) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST,
+                throw new BusinessException(ErrorCode.INVALID_OPERATION_CONTENT,
                         "lineId không thuộc phiếu nhập này: " + input.lineId());
             }
             BigDecimal classified = input.goodQty().add(input.damagedQty()).add(input.inspectionQty());
             if (classified.compareTo(input.actualQty()) != 0) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST,
+                throw new BusinessException(ErrorCode.INVALID_QUANTITY,
                         "goodQty + damagedQty + inspectionQty phải bằng actualQty tại dòng " + input.lineId());
             }
         }
         if (!requestedIds.equals(currentById.keySet())) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST,
+            throw new BusinessException(ErrorCode.INVALID_OPERATION_CONTENT,
                     "Request phải gửi đúng một lần cho toàn bộ dòng hiện có của phiếu");
         }
 
         List<String> evidenceAssetIds = request.evidenceAssetIds() == null ? List.of()
                 : request.evidenceAssetIds().stream().map(String::trim).sorted().toList();
         if (evidenceAssetIds.stream().distinct().count() != evidenceAssetIds.size()) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST,
+            throw new BusinessException(ErrorCode.INVALID_OPERATION_CONTENT,
                     "evidenceAssetIds không được chứa giá trị trùng");
         }
 
         if (!receiptRepository.incrementVersion(receiptId, request.expectedVersion())) {
-            throw new BusinessException(ErrorCode.CONFLICT,
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT,
                     "Phiếu đã thay đổi trạng thái hoặc version trong lúc cập nhật");
         }
 

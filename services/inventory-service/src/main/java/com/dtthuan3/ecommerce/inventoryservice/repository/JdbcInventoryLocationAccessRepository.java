@@ -41,14 +41,14 @@ public class JdbcInventoryLocationAccessRepository implements InventoryLocationA
                         resultSet.getBoolean("active")));
     }
 
-    /** Một truy vấn theo lô và khóa SHARE các projection kho theo thứ tự ID ổn định. */
+    /** Một truy vấn theo lô và khóa SHARE các kho nội bộ theo thứ tự ID ổn định. */
     @Override
     public List<WarehouseSnapshot> findWarehousesForShare(Collection<String> warehouseIds) {
         if (warehouseIds == null || warehouseIds.isEmpty()) return List.of();
 
         return jdbcTemplate.query("""
                         SELECT warehouse_id, enterprise_id, status
-                        FROM inventory_warehouse_projection
+                        FROM inventory_warehouse
                         WHERE warehouse_id IN (:warehouseIds)
                         ORDER BY warehouse_id
                         FOR SHARE
@@ -60,12 +60,12 @@ public class JdbcInventoryLocationAccessRepository implements InventoryLocationA
                         resultSet.getString("status")));
     }
 
-    /** Đọc một projection bằng khóa chính và khóa dòng để trạng thái không đổi giữa kiểm tra và ghi. */
+    /** Đọc kho bằng khóa chính và khóa dòng để trạng thái không đổi giữa kiểm tra và ghi. */
     @Override
     public Optional<WarehouseSnapshot> findWarehouseForShare(String warehouseId) {
         List<WarehouseSnapshot> matches = jdbcTemplate.query("""
                         SELECT warehouse_id, enterprise_id, status
-                        FROM inventory_warehouse_projection
+                        FROM inventory_warehouse
                         WHERE warehouse_id = :warehouseId
                         FOR SHARE
                         """,

@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/** REST API quản lý Location thuộc Inventory; warehouseId chỉ dùng làm mã tham chiếu sang Warehouse Service. */
+/** REST API quản lý Location thuộc một Warehouse nội bộ của Inventory. */
 @RestController
 @RequestMapping("/inventory/locations")
 @RequiredArgsConstructor

@@ -96,13 +96,9 @@ inventory:
   sku-projection:
     # Projection quá tuổi này sẽ được kiểm tra lại với Product Service trước thao tác ghi.
     max-age: ${INVENTORY_SKU_PROJECTION_MAX_AGE:PT5M}
-  warehouse-projection:
-    # Bật true sau khi Warehouse Service phát event; khi đó kho chưa có projection sẽ bị từ chối.
-    required: ${INVENTORY_WAREHOUSE_PROJECTION_REQUIRED:false}
   kafka:
-    # Topic Product/Warehouse mà các @KafkaListener của Inventory đăng ký nhận.
+    # Topic Product mà Inventory đăng ký nhận để cập nhật projection SKU.
     product-events-topic: ${PRODUCT_EVENTS_TOPIC:product-events}
-    warehouse-events-topic: ${WAREHOUSE_EVENTS_TOPIC:warehouse-events}
 
 eureka:
   client:

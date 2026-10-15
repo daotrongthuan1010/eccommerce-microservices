@@ -8,7 +8,7 @@ import java.util.List;
 
 /** Hợp đồng nghiệp vụ cho quản lý Location thuộc Inventory. */
 public interface LocationManagementService {
-    /** Tạo Location mới trong Warehouse đã được cung cấp. */
+    /** Tạo Location mới trong Warehouse nội bộ đang hoạt động. */
     LocationResponse createLocation(CreateLocationRequest request);
 
     /** Đọc một Location theo ID. */

@@ -5,11 +5,13 @@ import com.dtthuan3.ecommerce.inventoryservice.entity.MovementType;
 import com.dtthuan3.ecommerce.inventoryservice.entity.StockMovement;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 /** Hợp đồng truy vấn SQL cho việc ghi và đọc lịch sử movement. */
+@Repository
 public interface StockMovementRepositoryCustom {
     void insertMovement(StockMovement movement);
 

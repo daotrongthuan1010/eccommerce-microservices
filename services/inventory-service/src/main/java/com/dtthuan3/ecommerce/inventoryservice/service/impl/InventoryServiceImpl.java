@@ -1,5 +1,8 @@
 package com.dtthuan3.ecommerce.inventoryservice.service.impl;
 
+import com.dtthuan3.ecommerce.common.exception.BusinessException;
+import com.dtthuan3.ecommerce.common.exception.ErrorCode;
+
 import com.dtthuan3.ecommerce.inventoryservice.config.InventoryBatchProperties;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.AdjustInventoryRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.CreateInventoryRequest;
@@ -15,9 +18,6 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.response.TransferInventoryRes
 import com.dtthuan3.ecommerce.inventoryservice.entity.Inventory;
 import com.dtthuan3.ecommerce.inventoryservice.entity.MovementType;
 import com.dtthuan3.ecommerce.inventoryservice.entity.StockMovement;
-import com.dtthuan3.ecommerce.common.exception.BusinessException;
-import com.dtthuan3.ecommerce.common.exception.ErrorCode;
-import com.dtthuan3.ecommerce.common.exception.ResourceNotFoundException;
 import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryRepository;
 import com.dtthuan3.ecommerce.inventoryservice.repository.StockMovementRepository;
 import com.dtthuan3.ecommerce.inventoryservice.service.InventoryService;
@@ -77,7 +77,7 @@ public class InventoryServiceImpl implements InventoryService {
     public InventoryResponse getById(String id) {
         // Đọc vị trí tồn; nếu không tồn tại thì trả lỗi 404.
         Inventory inventory = inventoryRepository.findInventoryRowById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Inventory với ID: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy Inventory với ID: " + id));
 
         return toResponse(inventory);
     }
@@ -100,7 +100,7 @@ public class InventoryServiceImpl implements InventoryService {
                         sku
                 )
                 .orElseThrow(() ->
-                        new ResourceNotFoundException(
+                        new BusinessException(ErrorCode.NOT_FOUND,
                                 "Không tìm thấy Inventory phù hợp với các thông tin đã cung cấp"
                         )
                 );
@@ -122,7 +122,7 @@ public class InventoryServiceImpl implements InventoryService {
                 request.warehouseId(),
                 request.locationId(),
                 request.sku()
-        ).orElseThrow(() -> new BusinessException(ErrorCode.CONFLICT,
+        ).orElseThrow(() -> new BusinessException(ErrorCode.DUPLICATE_RESOURCE,
                 "Inventory cho SKU này đã tồn tại: " + request.sku()));
 
         return toResponse(inventory);
@@ -158,7 +158,7 @@ public class InventoryServiceImpl implements InventoryService {
         int[] results = inventoryRepository.createBatch(inventories);
         for (int result : results) {
             if (result == 0) {
-                throw new BusinessException(ErrorCode.CONFLICT, "Một Inventory trong Batch đã tồn tại");
+                throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE, "Một Inventory trong Batch đã tồn tại");
             }
         }
 
@@ -187,7 +187,6 @@ public class InventoryServiceImpl implements InventoryService {
         locationAccessService.requireWritableInventory(before);
         verifyVersion(before, request.expectedVersion());
 
-
         /*
          * Bước 2:
          *
@@ -205,7 +204,6 @@ public class InventoryServiceImpl implements InventoryService {
                 request.quantity()
         );
         recordMovement(before, inventory, MovementType.RECEIVE, request.quantity(), null, null, null, null);
-
 
         /*
          * Bước 3:
@@ -231,7 +229,6 @@ public class InventoryServiceImpl implements InventoryService {
         locationAccessService.requireWritableInventory(before);
         verifyVersion(before, request.expectedVersion());
 
-
         /*
          * Bước 2:
          *
@@ -247,13 +244,12 @@ public class InventoryServiceImpl implements InventoryService {
                         request.quantity()
                 )
                 .orElseThrow(() ->
-                        new BusinessException(ErrorCode.CONFLICT,
+                        new BusinessException(ErrorCode.INSUFFICIENT_STOCK,
                                 "Tồn khả dụng không đủ cho Inventory có ID: "
                                         + request.inventoryId()
                         )
                 );
         recordMovement(before, inventory, MovementType.RESERVE, request.quantity(), null, null, null, null);
-
 
         return toResponse(inventory);
     }
@@ -274,7 +270,6 @@ public class InventoryServiceImpl implements InventoryService {
         locationAccessService.requireWritableInventory(before);
         verifyVersion(before, request.expectedVersion());
 
-
         /*
          * Bước 2:
          *
@@ -290,12 +285,11 @@ public class InventoryServiceImpl implements InventoryService {
                         request.quantity()
                 )
                 .orElseThrow(() ->
-                        new BusinessException(ErrorCode.BAD_REQUEST,
+                        new BusinessException(ErrorCode.INVALID_QUANTITY,
                                 "Số lượng cần bỏ giữ không được lớn hơn số lượng đã reserve"
                         )
                 );
         recordMovement(before, inventory, MovementType.RELEASE, request.quantity(), null, null, null, null);
-
 
         return toResponse(inventory);
     }
@@ -316,7 +310,6 @@ public class InventoryServiceImpl implements InventoryService {
         locationAccessService.requireWritableInventory(before);
         verifyVersion(before, request.expectedVersion());
 
-
         /*
          * Bước 2:
          *
@@ -332,13 +325,12 @@ public class InventoryServiceImpl implements InventoryService {
                         request.quantity()
                 )
                 .orElseThrow(() ->
-                        new BusinessException(ErrorCode.CONFLICT,
+                        new BusinessException(ErrorCode.INSUFFICIENT_STOCK,
                                 "Tồn khả dụng không đủ cho Inventory có ID: "
                                         + request.inventoryId()
                         )
                 );
         recordMovement(before, inventory, MovementType.ISSUE, request.quantity(), null, null, null, null);
-
 
         return toResponse(inventory);
     }
@@ -364,7 +356,7 @@ public class InventoryServiceImpl implements InventoryService {
                         request.actualQuantity()
                 )
                 .orElseThrow(() ->
-                        new BusinessException(ErrorCode.BAD_REQUEST,
+                        new BusinessException(ErrorCode.INVALID_QUANTITY,
                                 "actualQuantity không được nhỏ hơn tổng reserved, defective và pending"
                         )
                 );
@@ -385,7 +377,7 @@ public class InventoryServiceImpl implements InventoryService {
     public TransferInventoryResponse transfer(TransferInventoryRequest request) {
         // Một dòng tồn không thể vừa là nguồn vừa là đích của cùng lần chuyển.
         if (request.fromInventoryId().equals(request.toInventoryId())) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST,
+            throw new BusinessException(ErrorCode.INVALID_OPERATION,
                     "Inventory nguồn và Inventory đích phải khác nhau");
         }
 
@@ -404,13 +396,13 @@ public class InventoryServiceImpl implements InventoryService {
         verifyVersion(destinationBefore, request.expectedDestinationVersion());
         if (!sourceBefore.getEnterpriseId().equals(destinationBefore.getEnterpriseId())
                 || !sourceBefore.getSku().equals(destinationBefore.getSku())) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST,
+            throw new BusinessException(ErrorCode.INVALID_OPERATION,
                     "Transfer phải nằm trong cùng enterprise và sử dụng cùng SKU");
         }
 
         // Trừ nguồn trước; nếu lượng khả dụng không đủ, ném lỗi để rollback giao dịch.
         Inventory sourceAfter = inventoryRepository.issue(sourceBefore.getId(), request.quantity())
-                .orElseThrow(() -> new BusinessException(ErrorCode.CONFLICT,
+                .orElseThrow(() -> new BusinessException(ErrorCode.INSUFFICIENT_STOCK,
                         "Tồn khả dụng không đủ để thực hiện Transfer"));
         // Chỉ cộng đích sau khi trừ nguồn thành công; cả hai câu lệnh nằm trong cùng giao dịch.
         Inventory destinationAfter = inventoryRepository.receive(destinationBefore.getId(), request.quantity());
@@ -467,7 +459,7 @@ public class InventoryServiceImpl implements InventoryService {
                                                        String referenceId, LocalDateTime from,
                                                        LocalDateTime to, Pageable pageable) {
         if (from != null && to != null && from.isAfter(to)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST,
+            throw new BusinessException(ErrorCode.INVALID_TIME_RANGE,
                     "Thời điểm from phải trước hoặc bằng thời điểm to");
         }
         return stockMovementRepository.searchMovements(inventoryId, type, referenceId, from, to, pageable);
@@ -476,13 +468,13 @@ public class InventoryServiceImpl implements InventoryService {
     /** Lấy khóa ghi ở cơ sở dữ liệu; khóa được giữ đến khi giao dịch kết thúc. */
     private Inventory requireLocked(String id) {
         return inventoryRepository.findInventoryRowByIdForUpdate(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Inventory với ID: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy Inventory với ID: " + id));
     }
 
     /** So sánh version client đã đọc với version hiện tại để phát hiện ghi dựa trên dữ liệu cũ. */
     private void verifyVersion(Inventory inventory, Long expectedVersion) {
         if (expectedVersion != null && !expectedVersion.equals(inventory.getVersion())) {
-            throw new BusinessException(ErrorCode.CONFLICT,
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT,
                     "Version Inventory đã cũ; hãy tải lại dữ liệu rồi thử lại");
         }
     }

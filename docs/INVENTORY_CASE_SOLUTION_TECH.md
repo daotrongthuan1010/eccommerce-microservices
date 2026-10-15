@@ -1,7 +1,7 @@
 # INV-01 — Kho, vị trí, vùng phục vụ, SKU và quyền thao tác
 
 **Cách xử lý nghiệp vụ**
-- Inventory sở hữu danh mục Warehouse, WarehouseLocation và ServiceArea. Warehouse có trạng thái ACTIVE/INACTIVE; location thuộc đúng warehouse và enterprise.
+- Inventory sở hữu danh mục Warehouse, WarehouseLocation và ServiceArea trong cùng service/database. Warehouse có trạng thái ACTIVE/INACTIVE; location thuộc đúng warehouse và enterprise.
 - Mỗi dòng số dư được định danh duy nhất bằng `(enterpriseId, warehouseId, locationId, sku)`. Chỉ nhận hàng khi warehouse/location hoạt động và SKU đã tồn tại trong danh mục Catalog.
 - Khi nhận request, kiểm tra người thao tác thuộc enterprise và được cấp quyền cho warehouse đó. Không coi `ADMIN` toàn hệ thống là quyền đủ cho mọi kho.
 - Inventory không gọi Catalog đồng bộ trong lúc đang giữ khóa tồn. Duy trì bản chiếu SKU hợp lệ từ sự kiện Catalog; nếu projection cũ hoặc thiếu thì từ chối/đưa vào quy trình đồng bộ, không tạo tồn cho SKU chưa được xác thực.
@@ -9,11 +9,11 @@
 **Java/Spring**
 - Spring Boot REST controller nhận lệnh; Bean Validation (`@Valid`, `@NotBlank`) kiểm tra cấu trúc, còn service kiểm tra trạng thái kho/SKU/quyền.
 - Spring Security Resource Server kiểm tra JWT; method security (`@PreAuthorize`) kiểm tra role, service kiểm tra thêm enterpriseId/warehouseId trong claims hoặc ACL.
-- Spring Data JDBC/JPA lưu Warehouse, Location và SKU projection. Khóa ngoại trong cùng database; SKU liên service được xác thực qua projection/event, không dùng foreign key xuyên service.
+- Spring Data JDBC/JPA lưu Warehouse, Location và SKU projection. Entity giữ ID scalar, database tạo khóa ngoại nội bộ; SKU liên service được xác thực qua projection/event.
 
 **Công nghệ**
 - PostgreSQL: foreign key, unique constraint và index theo enterprise/warehouse/location/SKU.
-- Keycloak/OIDC cho danh tính; Kafka để nhận `SkuCreated/SkuDisabled` và `WarehouseStatusChanged`.
+- Keycloak/OIDC cho danh tính; Kafka nhận `SkuCreated/SkuDisabled` từ Catalog. Warehouse được quản lý trực tiếp trong Inventory, không đồng bộ qua service khác.
 - Redis chỉ cache dữ liệu tra cứu kho/vùng; không làm nguồn xác thực quyền hay trạng thái SKU.
 
 # INV-02 — Nhập mua, nhập điều chuyển và nhận hàng trả

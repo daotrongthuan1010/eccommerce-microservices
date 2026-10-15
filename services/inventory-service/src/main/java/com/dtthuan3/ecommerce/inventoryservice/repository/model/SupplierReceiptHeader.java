@@ -9,7 +9,7 @@ import java.time.Instant;
 public record SupplierReceiptHeader(
         /** UUID ổn định của phiếu nhập trong Inventory. */
         String id,
-        /** ID kho tham chiếu từ Warehouse Service; không tạo quan hệ JPA xuyên service. */
+        /** ID kho nội bộ được database bảo vệ bằng khóa ngoại. */
         String warehouseId,
         /** Mã chứng từ/đơn hàng nhà cung cấp; NULL nếu caller chưa có mã này. */
         String supplierRef,

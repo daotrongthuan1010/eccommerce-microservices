@@ -21,6 +21,12 @@ public class InventoryForeignKeyInitializer implements InitializingBean {
     /** Chạy trước khi ứng dụng sẵn sàng nhận request và an toàn khi khởi động lại nhiều lần. */
     @Override
     public void afterPropertiesSet() {
+        ensureForeignKeyNotValid("inventory_location", "fk_inventory_location_warehouse",
+                "warehouse_id", "inventory_warehouse", "id");
+        ensureForeignKeyNotValid("inventory", "fk_inventory_warehouse",
+                "warehouse_id", "inventory_warehouse", "id");
+        ensureForeignKeyNotValid("inventory_supplier_receipt", "fk_supplier_receipt_warehouse",
+                "warehouse_id", "inventory_warehouse", "id");
         ensureForeignKey("inventory_supplier_receipt_line", "fk_supplier_receipt_line_header",
                 "receipt_id", "inventory_supplier_receipt", "id");
         ensureForeignKey("inventory_supplier_receipt_document", "fk_supplier_receipt_document_header",
@@ -35,13 +41,25 @@ public class InventoryForeignKeyInitializer implements InitializingBean {
      */
     private void ensureForeignKey(String table, String constraint, String column,
                                   String referencedTable, String referencedColumn) {
+        ensureForeignKey(table, constraint, column, referencedTable, referencedColumn, false);
+    }
+
+    /** Thêm FK mới mà chưa quét lịch sử đang chứa warehouseId từ mô hình cũ bên ngoài. */
+    private void ensureForeignKeyNotValid(String table, String constraint, String column,
+                                          String referencedTable, String referencedColumn) {
+        ensureForeignKey(table, constraint, column, referencedTable, referencedColumn, true);
+    }
+
+    private void ensureForeignKey(String table, String constraint, String column,
+                                  String referencedTable, String referencedColumn, boolean notValid) {
         String sql = "DO $$ BEGIN " +
                 // Khóa theo database để nhiều instance khởi động cùng lúc không cùng tạo một constraint.
                 "PERFORM pg_advisory_xact_lock(hashtext('inventory-schema-fk-initializer')); " +
                 "IF NOT EXISTS (SELECT 1 FROM pg_constraint " +
                 "WHERE conrelid = '" + table + "'::regclass AND conname = '" + constraint + "') THEN " +
                 "ALTER TABLE " + table + " ADD CONSTRAINT " + constraint +
-                " FOREIGN KEY (" + column + ") REFERENCES " + referencedTable + " (" + referencedColumn + "); " +
+                " FOREIGN KEY (" + column + ") REFERENCES " + referencedTable + " (" + referencedColumn + ")" +
+                (notValid ? " NOT VALID" : "") + "; " +
                 "END IF; END $$";
         jdbcTemplate.execute(sql);
     }

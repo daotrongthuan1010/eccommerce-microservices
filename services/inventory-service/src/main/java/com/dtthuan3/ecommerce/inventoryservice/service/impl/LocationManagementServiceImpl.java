@@ -2,7 +2,6 @@ package com.dtthuan3.ecommerce.inventoryservice.service.impl;
 
 import com.dtthuan3.ecommerce.common.exception.BusinessException;
 import com.dtthuan3.ecommerce.common.exception.ErrorCode;
-import com.dtthuan3.ecommerce.common.exception.ResourceNotFoundException;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.CreateLocationRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.UpdateLocationRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.LocationResponse;
@@ -37,7 +36,7 @@ public class LocationManagementServiceImpl implements LocationManagementService 
     @CacheEvict(cacheNames = "inventory-location-queries", allEntries = true)
     public LocationResponse createLocation(CreateLocationRequest request) {
         String warehouseId = request.warehouseId().trim();
-        // Nếu Warehouse projection đã được bật, chỉ cho tạo Location trong kho đang hoạt động.
+        // Location chỉ được tạo trong Warehouse nội bộ đang hoạt động.
         locationAccessService.requireActiveWarehouse(warehouseId, null);
         String code = request.code().trim().toUpperCase(Locale.ROOT);
         InventoryLocation location = InventoryLocation.builder()
@@ -51,7 +50,7 @@ public class LocationManagementServiceImpl implements LocationManagementService 
             return locationMapper.toResponse(locationRepository.saveAndFlush(location));
         } catch (DataIntegrityViolationException ex) {
             // DB unique constraint là chốt cuối chống hai request đồng thời tạo cùng ID/code.
-            throw new BusinessException(ErrorCode.CONFLICT,
+            throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE,
                     "ID hoặc mã Location đã tồn tại trong Warehouse này");
         }
     }
@@ -62,7 +61,7 @@ public class LocationManagementServiceImpl implements LocationManagementService 
     @Cacheable(cacheNames = "inventory-location-queries", key = "'id:' + #locationId", sync = true)
     public LocationResponse getLocation(String locationId) {
         InventoryLocation location = locationRepository.findById(locationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Location với ID: " + locationId));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy Location với ID: " + locationId));
         return locationMapper.toResponse(location);
     }
 
@@ -85,14 +84,14 @@ public class LocationManagementServiceImpl implements LocationManagementService 
     @CacheEvict(cacheNames = "inventory-location-queries", allEntries = true)
     public LocationResponse updateLocation(String locationId, UpdateLocationRequest request) {
         InventoryLocation location = locationRepository.findById(locationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Location với ID: " + locationId));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy Location với ID: " + locationId));
         location.setCode(request.code().trim().toUpperCase(Locale.ROOT));
         location.setName(request.name().trim());
         try {
             // Flush ngay trong try để bắt unique constraint tại đây và đổi lỗi DB thành HTTP conflict chuẩn.
             return locationMapper.toResponse(locationRepository.saveAndFlush(location));
         } catch (DataIntegrityViolationException ex) {
-            throw new BusinessException(ErrorCode.CONFLICT,
+            throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE,
                     "Mã Location đã được sử dụng trong Warehouse này");
         }
     }
@@ -103,9 +102,9 @@ public class LocationManagementServiceImpl implements LocationManagementService 
     @CacheEvict(cacheNames = "inventory-location-queries", allEntries = true)
     public LocationResponse setLocationActive(String locationId, boolean active) {
         InventoryLocation location = locationRepository.findById(locationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Location với ID: " + locationId));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy Location với ID: " + locationId));
         if (active) {
-            // Không cho kích hoạt Location nếu Warehouse đã có projection nhưng đang ngừng hoạt động.
+            // Không cho kích hoạt Location nếu Warehouse đang ngừng hoạt động.
             locationAccessService.requireActiveWarehouse(location.getWarehouseId(), null);
         }
         location.setActive(active);

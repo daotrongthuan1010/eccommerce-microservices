@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,6 +24,20 @@ import org.springframework.web.bind.annotation.RestController;
 @Validated
 public class SupplierReceiptActualsController {
     private final SupplierReceiptService receiptService;
+
+    /**
+     * Đọc một phiếu nhập gồm trạng thái, version, toàn bộ dòng hàng và chứng từ liên quan.
+     * USER/ADMIN được xem; thao tác chỉ đọc nên không cập nhật tồn hoặc khóa dòng ghi.
+     *
+     * @param receiptId ID phiếu được trả về khi tạo phiếu nháp
+     * @return dữ liệu chi tiết mới nhất; ID không tồn tại trả lỗi NOT_FOUND
+     */
+    @GetMapping("/{receiptId}")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    public ApiResponse<SupplierReceiptResponse> getById(
+            @PathVariable @NotBlank @Size(max = 36) String receiptId) {
+        return ApiResponse.ok("Lấy chi tiết phiếu nhập thành công", receiptService.getById(receiptId));
+    }
 
     /**
      * Cập nhật số liệu thực nhận của toàn bộ dòng phiếu.

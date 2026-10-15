@@ -2,14 +2,13 @@ package com.dtthuan3.ecommerce.inventoryservice.service;
 
 import com.dtthuan3.ecommerce.common.exception.BusinessException;
 import com.dtthuan3.ecommerce.common.exception.ErrorCode;
-import com.dtthuan3.ecommerce.common.exception.ResourceNotFoundException;
+
 import com.dtthuan3.ecommerce.inventoryservice.entity.Inventory;
 import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryLocationAccessRepository;
 import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryLocationAccessRepository.LocationSnapshot;
 import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryLocationAccessRepository.WarehouseSnapshot;
 import com.dtthuan3.ecommerce.inventoryservice.port.ActiveWarehouseValidator;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,10 +28,6 @@ import java.util.stream.Collectors;
 public class InventoryLocationAccessService implements ActiveWarehouseValidator {
     /** Repository port dùng đọc projection và Location theo lô, không phụ thuộc Spring Data JPA. */
     private final InventoryLocationAccessRepository accessRepository;
-
-    /** Cho phép tương thích các nghiệp vụ cũ khi Warehouse Service chưa phát projection. */
-    @Value("${inventory.warehouse-projection.required:false}")
-    private boolean warehouseProjectionRequired;
 
     /** Dựng một vị trí từ Inventory và dùng chung quy tắc kiểm tra theo lô. */
     @Transactional
@@ -74,13 +69,13 @@ public class InventoryLocationAccessService implements ActiveWarehouseValidator 
             LocationSnapshot location = locations.get(position.locationId());
             // Không tiết lộ Location khác kho: ID không tồn tại và ID thuộc kho khác cùng trả về not found.
             if (location == null || !location.warehouseId().equals(position.warehouseId())) {
-                throw new ResourceNotFoundException(
+                throw new BusinessException(ErrorCode.NOT_FOUND,
                         "Không tìm thấy Location trong Warehouse đã chỉ định: " + position.locationId());
             }
 
             requireActiveWarehouse(position.warehouseId(), position.enterpriseId(), warehouses);
             if (!location.active()) {
-                throw new BusinessException(ErrorCode.FORBIDDEN,
+                throw new BusinessException(ErrorCode.RESOURCE_INACTIVE,
                         "Không thể ghi nhận thay đổi tồn kho tại Location đã ngừng hoạt động");
             }
         }
@@ -92,28 +87,24 @@ public class InventoryLocationAccessService implements ActiveWarehouseValidator 
         requireWritablePosition(inventory.getEnterpriseId(), inventory.getWarehouseId(), inventory.getLocationId());
     }
 
-    /**
-     * Kiểm tra kho theo chế độ tương thích: nếu cấu hình projection bắt buộc thì kho chưa có dữ liệu
-     * sẽ bị từ chối; nếu không, các luồng cũ được phép tiếp tục khi Warehouse Service chưa tích hợp.
-     */
-    @Transactional(readOnly = true)
+    /** Kiểm tra Warehouse nội bộ tồn tại, đang hoạt động và đúng enterprise nếu caller có cung cấp. */
+    @Transactional
     public void requireActiveWarehouse(String warehouseId, String enterpriseId) {
         WarehouseSnapshot warehouse = accessRepository.findWarehouseForShare(warehouseId).orElse(null);
-        requireActiveWarehouse(warehouseId, enterpriseId, warehouse == null
-                ? Map.of()
-                : Map.of(warehouseId, warehouse));
+        if (warehouse == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy Warehouse: " + warehouseId);
+        }
+        requireActiveWarehouse(warehouseId, enterpriseId, Map.of(warehouseId, warehouse));
     }
 
     /**
-     * Kiểm tra nghiêm ngặt cho workflow không được tạo dữ liệu trên một kho chưa biết.
-     * Method này luôn từ chối nếu chưa nhận được projection, bất kể chế độ tương thích của API tồn cũ.
+     * Kiểm tra nghiêm ngặt cho workflow không được tạo dữ liệu trên một kho chưa biết hoặc ngừng hoạt động.
      */
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public void requireKnownActiveWarehouse(String warehouseId) {
         WarehouseSnapshot warehouse = accessRepository.findWarehouseForShare(warehouseId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Chưa nhận được projection của Warehouse: " + warehouseId));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy Warehouse: " + warehouseId));
         requireActiveWarehouse(warehouseId, null, Map.of(warehouseId, warehouse));
     }
 
@@ -122,16 +113,13 @@ public class InventoryLocationAccessService implements ActiveWarehouseValidator 
                                         Map<String, WarehouseSnapshot> warehouses) {
         WarehouseSnapshot warehouse = warehouses.get(warehouseId);
         if (warehouse == null) {
-            if (warehouseProjectionRequired) {
-                throw new ResourceNotFoundException("Chưa nhận được projection của Warehouse: " + warehouseId);
-            }
-            return;
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy Warehouse: " + warehouseId);
         }
         if (!"ACTIVE".equals(warehouse.status())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "Warehouse không hoạt động: " + warehouseId);
+            throw new BusinessException(ErrorCode.RESOURCE_INACTIVE, "Warehouse không hoạt động: " + warehouseId);
         }
         if (enterpriseId != null && !enterpriseId.equals(warehouse.enterpriseId())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN,
+            throw new BusinessException(ErrorCode.RESOURCE_OWNERSHIP_MISMATCH,
                     "Warehouse không thuộc enterpriseId đã cung cấp: " + warehouseId);
         }
     }
