@@ -1,14 +1,15 @@
 package com.dtthuan3.ecommerce.catalogservice.dto.response;
 
+
 import com.dtthuan3.ecommerce.catalogservice.contstant.BrandsStatus;
 import lombok.Builder;
 import lombok.Getter;
 
 @Getter
 @Builder
-public class BrandsRespone {
+public class BrandsResponse {
 
-    private Long id;
+    private String id;
 
     private String name;
 
@@ -16,7 +17,11 @@ public class BrandsRespone {
 
     private String description;
 
-    private String logoUrl;
+    private String logoObjectKey;
+
+    private String website;
 
     private BrandsStatus status;
+
+    private Long revision;
 }

@@ -9,30 +9,41 @@ public final class CacheKeys {
     public static final String PREFIX = "catalog:";
 
     // Category
-    public static final String CATEGORY =
-            PREFIX + "category:";
-
-    public static final String CATEGORY_ROOTS =
-            PREFIX + "category:roots";
+    public static final String CATEGORY = "catalog:category:";
 
     public static final String CATEGORY_CHILDREN =
-            PREFIX + "category:children:";
+            "catalog:category:children:";
+
+    public static final String CATEGORY_ROOTS =
+            "catalog:category:roots";
 
     public static final String CATEGORY_TREE =
-            PREFIX + "category:tree";
+            "catalog:category:tree";
 
     public static final String CATEGORY_PATTERN =
             PREFIX + "category:*";
 
-    public static final String BRAND =
-            PREFIX + "brand:";
+    public static final String BRANDS =
+            "catalog:brands:";
 
-    public static final String BRAND_PATTERN =
-            PREFIX + "brand:*";
+    public static final String BRANDS_LIST =
+            "catalog:brands:list";
+
+    public static final String BRANDS_ACTIVE =
+            "catalog:brands:active";
+
+    public static final String BRANDS_SEARCH =
+            "catalog:brands:search:";
 
     public static final String MANUFACTURER =
             "catalog:manufacturer:";
 
-    public static final String MANUFACTURER_PATTERN =
-            "catalog:manufacturer:*";
+    public static final String MANUFACTURER_LIST =
+            "catalog:manufacturer:list";
+
+    public static final String MANUFACTURER_ACTIVE =
+            "catalog:manufacturer:active";
+
+    public static final String MANUFACTURER_SEARCH =
+            "catalog:manufacturer:search:";
 }

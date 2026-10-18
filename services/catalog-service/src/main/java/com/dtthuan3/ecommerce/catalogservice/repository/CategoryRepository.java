@@ -1,10 +1,6 @@
 package com.dtthuan3.ecommerce.catalogservice.repository;
 
-
-import com.dtthuan3.ecommerce.catalogservice.contstant.CategoryStatus;
 import com.dtthuan3.ecommerce.catalogservice.entity.Category;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -12,50 +8,49 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
+public interface CategoryRepository
+        extends JpaRepository<Category, String> {
 
-public interface CategoryRepository extends JpaRepository<Category, Long> {
+    Optional<Category> findById(String id);
 
-    Optional<Category> findBySlug(
-            String slug
-    );
+    boolean existsById(String id);
 
-    boolean existsBySlug(
-            String slug
-    );
+    boolean existsByParentId(String parentId);
 
-    boolean existsBySlugAndIdNot(
+    boolean existsBySlugAndParentId(
             String slug,
+            String parentId
+    );
+
+    boolean existsBySlugAndParentIdAndIdNot(
+            String slug,
+            String parentId,
             String id
     );
 
-    List<Category>
-    findByParentIdOrderByDisplayOrderAsc(
+    List<Category> findByParentIdOrderByDisplayOrderAsc(
             String parentId
     );
 
-    List<Category>
-    findByParentIdIsNullOrderByDisplayOrderAsc();
-
-    boolean existsByParentId(
-            String parentId
-    );
-
-    Page<Category>
-    findByStatusOrderByDisplayOrderAsc(
-            CategoryStatus status,
-            Pageable pageable
-    );
+    List<Category> findByParentIdIsNullOrderByDisplayOrderAsc();
 
     @Query("""
         SELECT c
         FROM Category c
-        WHERE c.status = :status
         ORDER BY
-            c.parentId NULLS FIRST,
-            c.displayOrder ASC,
-            c.name ASC
-        """)
-    List<Category> findAllForTree(
-            @Param("status")
-            CategoryStatus status
-    );}
+            CASE WHEN c.parentId IS NULL THEN 0 ELSE 1 END,
+            c.parentId,
+            c.displayOrder,
+            c.name
+    """)
+    List<Category> findAllForTree();
+
+    @Query("""
+        SELECT c.id
+        FROM Category c
+        WHERE c.parentId = :parentId
+    """)
+    List<String> findChildIds(
+            @Param("parentId") String parentId
+    );
+}

@@ -6,17 +6,21 @@ import lombok.Getter;
 
 @Getter
 @Builder
-public class ManufacturersRespone {
+public class ManufacturerResponse {
 
-    private Long id;
+    private String id;
 
     private String name;
 
     private String country;
 
-    private String description;
-
     private String website;
 
+    private String description;
+
+    private String logoObjectKey;
+
     private ManufacturerStatus status;
+
+    private Long revision;
 }

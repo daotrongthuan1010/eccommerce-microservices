@@ -15,7 +15,12 @@ import java.time.LocalDateTime;
         name = "collections",
         indexes = {
                 @Index(name = "idx_collections_slug", columnList = "slug", unique = true),
-                @Index(name = "idx_collections_status", columnList = "status")
+                @Index(name = "idx_collections_status", columnList = "status"),
+                @Index(
+                        name = "idx_collections_schedule",
+                        columnList = "status,start_at,end_at"
+                )
+
         }
 )
 @Getter

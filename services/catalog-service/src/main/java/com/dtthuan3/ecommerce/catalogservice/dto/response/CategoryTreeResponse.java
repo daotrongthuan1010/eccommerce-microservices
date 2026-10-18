@@ -4,6 +4,7 @@ import com.dtthuan3.ecommerce.catalogservice.contstant.CategoryStatus;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -18,11 +19,10 @@ public class CategoryTreeResponse {
 
     private String slug;
 
-    private String imageObjectKey;
+    private CategoryStatus status;
 
     private Integer displayOrder;
 
-    private CategoryStatus status;
-
-    private List<CategoryTreeResponse> children;
+    @Builder.Default
+    private List<CategoryTreeResponse> children = new ArrayList<>();
 }

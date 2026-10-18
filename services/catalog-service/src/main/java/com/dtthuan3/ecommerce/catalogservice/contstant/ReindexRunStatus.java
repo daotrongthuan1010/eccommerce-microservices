@@ -1,4 +1,4 @@
 package com.dtthuan3.ecommerce.catalogservice.contstant;
 
-public class ReindexRunStatus {
+public enum ReindexRunStatus {
 }

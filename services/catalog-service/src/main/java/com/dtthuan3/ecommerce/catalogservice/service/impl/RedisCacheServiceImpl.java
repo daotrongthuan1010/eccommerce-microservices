@@ -23,7 +23,10 @@ public class RedisCacheServiceImpl implements RedisCacheService {
     private final ObjectMapper objectMapper;
 
     @Override
-    public <T> Optional<T> get(String key, Class<T> type) {
+    public <T> Optional<T> get(
+            String key,
+            Class<T> type
+    ) {
 
         Object value = redisTemplate.opsForValue().get(key);
 
@@ -31,7 +34,9 @@ public class RedisCacheServiceImpl implements RedisCacheService {
             return Optional.empty();
         }
 
-        return Optional.of(objectMapper.convertValue(value, type));
+        return Optional.of(
+                objectMapper.convertValue(value, type)
+        );
     }
 
     @Override
@@ -66,7 +71,10 @@ public class RedisCacheServiceImpl implements RedisCacheService {
         return objectMapper.convertValue(
                 value,
                 objectMapper.getTypeFactory()
-                        .constructCollectionType(List.class, elementType)
+                        .constructCollectionType(
+                                List.class,
+                                elementType
+                        )
         );
     }
 
@@ -75,19 +83,24 @@ public class RedisCacheServiceImpl implements RedisCacheService {
             String key,
             Object value
     ) {
-
         redisTemplate.opsForValue().set(key, value);
     }
 
     @Override
-    public void set(String key, Object value, Duration ttl) {
-
-        redisTemplate.opsForValue().set(key, value, ttl);
+    public void set(
+            String key,
+            Object value,
+            Duration ttl
+    ) {
+        redisTemplate.opsForValue().set(
+                key,
+                value,
+                ttl
+        );
     }
 
     @Override
     public void delete(String key) {
-
         redisTemplate.delete(key);
     }
 
@@ -101,7 +114,6 @@ public class RedisCacheServiceImpl implements RedisCacheService {
         }
     }
 
-
     @Override
     public boolean hasKey(String key) {
 
@@ -110,9 +122,13 @@ public class RedisCacheServiceImpl implements RedisCacheService {
         );
     }
 
-
     @Override
-    public <T> T getOrLoad(String key, Class<T> type, Duration ttl, Supplier<T> loader) {
+    public <T> T getOrLoad(
+            String key,
+            Class<T> type,
+            Duration ttl,
+            Supplier<T> loader
+    ) {
 
         Optional<T> cached = get(key, type);
 
@@ -137,7 +153,10 @@ public class RedisCacheServiceImpl implements RedisCacheService {
             Supplier<List<T>> loader
     ) {
 
-        List<T> cached = getList(key, elementType);
+        List<T> cached = getList(
+                key,
+                elementType
+        );
 
         if (!cached.isEmpty() || hasKey(key)) {
             return cached;

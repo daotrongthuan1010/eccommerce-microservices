@@ -1,24 +1,36 @@
 package com.dtthuan3.ecommerce.catalogservice.service;
 
 import com.dtthuan3.ecommerce.catalogservice.dto.request.CategoryCreateRequest;
+import com.dtthuan3.ecommerce.catalogservice.dto.request.CategoryUpdateRequest;
 import com.dtthuan3.ecommerce.catalogservice.dto.response.CategoryResponse;
-import org.springframework.web.multipart.MultipartFile;
+import com.dtthuan3.ecommerce.catalogservice.dto.response.CategoryTreeResponse;
 
+import java.util.List;
 
 public interface CategoryService {
 
     CategoryResponse create(
-            CategoryCreateRequest request);
+            CategoryCreateRequest request
+    );
 
-    CategoryResponse getById(String id);
+    CategoryResponse getById(
+            String id
+    );
+
+    List<CategoryResponse> getChildren(
+            String parentId
+    );
+
+    List<CategoryResponse> getRootCategories();
+
+    List<CategoryTreeResponse> getTree();
 
     CategoryResponse update(
-            Long id,
-            CategoryCreateRequest request,
-            MultipartFile image
+            String id,
+            CategoryUpdateRequest request
     );
 
     void delete(
-            Long id
+            String id
     );
 }

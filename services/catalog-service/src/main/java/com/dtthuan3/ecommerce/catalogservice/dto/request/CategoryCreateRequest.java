@@ -30,6 +30,11 @@ public class CategoryCreateRequest {
 
     private String description;
 
+    @Size(
+            max = 500,
+            message = "Object key không được vượt quá 500 ký tự"
+    )
+    private String imageObjectKey;
 
     @Min(
             value = 0,
@@ -39,6 +44,4 @@ public class CategoryCreateRequest {
 
     @NotNull(message = "Trạng thái không được để trống")
     private CategoryStatus status = CategoryStatus.ACTIVE;
-
-
 }

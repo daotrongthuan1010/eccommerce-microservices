@@ -1,36 +1,39 @@
 package com.dtthuan3.ecommerce.catalogservice.service;
 
-import com.dtthuan3.ecommerce.catalogservice.dto.request.BrandsRequest;
-import com.dtthuan3.ecommerce.catalogservice.dto.response.BrandsRespone;
-import com.dtthuan3.ecommerce.catalogservice.dto.response.PageResponse;
-import org.springframework.web.multipart.MultipartFile;
+import com.dtthuan3.ecommerce.catalogservice.contstant.BrandsStatus;
+import com.dtthuan3.ecommerce.catalogservice.dto.request.BrandsCreateRequest;
+import com.dtthuan3.ecommerce.catalogservice.dto.request.BrandsUpdateRequest;
+import com.dtthuan3.ecommerce.catalogservice.dto.response.BrandsResponse;
+import com.dtthuan3.ecommerce.common.response.PageResponse;
 
 import java.util.List;
 
 public interface BrandsService {
 
-    BrandsRespone create(
-            BrandsRequest request,
-            MultipartFile image
-    );
+    BrandsResponse create(BrandsCreateRequest request);
 
-    BrandsRespone getByID(Long id);
+    BrandsResponse getById(String id);
 
-    List<BrandsRespone> getAll();
-
-    BrandsRespone update(
-            Long id,
-            BrandsRequest request,
-            MultipartFile image
-    );
-
-    void delete(Long id);
-
-    PageResponse<BrandsRespone> search(
-            String keyword,
+    PageResponse<BrandsResponse> getBrands(
+            BrandsStatus status,
+            String name,
             int page,
-            int size,
-            String sortBy,
-            String direction
+            int size
     );
+
+    BrandsResponse update(
+            String id,
+            BrandsUpdateRequest request
+    );
+
+    void delete(String id);
+
+    BrandsResponse updateStatus(
+            String id,
+            BrandsStatus status
+    );
+
+    List<BrandsResponse> getActiveBrands();
+
+    List<BrandsResponse> search(String keyword);
 }

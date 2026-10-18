@@ -1,6 +1,5 @@
 package com.dtthuan3.ecommerce.catalogservice.entity;
 
-
 import com.dtthuan3.ecommerce.catalogservice.contstant.ManufacturerStatus;
 import com.dtthuan3.ecommerce.catalogservice.generator.StringUuidSequenceGenerator;
 import jakarta.persistence.*;
@@ -9,19 +8,25 @@ import lombok.Setter;
 import org.hibernate.annotations.GenericGenerator;
 import org.hibernate.annotations.Parameter;
 
-@Getter
-@Setter
 @Entity
 @Table(
         name = "manufacturers",
         indexes = {
-                @Index(name = "idx_manufacturers_status", columnList = "status"),
-                @Index(name = "idx_manufacturers_country", columnList = "country")
+                @Index(
+                        name = "idx_manufacturers_name",
+                        columnList = "name",
+                        unique = true
+                ),
+                @Index(
+                        name = "idx_manufacturers_status",
+                        columnList = "status"
+                )
         }
 )
+@Getter
+@Setter
 public class Manufacturers extends BaseEntity {
 
-    // ID duy nhất của nhà sản xuất
     @Id
     @GeneratedValue(generator = "manufacturer_uuid_generator")
     @GenericGenerator(
@@ -34,27 +39,57 @@ public class Manufacturers extends BaseEntity {
                     )
             }
     )
-    @Column(name = "id", nullable = false, updatable = false, length = 36)
+    @Column(
+            name = "id",
+            nullable = false,
+            updatable = false,
+            length = 36
+    )
     private String id;
 
-    // Tên nhà sản xuất
-    @Column(name = "name", nullable = false, length = 255)
+    @Column(
+            name = "name",
+            nullable = false,
+            length = 255,
+            unique = true
+    )
     private String name;
 
-    // Quốc gia của nhà sản xuất
-    @Column(name = "country", length = 100)
+    @Column(
+            name = "country",
+            length = 255
+    )
     private String country;
 
-    // Mô tả nhà sản xuất
-    @Column(name = "description", columnDefinition = "TEXT")
-    private String description;
-
-    // Website chính thức của nhà sản xuất
-    @Column(name = "website", length = 500)
+    @Column(
+            name = "website",
+            length = 500
+    )
     private String website;
 
-    // Trạng thái hoạt động của nhà sản xuất
+    @Column(
+            name = "description",
+            columnDefinition = "TEXT"
+    )
+    private String description;
+
+    @Column(
+            name = "logo_object_key",
+            length = 500
+    )
+    private String logoObjectKey;
+
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
+    @Column(
+            name = "status",
+            nullable = false,
+            length = 30
+    )
     private ManufacturerStatus status;
+
+    @Column(
+            name = "revision",
+            nullable = false
+    )
+    private Long revision = 0L;
 }
