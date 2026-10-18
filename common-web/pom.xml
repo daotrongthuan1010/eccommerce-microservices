@@ -22,6 +22,10 @@
   <dependencies>
     <dependency><groupId>com.dtthuan3.ecommerce</groupId><artifactId>common</artifactId><version>${project.version}</version></dependency>
     <dependency><groupId>org.springframework</groupId><artifactId>spring-web</artifactId></dependency>
+    <!-- ResponseBodyAdvice/RestControllerAdvice thuộc Spring MVC, không nằm trong spring-web. -->
+    <dependency><groupId>org.springframework</groupId><artifactId>spring-webmvc</artifactId></dependency>
+    <!-- ApiResponseAdvice nhận diện Page để chuyển thành PageResponse thống nhất. -->
+    <dependency><groupId>org.springframework.data</groupId><artifactId>spring-data-commons</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-autoconfigure</artifactId></dependency>
     <dependency><groupId>jakarta.servlet</groupId><artifactId>jakarta.servlet-api</artifactId><scope>provided</scope></dependency>
     <dependency><groupId>org.slf4j</groupId><artifactId>slf4j-api</artifactId></dependency>

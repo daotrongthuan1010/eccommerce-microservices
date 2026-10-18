@@ -3,6 +3,9 @@ package com.dtthuan3.ecommerce.inventoryservice.repository.customrepo;
 import com.dtthuan3.ecommerce.inventoryservice.entity.Inventory;
 import com.dtthuan3.ecommerce.inventoryservice.mapper.InventoryRowMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.stereotype.Repository;
@@ -11,6 +14,7 @@ import java.math.BigDecimal;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -67,46 +71,64 @@ public class InventoryRepositoryCustomImpl
         return queryOne(sql, id);
     }
 
-    /** Tìm các vị trí có SKU này ở mọi kho. */
+    /** Tìm các vị trí có SKU này ở mọi kho theo trang để không tải hết kết quả vào bộ nhớ. */
     @Override
-    public List<Inventory> findBySku(String sku) {
-        return queryInventories("WHERE sku = ? ORDER BY warehouse_id, location_id", sku);
+    public Page<Inventory> findBySku(String sku, Pageable pageable) {
+        return queryInventoryPage("WHERE sku = ?", "warehouse_id, location_id, id", pageable, sku);
     }
 
-    /** Tìm toàn bộ vị trí hàng thuộc một kho. */
+    /** Tìm các vị trí hàng thuộc một kho theo trang. */
     @Override
-    public List<Inventory> findByWarehouse(String warehouseId) {
-        return queryInventories("WHERE warehouse_id = ? ORDER BY location_id, sku", warehouseId);
+    public Page<Inventory> findByWarehouse(String warehouseId, Pageable pageable) {
+        return queryInventoryPage("WHERE warehouse_id = ?", "location_id, sku, id", pageable, warehouseId);
     }
 
-    /** Tìm toàn bộ vị trí tồn trong một khu vực lưu trữ. */
+    /** Tìm các vị trí tồn trong một khu vực lưu trữ theo trang. */
     @Override
-    public List<Inventory> findByLocation(String locationId) {
-        return queryInventories("WHERE location_id = ? ORDER BY warehouse_id, sku", locationId);
+    public Page<Inventory> findByLocation(String locationId, Pageable pageable) {
+        return queryInventoryPage("WHERE location_id = ?", "warehouse_id, sku, id", pageable, locationId);
     }
 
     /** Chỉ trả hàng còn bán được: tồn vật lý trừ hàng giữ, hàng lỗi và hàng đang chờ. */
     @Override
-    public List<Inventory> findAvailable(String sku, String warehouseId, String locationId) {
+    public Page<Inventory> findAvailable(String sku, String warehouseId, String locationId, Pageable pageable) {
         // Tham số tùy chọn được thêm vào SQL bằng placeholder, không ghép giá trị trực tiếp vào câu truy vấn.
         StringBuilder where = new StringBuilder("WHERE physical_quantity - reserved_quantity - defective_quantity - pending_quantity > 0");
         List<Object> args = new ArrayList<>();
-        if (sku != null) { where.append(" AND sku = ?"); args.add(sku); }
-        if (warehouseId != null) { where.append(" AND warehouse_id = ?"); args.add(warehouseId); }
-        if (locationId != null) { where.append(" AND location_id = ?"); args.add(locationId); }
-        where.append(" ORDER BY warehouse_id, location_id, sku");
-        return queryInventories(where.toString(), args.toArray());
+        addOptionalFilter(where, args, "sku", sku);
+        addOptionalFilter(where, args, "warehouse_id", warehouseId);
+        addOptionalFilter(where, args, "location_id", locationId);
+        return queryInventoryPage(where.toString(), "warehouse_id, location_id, sku, id", pageable, args.toArray());
     }
 
-    /** Dùng chung phần SELECT và mapper để các truy vấn danh sách có cùng cấu trúc dữ liệu trả về. */
-    private List<Inventory> queryInventories(String where, Object... args) {
+    /** Dùng chung điều kiện/truy vấn; orderBy chỉ nhận hằng số nội bộ, không nhận từ request. */
+    private Page<Inventory> queryInventoryPage(String where, String orderBy, Pageable pageable, Object... args) {
         String sql = """
                 SELECT id, enterprise_id, warehouse_id, location_id, sku,
                        physical_quantity, reserved_quantity, defective_quantity,
                        pending_quantity, in_transit_quantity, version, created_at, updated_at
                 FROM inventory
-                """ + where;
-        return jdbcTemplate.query(sql, inventoryMapper, args);
+                """ + where + " ORDER BY " + orderBy + " LIMIT ? OFFSET ?";
+
+        List<Object> pageArgs = new ArrayList<>(Arrays.asList(args));
+        pageArgs.add(pageable.getPageSize());
+        pageArgs.add(pageable.getOffset());
+        List<Inventory> content = jdbcTemplate.query(sql, inventoryMapper, pageArgs.toArray());
+
+        return PageableExecutionUtils.getPage(content, pageable, () -> {
+            Long total = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM inventory " + where,
+                    Long.class,
+                    args);
+            return total == null ? 0 : total;
+        });
+    }
+
+    private void addOptionalFilter(StringBuilder where, List<Object> args, String column, String value) {
+        if (value != null && !value.isBlank()) {
+            where.append(" AND ").append(column).append(" = ?");
+            args.add(value.trim());
+        }
     }
 
     /** Tìm duy nhất vị trí tồn theo doanh nghiệp, kho, khu vực lưu trữ và SKU. */
@@ -139,17 +161,7 @@ public class InventoryRepositoryCustomImpl
               AND sku = ?
             """;
 
-        return jdbcTemplate
-                .query(
-                        sql,
-                        inventoryMapper,
-                        enterpriseId,
-                        warehouseId,
-                        locationId,
-                        sku
-                )
-                .stream()
-                .findFirst();
+        return queryOne(sql, enterpriseId, warehouseId, locationId, sku);
     }
 
     /** Tạo vị trí tồn bằng một INSERT; xung đột khóa duy nhất được báo qua Optional rỗng. */
@@ -224,7 +236,7 @@ public class InventoryRepositoryCustomImpl
         }
         // Chỉ đọc khóa dòng khi vị trí đã tồn tại; tránh UPDATE giả và vẫn tuần tự hóa lần nhập.
         return findByPositionForUpdate(enterpriseId, warehouseId, locationId, sku)
-                .orElseThrow(() -> new IllegalStateException("Inventory conflict row was not found"));
+                .orElseThrow(() -> new IllegalStateException("Không tìm thấy dòng Inventory đang bị xung đột"));
     }
 
     /** Đọc và khóa dòng theo khóa nghiệp vụ sau khi INSERT gặp xung đột duy nhất. */

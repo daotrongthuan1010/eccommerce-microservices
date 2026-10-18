@@ -5,29 +5,46 @@ spring:
   application:
     name: inventory-service
 
-  # Tắt kích hoạt Flyway vì project dùng Hibernate tự sinh bảng
+  cache:
+    # Buộc dùng RedisCacheManager thay vì cache mặc định trong bộ nhớ của từng instance.
+    type: redis
+
+  # Dự án không dùng Flyway; Hibernate ddl-auto là cơ chế duy nhất tự đồng bộ cấu trúc bảng.
   flyway:
     enabled: false
 
   data:
     redis:
+      # Thông tin kết nối có thể ghi đè bằng REDIS_HOST, REDIS_PORT và REDIS_PASSWORD.
       host: ${REDIS_HOST:162.4.177.91}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:local_redis_change_me}
       timeout: 3s
 
   kafka:
+    # Broker dùng chung; từng môi trường nên cung cấp KAFKA_BOOTSTRAP_SERVERS riêng.
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:162.4.177.91:9092}
 
     consumer:
+      # Cùng group để các instance Inventory chia nhau partition của từng topic.
       group-id: inventory-service
+      # Đọc lại từ đầu nếu group chưa có committed offset; offset được commit sau khi xử lý record.
       auto-offset-reset: earliest
       enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        max.poll.interval.ms: 300000
 
     producer:
       acks: all
       properties:
         enable.idempotence: true
+
+    listener:
+      # Commit offset theo từng message đã xử lý; thiếu topic chưa làm service dừng khởi động.
+      ack-mode: record
+      missing-topics-fatal: false
 
   datasource:
     url: ${DB_URL:jdbc:postgresql://162.4.177.91:5432/inventory_db}
@@ -43,6 +60,7 @@ spring:
 
   jpa:
     hibernate:
+      # Hibernate đọc entity mapping để sinh/cập nhật bảng; truy vấn nghiệp vụ receipt vẫn dùng JdbcTemplate.
       ddl-auto: update
 
     show-sql: ${JPA_SHOW_SQL:false} # Chỉ bật SQL log khi cần debug để tránh log thừa ở môi trường thường.
@@ -72,6 +90,15 @@ inventory:
   batch:
     # Số inventory tối đa được chèn trong một request; có thể ghi đè bằng INVENTORY_BATCH_MAX_SIZE.
     max-size: ${INVENTORY_BATCH_MAX_SIZE:500}
+  cache:
+    # TTL cho cache danh sách/chi tiết Location; thay đổi bằng INVENTORY_LOCATION_CACHE_TTL.
+    location-ttl: ${INVENTORY_LOCATION_CACHE_TTL:PT5M}
+  sku-projection:
+    # Projection quá tuổi này sẽ được kiểm tra lại với Product Service trước thao tác ghi.
+    max-age: ${INVENTORY_SKU_PROJECTION_MAX_AGE:PT5M}
+  kafka:
+    # Topic Product mà Inventory đăng ký nhận để cập nhật projection SKU.
+    product-events-topic: ${PRODUCT_EVENTS_TOPIC:product-events}
 
 eureka:
   client:

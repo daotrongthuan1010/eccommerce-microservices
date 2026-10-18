@@ -41,7 +41,7 @@ public class StockMovementRepositoryCustomImpl implements StockMovementRepositor
         // Một movement dùng UPDATE đơn; chỉ giao dịch nhiều movement mới tạo batch JDBC.
         jdbcTemplate.update(INSERT_MOVEMENT_SQL,
                 movement.getId(),
-                movement.getInventory().getId(),
+                movement.getInventoryId(),
                 movement.getMovementType().name(),
                 movement.getQuantity(),
                 movement.getPhysicalBefore(),
@@ -66,7 +66,7 @@ public class StockMovementRepositoryCustomImpl implements StockMovementRepositor
             public void setValues(PreparedStatement statement, int index) throws SQLException {
                 StockMovement movement = movements.get(index);
                 statement.setString(1, movement.getId());
-                statement.setString(2, movement.getInventory().getId());
+                statement.setString(2, movement.getInventoryId());
                 statement.setString(3, movement.getMovementType().name());
                 statement.setBigDecimal(4, movement.getQuantity());
                 statement.setBigDecimal(5, movement.getPhysicalBefore());

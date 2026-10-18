@@ -7,25 +7,25 @@ public record CreateInventoryRequest(
         /**
          * Doanh nghiệp sở hữu inventory.
          */
-        @NotBlank(message = "Enterprise id is required")
+        @NotBlank(message = "enterpriseId là bắt buộc")
         String enterpriseId,
 
         /**
          * Kho chứa inventory.
          */
-        @NotBlank(message = "Warehouse id is required")
+        @NotBlank(message = "warehouseId là bắt buộc")
         String warehouseId,
 
         /**
          * Vị trí cụ thể trong kho.
          */
-        @NotBlank(message = "Location id is required")
+        @NotBlank(message = "locationId là bắt buộc")
         String locationId,
 
         /**
          * SKU của sản phẩm.
          */
-        @NotBlank(message = "SKU is required")
+        @NotBlank(message = "SKU là bắt buộc")
         String sku
 ) {
 }

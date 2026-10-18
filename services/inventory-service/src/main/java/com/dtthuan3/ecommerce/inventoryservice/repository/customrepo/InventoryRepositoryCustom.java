@@ -1,6 +1,8 @@
 package com.dtthuan3.ecommerce.inventoryservice.repository.customrepo;
 
 import com.dtthuan3.ecommerce.inventoryservice.entity.Inventory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -16,14 +18,14 @@ public interface InventoryRepositoryCustom {
     Optional<Inventory> findInventoryRowByIdForUpdate(String id);
 
     /** Các truy vấn danh sách tra cứu, không thay đổi dữ liệu. */
-    List<Inventory> findBySku(String sku);
+    Page<Inventory> findBySku(String sku, Pageable pageable);
 
-    List<Inventory> findByWarehouse(String warehouseId);
+    Page<Inventory> findByWarehouse(String warehouseId, Pageable pageable);
 
-    List<Inventory> findByLocation(String locationId);
+    Page<Inventory> findByLocation(String locationId, Pageable pageable);
 
     /** Chỉ trả các dòng có tồn khả dụng lớn hơn 0; bộ lọc đầu vào có thể bỏ trống. */
-    List<Inventory> findAvailable(String sku, String warehouseId, String locationId);
+    Page<Inventory> findAvailable(String sku, String warehouseId, String locationId, Pageable pageable);
 
     /** Tìm theo khóa nghiệp vụ duy nhất enterprise + warehouse + location + SKU. */
     Optional<Inventory> findByPosition(

@@ -3,14 +3,19 @@ package com.dtthuan3.ecommerce.productservice.service.impl;
 import com.dtthuan3.ecommerce.productservice.dto.request.SkuRequest;
 import com.dtthuan3.ecommerce.productservice.dto.response.SkuResponse;
 import com.dtthuan3.ecommerce.productservice.domain.Sku;
-import com.dtthuan3.ecommerce.productservice.exception.DuplicateResourceException;
-import com.dtthuan3.ecommerce.productservice.exception.ResourceNotFoundException;
+import com.dtthuan3.ecommerce.common.exception.DuplicateResourceException;
+import com.dtthuan3.ecommerce.common.exception.ResourceNotFoundException;
 import com.dtthuan3.ecommerce.productservice.mapper.SkuMapper;
 import com.dtthuan3.ecommerce.productservice.repository.SkuRepository;
 import com.dtthuan3.ecommerce.productservice.service.SkuService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -60,6 +65,21 @@ public class SkuServiceImpl implements SkuService {
                 );
 
         return skuMapper.toResponse(sku);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> findActiveSkuCodes(Collection<String> skuCodes) {
+        if (skuCodes == null || skuCodes.isEmpty()) {
+            return List.of();
+        }
+        Set<String> requested = skuCodes.stream()
+                .filter(code -> code != null && !code.isBlank())
+                .collect(Collectors.toSet());
+        if (requested.isEmpty()) {
+            return List.of();
+        }
+        return skuRepository.findActiveSkuCodesBySkuCodeIn(List.copyOf(requested));
     }
 
     @Override
