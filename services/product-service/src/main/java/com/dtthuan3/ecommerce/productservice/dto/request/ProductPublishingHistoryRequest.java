@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 
+import java.util.UUID;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -13,7 +15,7 @@ import lombok.*;
 public class ProductPublishingHistoryRequest {
 
     @NotNull(message = "ID sản phẩm không được để trống")
-    private Long productId;
+    private UUID productId;
 
     @NotNull(message = "Trạng thái cũ không được để trống")
     private ProductStatus fromStatus;
@@ -25,5 +27,5 @@ public class ProductPublishingHistoryRequest {
     private String reason;
 
     @NotNull(message = "ID người thực hiện không được để trống")
-    private Long changedBy;
+    private UUID changedBy;
 }

@@ -1,8 +1,11 @@
 package com.dtthuan3.ecommerce.productservice.domain;
 
 import com.dtthuan3.ecommerce.productservice.constant.AttributeDataType;
+import com.dtthuan3.ecommerce.productservice.mapper.GeneratedUuidV7;
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.util.UUID;
 
 @Entity
 @Table(
@@ -17,6 +20,10 @@ import lombok.*;
                 @Index(
                         name = "idx_attribute_name",
                         columnList = "name"
+                ),
+                @Index(
+                        name = "idx_attribute_active",
+                        columnList = "active"
                 )
         }
 )
@@ -26,39 +33,62 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class Attribute extends BaseEntity {
-
+//Thuộc tính
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    private Long id;
+    @GeneratedUuidV7
+    @Column(nullable = false, updatable = false)
+    private UUID id;
 
-    @Column(nullable = false, length = 150)
+    /**
+     * Tên hiển thị.
+     *
+     * Ví dụ:
+     * RAM
+     * Color
+     * Voltage
+     */
+    @Column(
+            nullable = false,
+            length = 150
+    )
     private String name;
 
     /**
-     * Mã định danh ổn định của attribute.
+     * Mã ổn định của attribute.
+     *
      * Ví dụ:
      * ram
-     * flash
-     * gpio
+     * color
      * voltage
      */
-    @Column(nullable = false, length = 100)
+    @Column(
+            nullable = false,
+            length = 100
+    )
     private String code;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "data_type", nullable = false, length = 30)
+    @Column(
+            name = "data_type",
+            nullable = false,
+            length = 30
+    )
     private AttributeDataType dataType;
 
     /**
      * Đơn vị đo.
-     * Ví dụ: MB, V, MHz, Ohm...
+     *
+     * Ví dụ:
+     * GB
+     * V
+     * MHz
+     * Ohm
      */
     @Column(length = 50)
     private String unit;
 
     /**
-     * Attribute có bắt buộc nhập hay không
-     * ở mức mặc định.
+     * Required mặc định của attribute.
      */
     @Column(nullable = false)
     @Builder.Default

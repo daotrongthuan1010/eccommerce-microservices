@@ -3,6 +3,8 @@ import com.dtthuan3.ecommerce.productservice.constant.MediaType;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -10,9 +12,9 @@ import java.time.LocalDateTime;
 @Builder
 public class ProductMediaResponse {
 
-    private Long id;
+    private UUID id;
 
-    private Long productId;
+    private UUID productId;
 
     private MediaType mediaType;
 

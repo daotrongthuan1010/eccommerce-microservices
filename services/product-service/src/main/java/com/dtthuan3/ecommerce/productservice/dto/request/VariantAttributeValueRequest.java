@@ -9,6 +9,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -19,11 +20,11 @@ public class VariantAttributeValueRequest {
 
     @NotNull(message = "ID biến thể không được để trống")
     @Positive(message = "ID biến thể phải lớn hơn 0")
-    private Long variantId;
+    private UUID variantId;
 
     @NotNull(message = "ID thuộc tính không được để trống")
     @Positive(message = "ID thuộc tính phải lớn hơn 0")
-    private Long attributeId;
+    private UUID attributeId;
 
     @Size(
             max = 1000,
@@ -44,5 +45,5 @@ public class VariantAttributeValueRequest {
     private Boolean valueBoolean;
 
     @Positive(message = "ID tùy chọn phải lớn hơn 0")
-    private Long optionId;
+    private UUID optionId;
 }

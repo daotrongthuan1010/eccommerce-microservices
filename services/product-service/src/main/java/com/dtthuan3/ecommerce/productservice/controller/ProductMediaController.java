@@ -1,80 +1,125 @@
+
 package com.dtthuan3.ecommerce.productservice.controller;
 
-import com.dtthuan3.ecommerce.productservice.dto.request.ProductMediaRequest;
-import com.dtthuan3.ecommerce.productservice.dto.request.SkuMediaRequest;
 import com.dtthuan3.ecommerce.productservice.dto.response.ProductMediaResponse;
 import com.dtthuan3.ecommerce.productservice.dto.response.SkuMediaResponse;
 import com.dtthuan3.ecommerce.productservice.service.ProductMediaService;
-import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.UUID;
 
 @RestController
-@RequestMapping("/media")
+@RequestMapping("/products-media")
 @RequiredArgsConstructor
+@Validated
 public class ProductMediaController {
 
     private final ProductMediaService productMediaService;
 
-    // =========================
-    // PRODUCT MEDIA
-    // =========================
-
-    @PostMapping("/products")
-    public ResponseEntity<ProductMediaResponse> createProductMedia(@Valid @RequestBody ProductMediaRequest request) {
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(productMediaService.createProductMedia(request));
+    @PostMapping(
+            value = "/products/{productId}/media",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ResponseEntity<ProductMediaResponse> uploadProductMedia(
+            @PathVariable @NotNull UUID productId,
+            @RequestParam UUID revisionId,
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(defaultValue = "0")
+            @Min(value = 0, message = "Thứ tự hiển thị không hợp lệ")
+            Integer displayOrder,
+            @RequestParam(defaultValue = "false") Boolean primary
+    ) {
+        return ResponseEntity.ok(
+                productMediaService.uploadProductMedia(
+                        productId,revisionId, file, displayOrder, primary
+                )
+        );
     }
 
-    @GetMapping("/products/{id}")
-    public ResponseEntity<ProductMediaResponse> getProductMediaById(@PathVariable Long id) {
-
-        return ResponseEntity.ok(productMediaService.getProductMediaById(id));
+    @GetMapping("/product-media/{id}")
+    public ResponseEntity<ProductMediaResponse> getProductMedia(
+            @PathVariable UUID id
+    ) {
+        return ResponseEntity.ok(
+                productMediaService.getProductMediaById(id)
+        );
     }
 
-    @PutMapping("/products/{id}")
-    public ResponseEntity<ProductMediaResponse> updateProductMedia(@PathVariable Long id, @Valid @RequestBody ProductMediaRequest request) {
-
-        return ResponseEntity.ok(productMediaService.updateProductMedia(id, request));
+    @PatchMapping("/product-media/{id}")
+    public ResponseEntity<ProductMediaResponse> updateProductMedia(
+            @PathVariable UUID id,
+            @RequestParam(required = false) Integer displayOrder,
+            @RequestParam(required = false) Boolean primary
+    ) {
+        return ResponseEntity.ok(
+                productMediaService.updateProductMedia(
+                        id, displayOrder, primary
+                )
+        );
     }
 
-    @DeleteMapping("/products/{id}")
-    public ResponseEntity<Void> deleteProductMedia(@PathVariable Long id) {
-
+    @DeleteMapping("/product-media/{id}")
+    public ResponseEntity<Void> deleteProductMedia(
+            @PathVariable UUID id
+    ) {
         productMediaService.deleteProductMedia(id);
-
         return ResponseEntity.noContent().build();
     }
 
-    // =========================
-    // SKU MEDIA
-    // =========================
-
-    @PostMapping("/skus")
-    public ResponseEntity<SkuMediaResponse> createSkuMedia(@Valid @RequestBody SkuMediaRequest request) {
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(productMediaService.createSkuMedia(request));
+    @PostMapping(
+            value = "/skus/{skuId}/media",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ResponseEntity<SkuMediaResponse> uploadSkuMedia(
+            @PathVariable @NotNull UUID skuId,
+            @RequestParam UUID revisionId,
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(defaultValue = "0")
+            @Min(value = 0, message = "Thứ tự hiển thị không hợp lệ")
+            Integer displayOrder,
+            @RequestParam(defaultValue = "false") Boolean primary
+    ) {
+        return ResponseEntity.ok(
+                productMediaService.uploadSkuMedia(
+                        skuId,revisionId, file, displayOrder, primary
+                )
+        );
     }
 
-    @GetMapping("/skus/{id}")
-    public ResponseEntity<SkuMediaResponse> getSkuMediaById(@PathVariable Long id) {
-
-        return ResponseEntity.ok(productMediaService.getSkuMediaById(id));
+    @GetMapping("/sku-media/{id}")
+    public ResponseEntity<SkuMediaResponse> getSkuMedia(
+            @PathVariable UUID id
+    ) {
+        return ResponseEntity.ok(
+                productMediaService.getSkuMediaById(id)
+        );
     }
 
-    @PutMapping("/skus/{id}")
-    public ResponseEntity<SkuMediaResponse> updateSkuMedia(@PathVariable Long id, @Valid @RequestBody SkuMediaRequest request) {
-
-        return ResponseEntity.ok(productMediaService.updateSkuMedia(id, request));
+    @PatchMapping("/sku-media/{id}")
+    public ResponseEntity<SkuMediaResponse> updateSkuMedia(
+            @PathVariable UUID id,
+            @RequestParam(required = false) Integer displayOrder,
+            @RequestParam(required = false) Boolean primary
+    ) {
+        return ResponseEntity.ok(
+                productMediaService.updateSkuMedia(
+                        id, displayOrder, primary
+                )
+        );
     }
 
-    @DeleteMapping("/skus/{id}")
-    public ResponseEntity<Void> deleteSkuMedia(@PathVariable Long id) {
-
+    @DeleteMapping("/sku-media/{id}")
+    public ResponseEntity<Void> deleteSkuMedia(
+            @PathVariable UUID id
+    ) {
         productMediaService.deleteSkuMedia(id);
-
         return ResponseEntity.noContent().build();
     }
 }

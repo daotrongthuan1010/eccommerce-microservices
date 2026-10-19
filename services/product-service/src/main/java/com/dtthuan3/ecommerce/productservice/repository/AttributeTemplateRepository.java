@@ -1,19 +1,18 @@
+
 package com.dtthuan3.ecommerce.productservice.repository;
 
 import com.dtthuan3.ecommerce.productservice.domain.AttributeTemplate;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface AttributeTemplateRepository
-        extends JpaRepository<AttributeTemplate, Long> {
+        extends JpaRepository<AttributeTemplate, UUID> {
 
-    Optional<AttributeTemplate> findByCode(String code);
+    Optional<AttributeTemplate> findByIdAndActiveTrue(UUID id);
 
-    boolean existsByCode(String code);
+    boolean existsByCodeIgnoreCase(String code);
 
-    boolean existsByCodeAndIdNot(String code, Long id);
-
-    List<AttributeTemplate> findByActiveTrue();
+    boolean existsByCodeIgnoreCaseAndIdNot(String code, UUID id);
 }

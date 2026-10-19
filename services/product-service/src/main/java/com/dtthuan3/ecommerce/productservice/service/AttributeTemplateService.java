@@ -1,35 +1,37 @@
 package com.dtthuan3.ecommerce.productservice.service;
 
-import com.dtthuan3.ecommerce.productservice.dto.request.AttributeTemplateItemRequest;
+import com.dtthuan3.ecommerce.productservice.dto.request.AttributeTemplateItemCreateRequest;
+import com.dtthuan3.ecommerce.productservice.dto.request.AttributeTemplateItemUpdateRequest;
 import com.dtthuan3.ecommerce.productservice.dto.request.AttributeTemplateRequest;
 import com.dtthuan3.ecommerce.productservice.dto.response.AttributeTemplateItemResponse;
 import com.dtthuan3.ecommerce.productservice.dto.response.AttributeTemplateResponse;
 
+import java.util.UUID;
+
 public interface AttributeTemplateService {
 
-    AttributeTemplateResponse create(
-            AttributeTemplateRequest request
-    );
+    AttributeTemplateResponse create(AttributeTemplateRequest request);
 
-    AttributeTemplateResponse getById(Long id);
+    AttributeTemplateResponse getById(UUID templateId);
 
     AttributeTemplateResponse update(
-            Long id,
+            UUID templateId,
             AttributeTemplateRequest request
     );
 
-    void delete(Long id);
+    void deactivate(UUID templateId);
 
     AttributeTemplateItemResponse createItem(
-            AttributeTemplateItemRequest request
+            UUID templateId,
+            AttributeTemplateItemCreateRequest request
     );
 
-    AttributeTemplateItemResponse getItemById(Long id);
+    AttributeTemplateItemResponse getItemById(UUID itemId);
 
     AttributeTemplateItemResponse updateItem(
-            Long id,
-            AttributeTemplateItemRequest request
+            UUID itemId,
+            AttributeTemplateItemUpdateRequest request
     );
 
-    void deleteItem(Long id);
+    void deactivateItem(UUID itemId);
 }

@@ -1,25 +1,18 @@
+
 package com.dtthuan3.ecommerce.productservice.dto.response;
-import lombok.*;
 
 import java.time.LocalDateTime;
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class AttributeTemplateResponse {
+import java.util.List;
+import java.util.UUID;
 
-    private Long id;
-
-    private String name;
-
-    private String code;
-
-    private String description;
-
-    private Boolean active;
-
-    private LocalDateTime createdAt;
-
-    private LocalDateTime updatedAt;
+public record AttributeTemplateResponse(
+        UUID id,
+        String name,
+        String code,
+        String description,
+        Boolean active,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt,
+        List<AttributeTemplateItemResponse> items
+) {
 }

@@ -1,15 +1,19 @@
 package com.dtthuan3.ecommerce.productservice.service.impl;
 
-import com.dtthuan3.ecommerce.productservice.dto.request.AttributeTemplateItemRequest;
+import com.dtthuan3.ecommerce.common.exception.BusinessException;
+import com.dtthuan3.ecommerce.common.exception.ErrorCode;
+import com.dtthuan3.ecommerce.common.exception.ResourceNotFoundException;
+import com.dtthuan3.ecommerce.productservice.domain.Attribute;
+import com.dtthuan3.ecommerce.productservice.domain.AttributeTemplate;
+import com.dtthuan3.ecommerce.productservice.domain.AttributeTemplateItem;
+import com.dtthuan3.ecommerce.productservice.dto.request.AttributeTemplateItemCreateRequest;
+import com.dtthuan3.ecommerce.productservice.dto.request.AttributeTemplateItemUpdateRequest;
 import com.dtthuan3.ecommerce.productservice.dto.request.AttributeTemplateRequest;
 import com.dtthuan3.ecommerce.productservice.dto.response.AttributeTemplateItemResponse;
 import com.dtthuan3.ecommerce.productservice.dto.response.AttributeTemplateResponse;
-import com.dtthuan3.ecommerce.productservice.domain.AttributeTemplate;
-import com.dtthuan3.ecommerce.productservice.domain.AttributeTemplateItem;
-import com.dtthuan3.ecommerce.productservice.exception.DuplicateResourceException;
-import com.dtthuan3.ecommerce.productservice.exception.ResourceNotFoundException;
 import com.dtthuan3.ecommerce.productservice.mapper.AttributeTemplateItemMapper;
 import com.dtthuan3.ecommerce.productservice.mapper.AttributeTemplateMapper;
+import com.dtthuan3.ecommerce.productservice.repository.AttributeRepository;
 import com.dtthuan3.ecommerce.productservice.repository.AttributeTemplateItemRepository;
 import com.dtthuan3.ecommerce.productservice.repository.AttributeTemplateRepository;
 import com.dtthuan3.ecommerce.productservice.service.AttributeTemplateService;
@@ -17,222 +21,271 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
-public class AttributeTemplateServiceImpl
-        implements AttributeTemplateService {
+public class AttributeTemplateServiceImpl implements AttributeTemplateService {
 
-    private final AttributeTemplateRepository attributeTemplateRepository;
-    private final AttributeTemplateItemRepository attributeTemplateItemRepository;
+    private final AttributeTemplateRepository templateRepository;
+    private final AttributeTemplateItemRepository itemRepository;
+    private final AttributeRepository attributeRepository;
 
-    private final AttributeTemplateMapper attributeTemplateMapper;
-    private final AttributeTemplateItemMapper attributeTemplateItemMapper;
+    private final AttributeTemplateMapper templateMapper;
+    private final AttributeTemplateItemMapper itemMapper;
+
+    // =========================
+    // ATTRIBUTE TEMPLATE
+    // =========================
 
     @Override
     @Transactional
-    public AttributeTemplateResponse create(
-            AttributeTemplateRequest request
-    ) {
+    public AttributeTemplateResponse create(AttributeTemplateRequest request) {
+        String code = normalizeCode(request.getCode());
 
-        if (attributeTemplateRepository.existsByCode(
-                request.getCode()
-        )) {
-            throw new DuplicateResourceException(
-                    "Attribute template code đã tồn tại: "
-                            + request.getCode()
+        if (templateRepository.existsByCodeIgnoreCase(code)) {
+            throw new BusinessException(
+                    ErrorCode.CONFLICT,
+                    "Mã template đã tồn tại: " + code
             );
         }
 
-        AttributeTemplate template =
-                attributeTemplateMapper.toEntity(request);
+        AttributeTemplate template = AttributeTemplate.builder()
+                .name(request.getName().trim())
+                .code(code)
+                .description(normalizeText(request.getDescription()))
+                .active(true)
+                .build();
 
-        AttributeTemplate saved =
-                attributeTemplateRepository.save(template);
+        AttributeTemplate saved = templateRepository.save(template);
 
-        return attributeTemplateMapper.toResponse(saved);
+        return toTemplateResponse(saved);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public AttributeTemplateResponse getById(Long id) {
-
-        AttributeTemplate template =
-                attributeTemplateRepository.findById(id)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Không tìm thấy attribute template với id: "
-                                                + id
-                                )
-                        );
-
-        return attributeTemplateMapper.toResponse(template);
+    public AttributeTemplateResponse getById(UUID templateId) {
+        return toTemplateResponse(getActiveTemplate(templateId));
     }
 
     @Override
     @Transactional
     public AttributeTemplateResponse update(
-            Long id,
+            UUID templateId,
             AttributeTemplateRequest request
     ) {
+        AttributeTemplate template = getActiveTemplate(templateId);
+        String code = normalizeCode(request.getCode());
 
-        AttributeTemplate template =
-                attributeTemplateRepository.findById(id)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Không tìm thấy attribute template với id: "
-                                                + id
-                                )
-                        );
-
-        if (attributeTemplateRepository.existsByCodeAndIdNot(
-                request.getCode(),
-                id
+        if (templateRepository.existsByCodeIgnoreCaseAndIdNot(
+                code,
+                templateId
         )) {
-            throw new DuplicateResourceException(
-                    "Attribute template code đã tồn tại: "
-                            + request.getCode()
+            throw new BusinessException(
+                    ErrorCode.CONFLICT,
+                    "Mã template đã được sử dụng: " + code
             );
         }
 
-        attributeTemplateMapper.updateEntity(request, template);
+        template.setName(request.getName().trim());
+        template.setCode(code);
+        template.setDescription(normalizeText(request.getDescription()));
 
-        AttributeTemplate updated =
-                attributeTemplateRepository.save(template);
+        AttributeTemplate saved = templateRepository.save(template);
 
-        return attributeTemplateMapper.toResponse(updated);
+        return toTemplateResponse(saved);
     }
 
     @Override
     @Transactional
-    public void delete(Long id) {
+    public void deactivate(UUID templateId) {
+        AttributeTemplate template = getActiveTemplate(templateId);
 
-        AttributeTemplate template =
-                attributeTemplateRepository.findById(id)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Không tìm thấy attribute template với id: "
-                                                + id
-                                )
-                        );
+        template.setActive(false);
 
-        attributeTemplateRepository.delete(template);
+        templateRepository.save(template);
     }
 
     // =========================
-    // Attribute Template Item
+    // ATTRIBUTE TEMPLATE ITEM
     // =========================
 
     @Override
     @Transactional
     public AttributeTemplateItemResponse createItem(
-            AttributeTemplateItemRequest request
+            UUID templateId,
+            AttributeTemplateItemCreateRequest request
     ) {
+        AttributeTemplate template = getActiveTemplate(templateId);
+        Attribute attribute = getActiveAttribute(request.attributeId());
 
-        if (!attributeTemplateRepository.existsById(
-                request.getTemplateId()
-        )) {
-            throw new ResourceNotFoundException(
-                    "Không tìm thấy attribute template với id: "
-                            + request.getTemplateId()
-            );
+        var existing = itemRepository.findByTemplateIdAndAttributeId(
+                template.getId(),
+                attribute.getId()
+        );
+
+        if (existing.isPresent()) {
+            AttributeTemplateItem item = existing.get();
+
+            if (Boolean.TRUE.equals(item.getActive())) {
+                throw new BusinessException(
+                        ErrorCode.CONFLICT,
+                        "Thuộc tính đã tồn tại trong template"
+                );
+            }
+
+            applyCreateRequest(item, request);
+            item.setActive(true);
+
+            return itemMapper.toResponse(itemRepository.save(item));
         }
 
-        if (attributeTemplateItemRepository
-                .existsByTemplateIdAndAttributeId(
-                        request.getTemplateId(),
-                        request.getAttributeId()
-                )) {
+        AttributeTemplateItem item = AttributeTemplateItem.builder()
+                .templateId(template.getId())
+                .attributeId(attribute.getId())
+                .variantAttribute(Boolean.TRUE.equals(request.variantAttribute()))
+                .displayOrder(request.displayOrder())
+                .required(Boolean.TRUE.equals(request.required()))
+                .active(true)
+                .build();
 
-            throw new DuplicateResourceException(
-                    "Attribute đã tồn tại trong template"
-            );
-        }
-
-        AttributeTemplateItem item =
-                attributeTemplateItemMapper.toEntity(request);
-
-        AttributeTemplateItem saved =
-                attributeTemplateItemRepository.save(item);
-
-        return attributeTemplateItemMapper.toResponse(saved);
+        return itemMapper.toResponse(itemRepository.save(item));
     }
 
     @Override
     @Transactional(readOnly = true)
-    public AttributeTemplateItemResponse getItemById(
-            Long id
-    ) {
-
-        AttributeTemplateItem item =
-                attributeTemplateItemRepository.findById(id)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Không tìm thấy template item với id: "
-                                                + id
-                                )
-                        );
-
-        return attributeTemplateItemMapper.toResponse(item);
+    public AttributeTemplateItemResponse getItemById(UUID itemId) {
+        return itemMapper.toResponse(getActiveItem(itemId));
     }
 
     @Override
     @Transactional
     public AttributeTemplateItemResponse updateItem(
-            Long id,
-            AttributeTemplateItemRequest request
+            UUID itemId,
+            AttributeTemplateItemUpdateRequest request
     ) {
+        AttributeTemplateItem item = getActiveItem(itemId);
 
-        AttributeTemplateItem item =
-                attributeTemplateItemRepository.findById(id)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Không tìm thấy template item với id: "
-                                                + id
-                                )
-                        );
-
-        if (!attributeTemplateRepository.existsById(
-                request.getTemplateId()
-        )) {
-            throw new ResourceNotFoundException(
-                    "Không tìm thấy attribute template với id: "
-                            + request.getTemplateId()
-            );
+        if (request.variantAttribute() != null) {
+            item.setVariantAttribute(request.variantAttribute());
         }
 
-        if (attributeTemplateItemRepository
-                .existsByTemplateIdAndAttributeIdAndIdNot(
-                        request.getTemplateId(),
-                        request.getAttributeId(),
-                        id
-                )) {
-
-            throw new DuplicateResourceException(
-                    "Attribute đã tồn tại trong template"
-            );
+        if (request.displayOrder() != null) {
+            item.setDisplayOrder(request.displayOrder());
         }
 
-        attributeTemplateItemMapper.updateEntity(request, item);
+        if (request.required() != null) {
+            item.setRequired(request.required());
+        }
 
-        AttributeTemplateItem updated =
-                attributeTemplateItemRepository.save(item);
-
-        return attributeTemplateItemMapper.toResponse(updated);
+        return itemMapper.toResponse(itemRepository.save(item));
     }
 
     @Override
     @Transactional
-    public void deleteItem(Long id) {
+    public void deactivateItem(UUID itemId) {
+        AttributeTemplateItem item = getActiveItem(itemId);
 
-        AttributeTemplateItem item =
-                attributeTemplateItemRepository.findById(id)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Không tìm thấy template item với id: "
-                                                + id
-                                )
-                        );
+        item.setActive(false);
 
-        attributeTemplateItemRepository.delete(item);
+        itemRepository.save(item);
+    }
+
+    // =========================
+    // PRIVATE METHODS
+    // =========================
+
+    private AttributeTemplateResponse toTemplateResponse(
+            AttributeTemplate template
+    ) {
+        List<AttributeTemplateItemResponse> items = itemRepository
+                .findAllByTemplateIdAndActiveTrueOrderByDisplayOrderAsc(
+                        template.getId()
+                )
+                .stream()
+                .map(itemMapper::toResponse)
+                .toList();
+
+        AttributeTemplateResponse response = templateMapper.toResponse(template);
+
+        return new AttributeTemplateResponse(
+                response.id(),
+                response.name(),
+                response.code(),
+                response.description(),
+                response.active(),
+                response.createdAt(),
+                response.updatedAt(),
+                items
+        );
+    }
+
+    private AttributeTemplate getActiveTemplate(UUID templateId) {
+        return templateRepository.findByIdAndActiveTrue(templateId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "AttributeTemplate",
+                                templateId
+                        )
+                );
+    }
+
+    private Attribute getActiveAttribute(UUID attributeId) {
+        return attributeRepository.findByIdAndActiveTrue(attributeId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Attribute",
+                                attributeId
+                        )
+                );
+    }
+
+    private AttributeTemplateItem getActiveItem(UUID itemId) {
+        AttributeTemplateItem item = itemRepository.findById(itemId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "AttributeTemplateItem",
+                                itemId
+                        )
+                );
+
+        if (!Boolean.TRUE.equals(item.getActive())) {
+            throw new ResourceNotFoundException(
+                    "AttributeTemplateItem",
+                    itemId
+            );
+        }
+
+        return item;
+    }
+
+    private void applyCreateRequest(
+            AttributeTemplateItem item,
+            AttributeTemplateItemCreateRequest request
+    ) {
+        item.setVariantAttribute(
+                Boolean.TRUE.equals(request.variantAttribute())
+        );
+        item.setDisplayOrder(request.displayOrder());
+        item.setRequired(Boolean.TRUE.equals(request.required()));
+    }
+
+    private String normalizeCode(String code) {
+        if (code == null || code.isBlank()) {
+            throw new BusinessException(
+                    ErrorCode.VALIDATION_ERROR,
+                    "Mã template không được để trống"
+            );
+        }
+
+        return code.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeText(String value) {
+        return value == null || value.isBlank()
+                ? null
+                : value.trim();
     }
 }

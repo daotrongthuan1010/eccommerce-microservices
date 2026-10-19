@@ -1,3 +1,4 @@
+
 package com.dtthuan3.ecommerce.productservice.repository;
 
 import com.dtthuan3.ecommerce.productservice.domain.AttributeOption;
@@ -5,29 +6,29 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface AttributeOptionRepository
-        extends JpaRepository<AttributeOption, Long> {
+        extends JpaRepository<AttributeOption, UUID> {
 
-    List<AttributeOption> findByAttributeId(Long attributeId);
+    List<AttributeOption>
+    findByAttributeIdAndActiveTrueOrderByDisplayOrderAscValueAsc(
+            UUID attributeId
+    );
 
-    List<AttributeOption> findByAttributeIdAndActiveTrue(Long attributeId);
+    Optional<AttributeOption> findByIdAndAttributeId(
+            UUID id,
+            UUID attributeId
+    );
 
-    Optional<AttributeOption> findByAttributeIdAndValue(
-            Long attributeId,
+    boolean existsByAttributeIdAndValueIgnoreCase(
+            UUID attributeId,
             String value
     );
 
-    boolean existsByAttributeIdAndValue(
-            Long attributeId,
-            String value
-    );
-
-    boolean existsByAttributeIdAndValueAndIdNot(
-            Long attributeId,
+    boolean existsByAttributeIdAndValueIgnoreCaseAndIdNot(
+            UUID attributeId,
             String value,
-            Long id
+            UUID id
     );
-
-    void deleteByAttributeId(Long attributeId);
 }

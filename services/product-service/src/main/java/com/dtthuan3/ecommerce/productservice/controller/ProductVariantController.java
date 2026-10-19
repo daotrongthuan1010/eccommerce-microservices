@@ -1,9 +1,7 @@
 package com.dtthuan3.ecommerce.productservice.controller;
 
-import com.dtthuan3.ecommerce.productservice.dto.request.ProductVariantRequest;
-import com.dtthuan3.ecommerce.productservice.dto.request.VariantAttributeValueRequest;
-import com.dtthuan3.ecommerce.productservice.dto.response.ProductVariantResponse;
-import com.dtthuan3.ecommerce.productservice.dto.response.VariantAttributeValueResponse;
+import com.dtthuan3.ecommerce.productservice.domain.ProductVariant;
+import com.dtthuan3.ecommerce.productservice.dto.request.CreateProductVariantRequest;
 import com.dtthuan3.ecommerce.productservice.service.ProductVariantService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -11,70 +9,40 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.UUID;
+
 @RestController
-@RequestMapping("/product-variants")
 @RequiredArgsConstructor
+@RequestMapping("/products-variant")
 public class ProductVariantController {
 
     private final ProductVariantService productVariantService;
 
-    // =========================
-    // PRODUCT VARIANT
-    // =========================
-
-    @PostMapping
-    public ResponseEntity<ProductVariantResponse> create(@Valid @RequestBody ProductVariantRequest request) {
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(productVariantService.create(request));
+    @PostMapping("/products/{productId}/variants")
+    public ResponseEntity<ProductVariant> create(
+            @PathVariable UUID productId,
+            @Valid @RequestBody CreateProductVariantRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(productVariantService.create(productId, request));
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<ProductVariantResponse> getById(@PathVariable Long id) {
-
-        return ResponseEntity.ok(productVariantService.getById(id));
+    @GetMapping("/products/{productId}/variants")
+    public ResponseEntity<List<ProductVariant>> getByProduct(
+            @PathVariable UUID productId
+    ) {
+        return ResponseEntity.ok(
+                productVariantService.getByProductId(productId)
+        );
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<ProductVariantResponse> update(@PathVariable Long id, @Valid @RequestBody ProductVariantRequest request) {
-
-        return ResponseEntity.ok(productVariantService.update(id, request));
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-
-        productVariantService.delete(id);
-
-        return ResponseEntity.noContent().build();
-    }
-
-    // =========================
-    // VARIANT ATTRIBUTE VALUE
-    // =========================
-
-    @PostMapping("/attribute-values")
-    public ResponseEntity<VariantAttributeValueResponse> createAttributeValue(@Valid @RequestBody VariantAttributeValueRequest request) {
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(productVariantService.createAttributeValue(request));
-    }
-
-    @GetMapping("/attribute-values/{id}")
-    public ResponseEntity<VariantAttributeValueResponse> getAttributeValueById(@PathVariable Long id) {
-
-        return ResponseEntity.ok(productVariantService.getAttributeValueById(id));
-    }
-
-    @PutMapping("/attribute-values/{id}")
-    public ResponseEntity<VariantAttributeValueResponse> updateAttributeValue(@PathVariable Long id, @Valid @RequestBody VariantAttributeValueRequest request) {
-
-        return ResponseEntity.ok(productVariantService.updateAttributeValue(id, request));
-    }
-
-    @DeleteMapping("/attribute-values/{id}")
-    public ResponseEntity<Void> deleteAttributeValue(@PathVariable Long id) {
-
-        productVariantService.deleteAttributeValue(id);
-
-        return ResponseEntity.noContent().build();
+    @GetMapping("/variants/{variantId}")
+    public ResponseEntity<ProductVariant> getById(
+            @PathVariable UUID variantId
+    ) {
+        return ResponseEntity.ok(
+                productVariantService.getById(variantId)
+        );
     }
 }
