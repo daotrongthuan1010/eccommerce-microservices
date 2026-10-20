@@ -1,0 +1,487 @@
+{
+  "info": {
+    "name": "Inventory - Supplier Receipt Workflow",
+    "description": "Bộ kiểm thử tuần tự cho Warehouse, Location và quy trình phiếu nhập nhà cung cấp. Bộ test tự tạo enterpriseId, Warehouse, Location, receiptId và lineId. Cần cấu hình username/password và skuCode đang ACTIVE trong Product Service.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "inventoryUrl",
+      "value": "http://localhost:8084"
+    },
+    {
+      "key": "username",
+      "value": ""
+    },
+    {
+      "key": "password",
+      "value": ""
+    },
+    {
+      "key": "skuCode",
+      "value": ""
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "enterpriseId",
+      "value": ""
+    },
+    {
+      "key": "warehouseId",
+      "value": ""
+    },
+    {
+      "key": "locationId",
+      "value": ""
+    },
+    {
+      "key": "receiptId",
+      "value": ""
+    },
+    {
+      "key": "lineId",
+      "value": ""
+    },
+    {
+      "key": "receiptVersion",
+      "value": ""
+    },
+    {
+      "key": "operationId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Đăng nhập lấy JWT",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/api/auth/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Đăng nhập thành công', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+              "const body = pm.response.json();",
+              "const token = body.access_token || body.token;",
+              "pm.test('Response có access token', function () { pm.expect(token, 'access_token/token').to.be.a('string').and.not.empty; });",
+              "if (token) pm.collectionVariables.set('token', token);",
+              "pm.collectionVariables.set('enterpriseId', pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Kiểm tra SKU đang hoạt động",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"skuCodes\": [\"{{skuCode}}\"]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/api/product/skus/validate"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "const isActive = pm.response.code === 200 && (body.activeSkuCodes || []).includes(pm.collectionVariables.get('skuCode'));",
+              "pm.test('SKU phải tồn tại và ACTIVE', function () { pm.expect(isActive, 'Hãy nhập skuCode ACTIVE trong Product Service').to.eql(true); });",
+              "pm.collectionVariables.set('skuReady', String(isActive));",
+              "if (!isActive) postman.setNextRequest(null);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Tạo Warehouse test",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": null,\n  \"enterpriseId\": \"{{enterpriseId}}\",\n  \"code\": \"WH-{{$guid}}\",\n  \"name\": \"Kho test phiếu nhập\",\n  \"address\": \"Postman integration test\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/api/inventory/warehouses"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tạo Warehouse trả 201', function () { pm.expect(pm.response.code).to.eql(201); });",
+              "const body = pm.response.json(); const data = body.data || body;",
+              "pm.test('Warehouse có ID', function () { pm.expect(data.id).to.be.a('string').and.not.empty; });",
+              "pm.collectionVariables.set('warehouseId', data.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Tạo Location test",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": null,\n  \"warehouseId\": \"{{warehouseId}}\",\n  \"code\": \"LOC-{{$guid}}\",\n  \"name\": \"Kệ test nhập hàng\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/api/inventory/inventory/locations"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tạo Location trả 201', function () { pm.expect(pm.response.code).to.eql(201); });",
+              "const body = pm.response.json(); const data = body.data || body;",
+              "pm.test('Location có ID', function () { pm.expect(data.id).to.be.a('string').and.not.empty; });",
+              "pm.collectionVariables.set('locationId', data.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Tạo phiếu nhập DRAFT",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"supplierRef\": \"PO-POSTMAN-{{$timestamp}}\",\n  \"operationId\": \"{{operationId}}\",\n  \"documentAssetIds\": [],\n  \"lines\": [\n    {\n      \"skuId\": \"{{skuCode}}\",\n      \"uom\": \"EACH\",\n      \"expectedQty\": 10,\n      \"lotCode\": \"LOT-POSTMAN-01\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/api/v1/warehouses/{{warehouseId}}/receipts"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('operationId', pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tạo receipt trả 201', function () { pm.expect(pm.response.code).to.eql(201); });",
+              "const body = pm.response.json(); const data = body.data || body;",
+              "pm.test('Receipt được tạo ở trạng thái DRAFT', function () { pm.expect(data.status).to.eql('DRAFT'); });",
+              "pm.collectionVariables.set('receiptId', data.receiptId);",
+              "pm.collectionVariables.set('lineId', data.lines[0].lineId);",
+              "pm.collectionVariables.set('receiptVersion', String(data.version));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 - Liệt kê phiếu theo Warehouse",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/v1/warehouses/{{warehouseId}}/receipts?page=0&size=20"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Liệt kê phiếu thành công', function () { pm.expect(pm.response.code).to.eql(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 - Đọc chi tiết phiếu",
+      "request": {
+        "method": "GET",
+        "url": "{{inventoryUrl}}/receipts/{{receiptId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Đọc chi tiết phiếu thành công', function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const body = pm.response.json(); const data = body.data || body;",
+              "pm.collectionVariables.set('receiptVersion', String(data.version));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 - Ghi nhận kiểm đếm thực tế",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"expectedVersion\": {{receiptVersion}},\n  \"evidenceAssetIds\": [],\n  \"lines\": [\n    {\n      \"lineId\": \"{{lineId}}\",\n      \"actualQty\": 9,\n      \"goodQty\": 7,\n      \"damagedQty\": 1,\n      \"inspectionQty\": 1\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/api/v1/receipts/{{receiptId}}/actuals"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Cập nhật kiểm đếm thành công', function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const body = pm.response.json(); const data = body.data || body;",
+              "pm.collectionVariables.set('receiptVersion', String(data.version));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 - Gửi phiếu sang chờ duyệt",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"expectedVersion\": {{receiptVersion}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{inventoryUrl}}/receipts/{{receiptId}}/submit"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Gửi phiếu sang chờ duyệt thành công', function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const body = pm.response.json(); const data = body.data || body;",
+              "pm.test('Phiếu chuyển sang SUBMITTED', function () { pm.expect(data.status).to.eql('SUBMITTED'); });",
+              "pm.collectionVariables.set('receiptVersion', String(data.version));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 - Duyệt phiếu nhập",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"expectedVersion\": {{receiptVersion}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{inventoryUrl}}/receipts/{{receiptId}}/approve"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Duyệt phiếu thành công', function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const body = pm.response.json(); const data = body.data || body;",
+              "pm.test('Phiếu chuyển sang APPROVED', function () { pm.expect(data.status).to.eql('APPROVED'); });",
+              "pm.expect(data.approvedBy).to.be.ok; pm.expect(data.approvedAt).to.be.ok;",
+              "pm.collectionVariables.set('receiptVersion', String(data.version));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 - Ghi sổ phiếu và cộng tồn",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"expectedVersion\": {{receiptVersion}},\n  \"lines\": [\n    {\n      \"lineId\": \"{{lineId}}\",\n      \"locationId\": \"{{locationId}}\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{inventoryUrl}}/receipts/{{receiptId}}/post"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Ghi sổ thành công', function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const body = pm.response.json(); const data = body.data || body;",
+              "pm.test('Phiếu chuyển sang RECEIVED', function () { pm.expect(data.status).to.eql('RECEIVED'); });",
+              "pm.collectionVariables.set('receiptVersion', String(data.version));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 - Kiểm tra số dư tồn",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/inventory/inventory?enterpriseId={{enterpriseId}}&warehouseId={{warehouseId}}&locationId={{locationId}}&sku={{skuCode}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tra cứu tồn thành công', function () { pm.expect(pm.response.code).to.eql(200); });",
+              "const body = pm.response.json(); const data = body.data || body;",
+              "pm.test('Số lượng được phân loại đúng', function () { pm.expect(Number(data.physicalQuantity)).to.eql(9); pm.expect(Number(data.defectiveQuantity)).to.eql(1); pm.expect(Number(data.pendingQuantity)).to.eql(1); pm.expect(Number(data.availableQuantity)).to.eql(7); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 - Kiểm tra movement theo receipt",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/inventory/inventory/movements?referenceId={{receiptId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Đọc movement thành công', function () { pm.expect(pm.response.code).to.eql(200); });"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
