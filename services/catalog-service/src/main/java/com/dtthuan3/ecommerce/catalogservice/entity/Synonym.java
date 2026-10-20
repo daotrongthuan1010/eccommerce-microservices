@@ -17,6 +17,8 @@ import org.hibernate.annotations.Parameter;
 )
 @Getter
 @Setter
+
+// tu đồng nghĩa
 public class Synonym extends BaseEntity {
 
     /** ID duy nhất của bản ghi từ đồng nghĩa. */

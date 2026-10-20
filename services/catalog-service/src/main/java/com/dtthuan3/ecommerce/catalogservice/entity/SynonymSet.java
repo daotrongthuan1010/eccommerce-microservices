@@ -12,14 +12,22 @@ import org.hibernate.annotations.Parameter;
 @Table(
         name = "synonym_sets",
         indexes = {
-                @Index(name = "idx_synonym_sets_status", columnList = "status")
+                @Index(
+                        name = "idx_synonym_sets_name",
+                        columnList = "name"
+                ),
+                @Index(
+                        name = "idx_synonym_sets_status",
+                        columnList = "status"
+                )
         }
 )
 @Getter
 @Setter
+
+// bộ từ đồng nghĩa
 public class SynonymSet extends BaseEntity {
 
-    /** ID duy nhất của tập từ đồng nghĩa. */
     @Id
     @GeneratedValue(generator = "synonym_set_uuid_generator")
     @GenericGenerator(
@@ -32,19 +40,39 @@ public class SynonymSet extends BaseEntity {
                     )
             }
     )
-    @Column(name = "id", nullable = false, updatable = false, length = 36)
+    @Column(
+            name = "id",
+            nullable = false,
+            updatable = false,
+            length = 36
+    )
     private String id;
 
-    /** Tên tập từ đồng nghĩa. */
-    @Column(name = "name", nullable = false, length = 255)
+    @Column(
+            name = "name",
+            nullable = false,
+            length = 255
+    )
     private String name;
 
-    /** Phiên bản hiện tại của tập từ đồng nghĩa. */
-    @Column(name = "version", nullable = false)
+    /**
+     * Business version của Synonym Set.
+     *
+     * Ví dụ:
+     * electronics-v1 -> version 1
+     * sau khi thay đổi synonym -> version 2
+     */
+    @Column(
+            name = "version",
+            nullable = false
+    )
     private Long version = 1L;
 
-    /** Trạng thái của tập từ đồng nghĩa. */
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 30)
+    @Column(
+            name = "status",
+            nullable = false,
+            length = 30
+    )
     private SynonymSetStatus status;
 }

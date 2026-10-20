@@ -98,6 +98,12 @@
       <artifactId>spring-boot-starter-cache</artifactId>
     </dependency>
 
+    <!-- Jackson Java Time: LocalDateTime, LocalDate, Instant... -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.datatype</groupId>
+      <artifactId>jackson-datatype-jsr310</artifactId>
+    </dependency>
+
 
     <!-- ================================================= -->
     <!-- KAFKA                                             -->
