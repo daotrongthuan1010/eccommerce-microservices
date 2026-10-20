@@ -251,6 +251,7 @@ services:
     - 0.0.0.0:9090:9090
     volumes:
     - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    - ./infra/prometheus/rules:/etc/prometheus/rules:ro
     - prometheus-data:/prometheus
   grafana:
     image: grafana/grafana:11.3.0
@@ -568,11 +569,23 @@ services:
       REDIS_HOST: 162.4.177.91
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       KAFKA_BOOTSTRAP_SERVERS: 162.4.177.91:9092
+      PRODUCT_EVENTS_TOPIC: ${PRODUCT_EVENTS_TOPIC:-product-events}
+      PRODUCT_EVENTS_DLT_TOPIC: ${PRODUCT_EVENTS_DLT_TOPIC:-product-events.DLT}
+      INVENTORY_STOCK_MOVEMENT_EVENTS_TOPIC: ${INVENTORY_STOCK_MOVEMENT_EVENTS_TOPIC:-inventory-stock-movement-events}
+      INVENTORY_TRANSFER_EVENTS_TOPIC: ${INVENTORY_TRANSFER_EVENTS_TOPIC:-inventory-transfer-events}
+      INVENTORY_EVENT_OUTBOX_POLL_DELAY_MS: ${INVENTORY_EVENT_OUTBOX_POLL_DELAY_MS:-500}
+      INVENTORY_EVENT_OUTBOX_BATCH_SIZE: ${INVENTORY_EVENT_OUTBOX_BATCH_SIZE:-100}
+      INVENTORY_EVENT_OUTBOX_LEASE: ${INVENTORY_EVENT_OUTBOX_LEASE:-PT3M}
+      INVENTORY_EVENT_OUTBOX_RETENTION: ${INVENTORY_EVENT_OUTBOX_RETENTION:-PT720H}
+      INVENTORY_EVENT_INBOX_RETENTION: ${INVENTORY_EVENT_INBOX_RETENTION:-PT90D}
+      TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-0.1}
+      DEPLOYMENT_ENV: ${DEPLOYMENT_ENV:-production}
       DB_URL: jdbc:postgresql://162.4.177.91:5432/inventory_db
       DB_USERNAME: inventory_user
       DB_PASSWORD: ${INVENTORY_DB_PASSWORD}
       EUREKA_SERVER_URL: http://162.4.177.91:8761/eureka/
       EUREKA_HOSTNAME: inventory-service
+      FILE_SERVICE_BASE_URL: http://file-service:8095
       ZIPKIN_ENDPOINT: http://162.4.177.91:9411/api/v2/spans
       KEYCLOAK_JWK_SET_URI: http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs
     mem_limit: 384m

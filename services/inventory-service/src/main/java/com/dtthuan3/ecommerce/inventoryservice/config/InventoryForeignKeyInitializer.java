@@ -29,10 +29,40 @@ public class InventoryForeignKeyInitializer implements InitializingBean {
                 "warehouse_id", "inventory_warehouse", "id");
         ensureForeignKey("inventory_supplier_receipt_line", "fk_supplier_receipt_line_header",
                 "receipt_id", "inventory_supplier_receipt", "id");
+        ensureForeignKey("inventory_supplier_receipt_line", "fk_supplier_receipt_line_location",
+                "location_id", "inventory_location", "id");
         ensureForeignKey("inventory_supplier_receipt_document", "fk_supplier_receipt_document_header",
                 "receipt_id", "inventory_supplier_receipt", "id");
         ensureForeignKey("stock_movement", "fk_stock_movement_inventory",
                 "inventory_id", "inventory", "id");
+        ensureForeignKey("inventory_return_receipt", "fk_return_receipt_inventory",
+                "inventory_id", "inventory", "id");
+        ensureForeignKey("inventory_return_inspection", "fk_return_inspection_receipt",
+                "receipt_id", "inventory_return_receipt", "id");
+        ensureForeignKey("inventory_return_inspection", "fk_return_inspection_inventory",
+                "inventory_id", "inventory", "id");
+        ensureForeignKey("inventory_transfer", "fk_inventory_transfer_source_warehouse",
+                "source_warehouse_id", "inventory_warehouse", "id");
+        ensureForeignKey("inventory_transfer", "fk_inventory_transfer_source_location",
+                "source_location_id", "inventory_location", "id");
+        ensureForeignKey("inventory_transfer", "fk_inventory_transfer_destination_warehouse",
+                "destination_warehouse_id", "inventory_warehouse", "id");
+        ensureForeignKey("inventory_transfer", "fk_inventory_transfer_destination_location",
+                "destination_location_id", "inventory_location", "id");
+        ensureForeignKey("inventory_transfer_line", "fk_inventory_transfer_line_header",
+                "transfer_id", "inventory_transfer", "id");
+        ensureForeignKey("inventory_transfer_line", "fk_inventory_transfer_line_source_inventory",
+                "source_inventory_id", "inventory", "id");
+        ensureForeignKey("inventory_transfer_receipt_operation", "fk_transfer_receipt_operation_header",
+                "transfer_id", "inventory_transfer", "id");
+        ensureForeignKey("inventory_transfer_receipt_line", "fk_transfer_receipt_line_operation",
+                "operation_id", "inventory_transfer_receipt_operation", "id");
+        ensureForeignKey("inventory_transfer_receipt_line", "fk_transfer_receipt_line_transfer_line",
+                "transfer_line_id", "inventory_transfer_line", "id");
+        ensureForeignKey("inventory_transfer_receipt_line", "fk_transfer_receipt_line_source_inventory",
+                "source_inventory_id", "inventory", "id");
+        ensureForeignKey("inventory_transfer_receipt_line", "fk_transfer_receipt_line_destination_inventory",
+                "destination_inventory_id", "inventory", "id");
     }
 
     /**

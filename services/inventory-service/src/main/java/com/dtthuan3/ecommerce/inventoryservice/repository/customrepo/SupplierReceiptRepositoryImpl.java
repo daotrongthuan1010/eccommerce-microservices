@@ -16,6 +16,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,7 +30,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SupplierReceiptRepositoryImpl implements SupplierReceiptRepository {
     private static final String FIND_HEADER_SQL = """
-            SELECT id, warehouse_id, supplier_ref, operation_id, payload_hash, status, version, created_at
+            SELECT id, warehouse_id, supplier_ref, operation_id, payload_hash, status, version, created_at,
+                   approved_by, approved_at
             FROM inventory_supplier_receipt
             WHERE operation_id = ?
             """;
@@ -43,7 +45,9 @@ public class SupplierReceiptRepositoryImpl implements SupplierReceiptRepository 
                     rs.getString("payload_hash"),
                     rs.getString("status"),
                     rs.getLong("version"),
-                    rs.getTimestamp("created_at").toInstant());
+                    rs.getTimestamp("created_at").toInstant(),
+                    rs.getString("approved_by"),
+                    rs.getTimestamp("approved_at") == null ? null : rs.getTimestamp("approved_at").toInstant());
 
     private static final RowMapper<SupplierReceiptLineRecord> LINE_ROW_MAPPER = (rs, rowNumber) ->
             new SupplierReceiptLineRecord(
@@ -56,7 +60,8 @@ public class SupplierReceiptRepositoryImpl implements SupplierReceiptRepository 
                     rs.getBigDecimal("actual_qty"),
                     rs.getBigDecimal("good_qty"),
                     rs.getBigDecimal("damaged_qty"),
-                    rs.getBigDecimal("inspection_qty"));
+                    rs.getBigDecimal("inspection_qty"),
+                    rs.getString("location_id"));
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -74,7 +79,8 @@ public class SupplierReceiptRepositoryImpl implements SupplierReceiptRepository 
     @Override
     public Optional<SupplierReceiptHeader> findById(String receiptId) {
         List<SupplierReceiptHeader> matches = jdbcTemplate.query("""
-                        SELECT id, warehouse_id, supplier_ref, operation_id, payload_hash, status, version, created_at
+                        SELECT id, warehouse_id, supplier_ref, operation_id, payload_hash, status, version, created_at,
+                               approved_by, approved_at
                         FROM inventory_supplier_receipt
                         WHERE id = ?
                         """,
@@ -128,7 +134,8 @@ public class SupplierReceiptRepositoryImpl implements SupplierReceiptRepository 
     @Override
     public Optional<SupplierReceiptHeader> findByIdForUpdate(String receiptId) {
         List<SupplierReceiptHeader> matches = jdbcTemplate.query("""
-                        SELECT id, warehouse_id, supplier_ref, operation_id, payload_hash, status, version, created_at
+                        SELECT id, warehouse_id, supplier_ref, operation_id, payload_hash, status, version, created_at,
+                               approved_by, approved_at
                         FROM inventory_supplier_receipt
                         WHERE id = ?
                         FOR UPDATE
@@ -211,7 +218,7 @@ public class SupplierReceiptRepositoryImpl implements SupplierReceiptRepository 
     public List<SupplierReceiptLineRecord> findLines(String receiptId) {
         return jdbcTemplate.query("""
                         SELECT id, line_number, sku_id, uom, expected_qty, lot_code,
-                               actual_qty, good_qty, damaged_qty, inspection_qty
+                               actual_qty, good_qty, damaged_qty, inspection_qty, location_id
                         FROM inventory_supplier_receipt_line
                         WHERE receipt_id = ?
                         ORDER BY line_number
@@ -240,6 +247,39 @@ public class SupplierReceiptRepositoryImpl implements SupplierReceiptRepository 
         return jdbcTemplate.update("""
                         UPDATE inventory_supplier_receipt
                         SET version = version + 1
+                        WHERE id = ? AND version = ? AND status = 'DRAFT'
+                        """,
+                receiptId, expectedVersion) == 1;
+    }
+
+    /** Chuyển phiếu đã duyệt sang RECEIVED bằng compare-and-set để không ghi sổ hai lần. */
+    @Override
+    public boolean markReceived(String receiptId, long expectedVersion) {
+        return jdbcTemplate.update("""
+                        UPDATE inventory_supplier_receipt
+                        SET status = 'RECEIVED', version = version + 1
+                        WHERE id = ? AND version = ? AND status = 'APPROVED'
+                        """,
+                receiptId, expectedVersion) == 1;
+    }
+
+    /** Chuyển SUBMITTED sang APPROVED và lưu metadata người duyệt trong cùng câu lệnh nguyên tử. */
+    @Override
+    public boolean markApproved(String receiptId, long expectedVersion, String approvedBy, Instant approvedAt) {
+        return jdbcTemplate.update("""
+                        UPDATE inventory_supplier_receipt
+                        SET status = 'APPROVED', version = version + 1, approved_by = ?, approved_at = ?
+                        WHERE id = ? AND version = ? AND status = 'SUBMITTED'
+                        """,
+                approvedBy, Timestamp.from(approvedAt), receiptId, expectedVersion) == 1;
+    }
+
+    /** Chuyển DRAFT sang SUBMITTED nguyên tử; version cũ hoặc trạng thái khác sẽ không cập nhật. */
+    @Override
+    public boolean markSubmitted(String receiptId, long expectedVersion) {
+        return jdbcTemplate.update("""
+                        UPDATE inventory_supplier_receipt
+                        SET status = 'SUBMITTED', version = version + 1
                         WHERE id = ? AND version = ? AND status = 'DRAFT'
                         """,
                 receiptId, expectedVersion) == 1;
@@ -274,6 +314,36 @@ public class SupplierReceiptRepositoryImpl implements SupplierReceiptRepository 
         for (int count : counts) {
             if (count == 0) {
                 throw new IllegalStateException("Không cập nhật được một dòng của phiếu nhập " + receiptId);
+            }
+        }
+    }
+
+    /** Lưu vị trí đích của từng dòng; tất cả update thuộc transaction ghi sổ của phiếu. */
+    @Override
+    public void updateLineLocations(String receiptId, List<SupplierReceiptLineRecord> lines) {
+        if (lines.isEmpty()) return;
+        int[] counts = jdbcTemplate.batchUpdate("""
+                        UPDATE inventory_supplier_receipt_line
+                        SET location_id = ?
+                        WHERE receipt_id = ? AND id = ?
+                        """,
+                new BatchPreparedStatementSetter() {
+                    @Override
+                    public void setValues(PreparedStatement statement, int index) throws SQLException {
+                        SupplierReceiptLineRecord line = lines.get(index);
+                        statement.setString(1, line.locationId());
+                        statement.setString(2, receiptId);
+                        statement.setString(3, line.lineId());
+                    }
+
+                    @Override
+                    public int getBatchSize() {
+                        return lines.size();
+                    }
+                });
+        for (int count : counts) {
+            if (count == 0) {
+                throw new IllegalStateException("Không lưu được Location cho dòng phiếu " + receiptId);
             }
         }
     }

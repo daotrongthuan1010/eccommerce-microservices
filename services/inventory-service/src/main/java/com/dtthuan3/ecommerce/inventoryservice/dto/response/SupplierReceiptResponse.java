@@ -5,8 +5,7 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Kết quả các API trên phiếu nhập nháp. DRAFT cho biết phiếu chưa qua duyệt
- * và các số lượng chưa được ghi vào StockBalance hoặc StockLedger.
+ * Kết quả các API trên phiếu nhập nhà cung cấp, gồm trạng thái hiện tại và dữ liệu chi tiết.
  */
 public record SupplierReceiptResponse(
         /** ID phiếu nhập do Inventory tạo. */
@@ -15,7 +14,7 @@ public record SupplierReceiptResponse(
         String warehouseId,
         /** Mã tham chiếu nhà cung cấp do caller gửi, nếu có. */
         String supplierRef,
-        /** Trạng thái hiện tại; API này luôn trả DRAFT cho phiếu mới. */
+        /** Trạng thái hiện tại của phiếu trong quy trình nhập hàng. */
         String status,
         /** Phiên bản dùng cho kiểm soát cập nhật đồng thời ở các API tiếp theo. */
         Long version,
@@ -26,7 +25,11 @@ public record SupplierReceiptResponse(
         /** ID chứng từ được liên kết với phiếu. */
         List<String> documentAssetIds,
         /** Thời điểm phiếu được tạo theo UTC. */
-        Instant createdAt
+        Instant createdAt,
+        /** Tài khoản ADMIN đã duyệt phiếu; null trước khi được duyệt. */
+        String approvedBy,
+        /** Thời điểm phê duyệt theo UTC; null trước khi được duyệt. */
+        Instant approvedAt
 ) {
     /** Chi tiết dự kiến, thực nhận và phân loại chất lượng của một dòng phiếu. */
     public record Line(
@@ -49,6 +52,8 @@ public record SupplierReceiptResponse(
             /** Số lượng đã kết luận hỏng. */
             BigDecimal damagedQty,
             /** Số lượng còn chờ kiểm tra chất lượng. */
-            BigDecimal inspectionQty
+            BigDecimal inspectionQty,
+            /** Location nhận hàng; null trước khi phiếu được ghi sổ. */
+            String locationId
     ) {}
 }

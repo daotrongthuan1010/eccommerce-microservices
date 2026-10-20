@@ -4,18 +4,27 @@ import com.dtthuan3.ecommerce.common.response.ApiResponse;
 import com.dtthuan3.ecommerce.common.response.PageResponse;
 import com.dtthuan3.ecommerce.inventoryservice.client.ProductSkuClient;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.AdjustInventoryRequest;
+import com.dtthuan3.ecommerce.inventoryservice.dto.request.CreateInventoryTransferRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.CreateInventoryRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.IssueInventoryRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.ReceiveInventoryRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.ReceiveStockRequest;
+import com.dtthuan3.ecommerce.inventoryservice.dto.request.ReceiveReturnReceiptRequest;
+import com.dtthuan3.ecommerce.inventoryservice.dto.request.InspectReturnReceiptRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.ReleaseInventoryRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.ReserveInventoryRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.TransferInventoryRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.InventoryResponse;
+import com.dtthuan3.ecommerce.inventoryservice.dto.response.InventoryTransferResponse;
+import com.dtthuan3.ecommerce.inventoryservice.dto.response.ReturnReceiptResponse;
+import com.dtthuan3.ecommerce.inventoryservice.dto.response.ReturnInspectionResponse;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.StockMovementResponse;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.TransferInventoryResponse;
 import com.dtthuan3.ecommerce.inventoryservice.entity.MovementType;
 import com.dtthuan3.ecommerce.inventoryservice.service.InventoryService;
+import com.dtthuan3.ecommerce.inventoryservice.service.InventoryTransferService;
+import com.dtthuan3.ecommerce.inventoryservice.service.InventoryReturnReceiptService;
+import com.dtthuan3.ecommerce.inventoryservice.service.InventoryReturnInspectionService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -41,6 +50,9 @@ import java.util.List;
 public class InventoryController {
 
     private final InventoryService inventoryService;
+    private final InventoryReturnReceiptService returnReceiptService;
+    private final InventoryReturnInspectionService returnInspectionService;
+    private final InventoryTransferService transferService;
     private final ProductSkuClient productSkuClient;
 
     /** Tra cứu một Inventory theo UUID hoặc ID dạng chuỗi. */
@@ -164,6 +176,30 @@ public class InventoryController {
                 authentication == null ? null : authentication.getName()));
     }
 
+    /** Nhận parcel trả hàng đã duyệt; số lượng vào pending để chờ kiểm tra chất lượng. */
+    @PostMapping("/returns/receive")
+    @PreAuthorize("hasRole('ADMIN')")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<ReturnReceiptResponse> receiveReturn(
+            @Valid @RequestBody ReceiveReturnReceiptRequest request,
+            Authentication authentication) {
+        return created("Đã nhận hàng trả vào khu cách ly",
+                returnReceiptService.receive(request, authentication == null ? null : authentication.getName()));
+    }
+
+    /** Kiểm tra toàn bộ parcel đã nhận và chuyển số lượng ra khỏi khu chờ kiểm tra. */
+    @PostMapping("/returns/{receiptId}/inspect")
+    @PreAuthorize("hasRole('ADMIN')")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<ReturnInspectionResponse> inspectReturn(
+            @PathVariable String receiptId,
+            @Valid @RequestBody InspectReturnReceiptRequest request,
+            Authentication authentication) {
+        return created("Đã kiểm tra và phân loại hàng trả",
+                returnInspectionService.inspect(receiptId, request,
+                        authentication == null ? null : authentication.getName()));
+    }
+
     /** Cộng hàng vào một Inventory đã có. */
     @PostMapping("/receive")
     @PreAuthorize("hasRole('ADMIN')")
@@ -215,6 +251,17 @@ public class InventoryController {
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<TransferInventoryResponse> transfer(@Valid @RequestBody TransferInventoryRequest request) {
         return ApiResponse.ok("Chuyển tồn kho thành công", inventoryService.transfer(request));
+    }
+
+    /** Tạo phiếu điều chuyển nháp; tồn kho chỉ thay đổi ở API xuất chuyển sau này. */
+    @PostMapping("/transfers")
+    @PreAuthorize("hasRole('ADMIN')")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<InventoryTransferResponse> createTransfer(
+            @Valid @RequestBody CreateInventoryTransferRequest request,
+            Authentication authentication) {
+        return created("Đã tạo phiếu điều chuyển ở trạng thái CREATED; tồn kho chưa thay đổi",
+                transferService.create(request, authentication == null ? null : authentication.getName()));
     }
 
     private PageRequest pageRequest(int page, int size) {

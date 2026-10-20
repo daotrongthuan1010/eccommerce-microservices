@@ -2,6 +2,7 @@ package com.dtthuan3.ecommerce.inventoryservice.repository.customrepo;
 
 import com.dtthuan3.ecommerce.inventoryservice.entity.Inventory;
 import com.dtthuan3.ecommerce.inventoryservice.mapper.InventoryRowMapper;
+import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -26,8 +27,7 @@ import java.util.UUID;
  */
 @Repository
 @RequiredArgsConstructor
-public class InventoryRepositoryCustomImpl
-        implements InventoryRepositoryCustom {
+public class JdbcInventoryRepository implements InventoryRepository {
 
     private final JdbcTemplate jdbcTemplate;
     private final InventoryRowMapper inventoryMapper;
@@ -132,6 +132,7 @@ public class InventoryRepositoryCustomImpl
     }
 
     /** Tìm duy nhất vị trí tồn theo doanh nghiệp, kho, khu vực lưu trữ và SKU. */
+    @Override
     public Optional<Inventory> findByPosition(
             String enterpriseId,
             String warehouseId,
@@ -162,6 +163,35 @@ public class InventoryRepositoryCustomImpl
             """;
 
         return queryOne(sql, enterpriseId, warehouseId, locationId, sku);
+    }
+
+    /**
+     * Tải và khóa các SKU nguồn bằng một SELECT để dispatch nhiều dòng không phát sinh N+1 query.
+     * ORDER BY id khiến các transaction cùng tập tồn lấy khóa theo thứ tự thống nhất.
+     */
+    @Override
+    public List<Inventory> findByPositionForUpdate(String enterpriseId, String warehouseId,
+                                                   String locationId, List<String> skus) {
+        if (skus == null || skus.isEmpty()) {
+            return List.of();
+        }
+        String skuPlaceholders = String.join(",", Collections.nCopies(skus.size(), "?"));
+        String sql = """
+                SELECT id, enterprise_id, warehouse_id, location_id, sku,
+                       physical_quantity, reserved_quantity, defective_quantity,
+                       pending_quantity, in_transit_quantity, version, created_at, updated_at
+                FROM inventory
+                WHERE enterprise_id = ? AND warehouse_id = ? AND location_id = ?
+                  AND sku IN (%s)
+                ORDER BY id
+                FOR UPDATE
+                """.formatted(skuPlaceholders);
+        List<Object> parameters = new ArrayList<>(3 + skus.size());
+        parameters.add(enterpriseId);
+        parameters.add(warehouseId);
+        parameters.add(locationId);
+        parameters.addAll(skus);
+        return jdbcTemplate.query(sql, inventoryMapper, parameters.toArray());
     }
 
     /** Tạo vị trí tồn bằng một INSERT; xung đột khóa duy nhất được báo qua Optional rỗng. */
@@ -222,7 +252,30 @@ public class InventoryRepositoryCustomImpl
         return jdbcTemplate.query(sql, inventoryMapper, ids.toArray());
     }
 
+    /** Khóa toàn bộ dòng theo thứ tự ID cố định để nhận điều chuyển hai chiều tránh deadlock. */
+    @Override
+    public List<Inventory> findByIdsForUpdate(List<String> ids) {
+        List<String> orderedIds = ids == null ? List.of() : ids.stream().distinct().sorted().toList();
+        if (orderedIds.isEmpty()) return List.of();
+        String placeholders = String.join(",", Collections.nCopies(orderedIds.size(), "?"));
+        String sql = """
+                SELECT id, enterprise_id, warehouse_id, location_id, sku,
+                       physical_quantity, reserved_quantity, defective_quantity,
+                       pending_quantity, in_transit_quantity, version, created_at, updated_at
+                FROM inventory WHERE id IN (
+                """ + placeholders + ") ORDER BY id FOR UPDATE";
+        return jdbcTemplate.query(sql, inventoryMapper, orderedIds.toArray());
+    }
+
+    /** Tạo balance đích nếu thiếu mà chưa khóa balance đã tồn tại. */
+    @Override
+    public void ensureExists(String enterpriseId, String warehouseId, String locationId, String sku) {
+        insertInventory(enterpriseId, warehouseId, locationId, sku,
+                " ON CONFLICT (enterprise_id, warehouse_id, location_id, sku) DO NOTHING ");
+    }
+
     /** Tạo dòng nếu chưa có; nếu đã có thì đọc và khóa dòng hiện tại trước khi cộng tồn. */
+    @Override
     public Inventory createOrFind(
             String enterpriseId,
             String warehouseId,
@@ -318,6 +371,7 @@ public class InventoryRepositoryCustomImpl
         return Optional.ofNullable(inventory);
     }
     /** Cộng hàng nhập vào tồn vật lý và tăng version trong cùng một câu UPDATE nguyên tử. */
+    @Override
     public Inventory receive(
             String inventoryId,
             BigDecimal quantity
@@ -330,6 +384,7 @@ public class InventoryRepositoryCustomImpl
                 updated_at = CURRENT_TIMESTAMP,
                 version = version + 1
             WHERE id = ?
+              AND ? > 0
             RETURNING
                 id,
                 enterprise_id,
@@ -350,10 +405,85 @@ public class InventoryRepositoryCustomImpl
                 sql,
                 inventoryMapper,
                 quantity,
-                inventoryId
+                inventoryId,
+                quantity
         );
     }
+
+    /** Trừ lượng đã đối soát khỏi hàng đang trên đường, không cho bucket in-transit xuống âm. */
+    @Override
+    public Optional<Inventory> decreaseInTransit(String inventoryId, BigDecimal quantity) {
+        return jdbcTemplate.query("""
+                        UPDATE inventory
+                        SET in_transit_quantity = in_transit_quantity - ?,
+                            updated_at = CURRENT_TIMESTAMP,
+                            version = version + 1
+                        WHERE id = ? AND in_transit_quantity >= ? AND ? > 0
+                        RETURNING id, enterprise_id, warehouse_id, location_id, sku,
+                                  physical_quantity, reserved_quantity, defective_quantity,
+                                  pending_quantity, in_transit_quantity, version, created_at, updated_at
+                        """, inventoryMapper, quantity, inventoryId, quantity, quantity)
+                .stream().findFirst();
+    }
+
+    /**
+     * Ghi tổng hàng đã nhận vào tồn vật lý, đồng thời đưa hàng hỏng và hàng chờ vào bucket riêng.
+     * Một câu UPDATE duy nhất bảo đảm không có trạng thái chỉ tăng một phần số lượng.
+     */
+    @Override
+    public Inventory receiveClassified(String inventoryId, BigDecimal goodQuantity,
+                                       BigDecimal damagedQuantity, BigDecimal inspectionQuantity) {
+        BigDecimal physicalIncrease = goodQuantity.add(damagedQuantity).add(inspectionQuantity);
+        return jdbcTemplate.queryForObject("""
+                        UPDATE inventory
+                        SET physical_quantity = physical_quantity + ?,
+                            defective_quantity = defective_quantity + ?,
+                            pending_quantity = pending_quantity + ?,
+                            updated_at = CURRENT_TIMESTAMP,
+                            version = version + 1
+                        WHERE id = ?
+                          AND ? >= 0
+                          AND ? >= 0
+                          AND ? >= 0
+                          AND (? + ? + ?) > 0
+                        RETURNING id, enterprise_id, warehouse_id, location_id, sku,
+                                  physical_quantity, reserved_quantity, defective_quantity,
+                                  pending_quantity, in_transit_quantity, version, created_at, updated_at
+                        """,
+                inventoryMapper, physicalIncrease, damagedQuantity, inspectionQuantity, inventoryId,
+                goodQuantity, damagedQuantity, inspectionQuantity,
+                goodQuantity, damagedQuantity, inspectionQuantity);
+    }
+
+    /**
+     * Chốt phân loại hàng trả bằng một UPDATE nguyên tử: tổng hàng đã kiểm tra giảm pending,
+     * phần hỏng tăng defective; physical_quantity không đổi vì hàng đã được nhận vào kho trước đó.
+     */
+    @Override
+    public Optional<Inventory> inspectPendingReturn(String inventoryId, BigDecimal inspectedQuantity,
+                                                     BigDecimal damagedQuantity) {
+        return jdbcTemplate.query("""
+                        UPDATE inventory
+                        SET pending_quantity = pending_quantity - ?,
+                            defective_quantity = defective_quantity + ?,
+                            updated_at = CURRENT_TIMESTAMP,
+                            version = version + 1
+                        WHERE id = ?
+                          AND pending_quantity >= ?
+                          AND ? > 0
+                          AND ? >= 0
+                          AND ? <= ?
+                        RETURNING id, enterprise_id, warehouse_id, location_id, sku,
+                                  physical_quantity, reserved_quantity, defective_quantity,
+                                  pending_quantity, in_transit_quantity, version, created_at, updated_at
+                        """,
+                inventoryMapper, inspectedQuantity, damagedQuantity, inventoryId, inspectedQuantity,
+                inspectedQuantity, damagedQuantity, damagedQuantity, inspectedQuantity)
+                .stream().findFirst();
+    }
+
     /** Chỉ giữ hàng nếu lượng khả dụng ngay tại thời điểm cập nhật đủ đáp ứng yêu cầu. */
+    @Override
     public Optional<Inventory> reserve(
             String inventoryId,
             BigDecimal quantity
@@ -372,6 +502,7 @@ public class InventoryRepositoryCustomImpl
                     - defective_quantity
                     - pending_quantity
                   ) >= ?
+              AND ? > 0
             RETURNING
                 id,
                 enterprise_id,
@@ -394,6 +525,7 @@ public class InventoryRepositoryCustomImpl
                         inventoryMapper,
                         quantity,
                         inventoryId,
+                        quantity,
                         quantity
                 )
                 .stream()
@@ -401,6 +533,7 @@ public class InventoryRepositoryCustomImpl
     }
 
     /** Chỉ bỏ giữ nếu lượng đã giữ không nhỏ hơn lượng cần nhả. */
+    @Override
     public Optional<Inventory> release(
             String inventoryId,
             BigDecimal quantity
@@ -414,6 +547,7 @@ public class InventoryRepositoryCustomImpl
                 version = version + 1
             WHERE id = ?
               AND reserved_quantity >= ?
+              AND ? > 0
             RETURNING
                 id,
                 enterprise_id,
@@ -436,12 +570,14 @@ public class InventoryRepositoryCustomImpl
                         inventoryMapper,
                         quantity,
                         inventoryId,
+                        quantity,
                         quantity
                 )
                 .stream()
                 .findFirst();
     }
     /** Xuất hàng bằng một UPDATE có điều kiện để tránh làm tồn khả dụng âm khi có tranh chấp. */
+    @Override
     public Optional<Inventory> issue(
             String inventoryId,
             BigDecimal quantity
@@ -460,6 +596,7 @@ public class InventoryRepositoryCustomImpl
                     - defective_quantity
                     - pending_quantity
                   ) >= ?
+              AND ? > 0
             RETURNING
                 id,
                 enterprise_id,
@@ -482,13 +619,50 @@ public class InventoryRepositoryCustomImpl
                         inventoryMapper,
                         quantity,
                         inventoryId,
+                        quantity,
                         quantity
                 )
                 .stream()
                 .findFirst();
     }
 
+    /**
+     * Giảm tồn vật lý và tăng in-transit cho tối đa 200 dòng trong một câu UPDATE.
+     * Mỗi dòng chỉ được cập nhật nếu tồn khả dụng tại database vẫn đủ; caller rollback toàn bộ
+     * transaction nếu RETURNING không trả đủ số dòng.
+     */
+    @Override
+    public List<Inventory> dispatchTransferBatch(List<TransferDispatchUpdate> updates) {
+        if (updates == null || updates.isEmpty()) {
+            return List.of();
+        }
+        String valueRows = String.join(",", Collections.nCopies(updates.size(), "(?, ?)"));
+        String sql = """
+                WITH requested(inventory_id, quantity) AS (VALUES %s)
+                UPDATE inventory AS i
+                SET physical_quantity = i.physical_quantity - requested.quantity,
+                    in_transit_quantity = i.in_transit_quantity + requested.quantity,
+                    updated_at = CURRENT_TIMESTAMP,
+                    version = i.version + 1
+                FROM requested
+                WHERE i.id = requested.inventory_id
+                  AND requested.quantity > 0
+                  AND i.physical_quantity - i.reserved_quantity
+                      - i.defective_quantity - i.pending_quantity >= requested.quantity
+                RETURNING i.id, i.enterprise_id, i.warehouse_id, i.location_id, i.sku,
+                          i.physical_quantity, i.reserved_quantity, i.defective_quantity,
+                          i.pending_quantity, i.in_transit_quantity, i.version, i.created_at, i.updated_at
+                """.formatted(valueRows);
+        List<Object> parameters = new ArrayList<>(updates.size() * 2);
+        for (TransferDispatchUpdate update : updates) {
+            parameters.add(update.inventoryId());
+            parameters.add(update.quantity());
+        }
+        return jdbcTemplate.query(sql, inventoryMapper, parameters.toArray());
+    }
+
     /** Chỉ chấp nhận số kiểm kê mới nếu vẫn đủ chứa phần giữ, lỗi và đang chờ. */
+    @Override
     public Optional<Inventory> adjust(
             String inventoryId,
             BigDecimal actualQuantity
@@ -506,6 +680,7 @@ public class InventoryRepositoryCustomImpl
                     + defective_quantity
                     + pending_quantity
                   )
+              AND ? >= 0
             RETURNING
                 id,
                 enterprise_id,
@@ -534,6 +709,9 @@ public class InventoryRepositoryCustomImpl
                         inventoryId,
 
                         // Kiểm tra tồn mới vẫn đủ chứa hàng đã giữ, hàng lỗi và hàng đang chờ.
+                        actualQuantity,
+
+                        // Không cho phép lượng kiểm kê âm dù repository được gọi nội bộ.
                         actualQuantity
                 )
                 .stream()

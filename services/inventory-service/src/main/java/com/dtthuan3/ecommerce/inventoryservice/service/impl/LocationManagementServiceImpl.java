@@ -8,6 +8,8 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.response.LocationResponse;
 import com.dtthuan3.ecommerce.inventoryservice.entity.InventoryLocation;
 import com.dtthuan3.ecommerce.inventoryservice.mapper.InventoryLocationMapper;
 import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryLocationRepository;
+import com.dtthuan3.ecommerce.inventoryservice.repository.CacheInvalidationOutboxRepository;
+import com.dtthuan3.ecommerce.inventoryservice.entity.CacheInvalidationOutboxEvent;
 import com.dtthuan3.ecommerce.inventoryservice.service.LocationManagementService;
 import com.dtthuan3.ecommerce.inventoryservice.service.InventoryLocationAccessService;
 import lombok.RequiredArgsConstructor;
@@ -16,8 +18,9 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
-import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -29,11 +32,12 @@ public class LocationManagementServiceImpl implements LocationManagementService 
     private final InventoryLocationRepository locationRepository;
     private final InventoryLocationMapper locationMapper;
     private final InventoryLocationAccessService locationAccessService;
+    private final CacheInvalidationOutboxRepository invalidationOutboxRepository;
 
     /** Tạo Location và xóa cache đọc sau khi dữ liệu mới được ghi thành công. */
     @Override
     @Transactional
-    @CacheEvict(cacheNames = "inventory-location-queries", allEntries = true)
+    @CacheEvict(allEntries = true)
     public LocationResponse createLocation(CreateLocationRequest request) {
         String warehouseId = request.warehouseId().trim();
         // Location chỉ được tạo trong Warehouse nội bộ đang hoạt động.
@@ -58,30 +62,27 @@ public class LocationManagementServiceImpl implements LocationManagementService 
     /** Cache kết quả theo ID; sync=true hạn chế nhiều request đồng thời cùng truy vấn khi cache-miss. */
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(cacheNames = "inventory-location-queries", key = "'id:' + #locationId", sync = true)
+    @Cacheable(cacheNames = "inventory-location-by-id-v2", key = "'id:' + #locationId")
     public LocationResponse getLocation(String locationId) {
         InventoryLocation location = locationRepository.findById(locationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy Location với ID: " + locationId));
         return locationMapper.toResponse(location);
     }
 
-    /** Cache danh sách theo warehouseId; tiền tố key tách với key tra cứu theo Location ID. */
+    /** Paginated queries stay uncached: changes become visible immediately and large lists do not occupy Redis. */
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(cacheNames = "inventory-location-queries", key = "'warehouse:' + #warehouseId", sync = true)
-    public List<LocationResponse> listLocations(String warehouseId) {
+    public Page<LocationResponse> listLocations(String warehouseId, Pageable pageable) {
         if (warehouseId == null || warehouseId.isBlank()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "warehouseId là bắt buộc");
         }
-        return locationRepository.findAllByWarehouseIdOrderByCode(warehouseId.trim()).stream()
-                .map(locationMapper::toResponse)
-                .toList();
+        return locationRepository.findAllByWarehouseIdOrderByCode(warehouseId.trim(), pageable)
+                .map(locationMapper::toResponse);
     }
 
     /** Cập nhật code/name; làm mất hiệu lực cache theo ID và theo Warehouse. */
     @Override
     @Transactional
-    @CacheEvict(cacheNames = "inventory-location-queries", allEntries = true)
     public LocationResponse updateLocation(String locationId, UpdateLocationRequest request) {
         InventoryLocation location = locationRepository.findById(locationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy Location với ID: " + locationId));
@@ -89,7 +90,9 @@ public class LocationManagementServiceImpl implements LocationManagementService 
         location.setName(request.name().trim());
         try {
             // Flush ngay trong try để bắt unique constraint tại đây và đổi lỗi DB thành HTTP conflict chuẩn.
-            return locationMapper.toResponse(locationRepository.saveAndFlush(location));
+            LocationResponse updated = locationMapper.toResponse(locationRepository.saveAndFlush(location));
+            scheduleLocationInvalidation(locationId);
+            return updated;
         } catch (DataIntegrityViolationException ex) {
             throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE,
                     "Mã Location đã được sử dụng trong Warehouse này");
@@ -99,7 +102,6 @@ public class LocationManagementServiceImpl implements LocationManagementService 
     /** Tắt mềm Location để giữ lịch sử; xóa cache sau khi cập nhật trạng thái. */
     @Override
     @Transactional
-    @CacheEvict(cacheNames = "inventory-location-queries", allEntries = true)
     public LocationResponse setLocationActive(String locationId, boolean active) {
         InventoryLocation location = locationRepository.findById(locationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy Location với ID: " + locationId));
@@ -108,6 +110,13 @@ public class LocationManagementServiceImpl implements LocationManagementService 
             locationAccessService.requireActiveWarehouse(location.getWarehouseId(), null);
         }
         location.setActive(active);
-        return locationMapper.toResponse(locationRepository.save(location));
+        LocationResponse updated = locationMapper.toResponse(locationRepository.save(location));
+        scheduleLocationInvalidation(locationId);
+        return updated;
+    }
+
+    private void scheduleLocationInvalidation(String locationId) {
+        invalidationOutboxRepository.save(new CacheInvalidationOutboxEvent(
+                "inventory-location-by-id-v2", "id:" + locationId));
     }
 }

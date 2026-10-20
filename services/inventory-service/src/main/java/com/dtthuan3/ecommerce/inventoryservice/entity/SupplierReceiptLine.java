@@ -39,6 +39,10 @@ public class SupplierReceiptLine {
     @Column(name = "receipt_id", nullable = false, length = 36)
     private String receiptId;
 
+    /** Location thực tế được chọn khi ghi sổ; null trong lúc phiếu còn ở DRAFT. */
+    @Column(name = "location_id", length = 100)
+    private String locationId;
+
     /** Thứ tự dòng trong phiếu, duy nhất trong cùng receipt. */
     @Column(name = "line_number", nullable = false)
     private int lineNumber;

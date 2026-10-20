@@ -1,0 +1,85 @@
+groups:
+  - name: inventory-service
+    rules:
+      - alert: InventoryServiceDown
+        expr: up{job="spring-apps", instance="inventory-service:8084"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: inventory-service
+        annotations:
+          summary: Inventory Service không scrape được
+          description: Prometheus không nhận được metric từ Inventory Service trong ít nhất 2 phút.
+
+      - alert: InventoryHighHttp5xxRate
+        expr: >-
+          sum(rate(http_server_requests_seconds_count{application="inventory-service",status=~"5.."}[5m]))
+          / clamp_min(sum(rate(http_server_requests_seconds_count{application="inventory-service"}[5m])), 0.001) > 0.02
+        for: 10m
+        labels:
+          severity: warning
+          service: inventory-service
+        annotations:
+          summary: Tỷ lệ HTTP 5xx của Inventory vượt 2%
+          description: Tỷ lệ lỗi được tính trên cửa sổ 5 phút và phải kéo dài 10 phút.
+
+      - alert: InventoryHighHttpP95Latency
+        expr: >-
+          histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{application="inventory-service"}[5m]))) > 0.75
+        for: 10m
+        labels:
+          severity: warning
+          service: inventory-service
+        annotations:
+          summary: P95 HTTP latency của Inventory vượt 750 ms
+          description: Kiểm tra query chậm, connection pool, Redis/Kafka và tải từ các caller.
+
+      - alert: InventoryEventOutboxBacklog
+        expr: inventory_event_outbox_pending > 1000 or inventory_event_outbox_oldest_age_seconds > 300
+        for: 5m
+        labels:
+          severity: warning
+          service: inventory-service
+        annotations:
+          summary: Inventory event outbox đang tồn đọng
+          description: Kiểm tra Kafka, quyền ghi topic và metric publish failure.
+
+      - alert: InventoryProductEventsDeadLettered
+        expr: increase(inventory_kafka_consumer_dead_letter_total{consumer="product-sku-projection"}[10m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          service: inventory-service
+        annotations:
+          summary: Product event đã được chuyển sang DLT
+          description: Kiểm tra product-events.DLT và sửa payload/consumer trước khi replay.
+
+      - alert: InventoryKafkaConsumerLagHigh
+        expr: kafka_consumer_fetch_manager_records_lag_max{client_id=~".*inventory-service.*"} > 10000
+        for: 10m
+        labels:
+          severity: warning
+          service: inventory-service
+        annotations:
+          summary: Kafka consumer Inventory đang trễ
+          description: Kiểm tra tốc độ xử lý consumer, partition count và database latency.
+
+      - alert: InventoryDatabasePoolSaturated
+        expr: hikaricp_connections_pending{application="inventory-service"} > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: inventory-service
+        annotations:
+          summary: Request Inventory đang chờ connection database
+          description: Kiểm tra query/transaction duration và đối chiếu giới hạn connection PostgreSQL.
+
+      - alert: InventoryCacheInvalidationDelayed
+        expr: inventory_cache_invalidation_oldest_age_seconds > 60
+        for: 5m
+        labels:
+          severity: warning
+          service: inventory-service
+        annotations:
+          summary: Lệnh invalidation Redis của Inventory bị trễ
+          description: Kiểm tra Redis, cache outbox poller và số lần retry.

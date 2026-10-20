@@ -1,5 +1,6 @@
 .env
 **/target/
+backups/
 .idea/
 *.iml
 .vscode/

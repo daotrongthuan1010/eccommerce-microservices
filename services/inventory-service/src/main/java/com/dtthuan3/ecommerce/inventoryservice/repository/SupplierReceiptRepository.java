@@ -6,6 +6,7 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptSumma
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -44,8 +45,20 @@ public interface SupplierReceiptRepository {
     /** Tăng version có điều kiện để chỉ một request với expectedVersion hiện tại được thắng. */
     boolean incrementVersion(String receiptId, long expectedVersion);
 
+    /** Chuyển APPROVED sang RECEIVED và tăng version theo điều kiện để chống ghi sổ hai lần. */
+    boolean markReceived(String receiptId, long expectedVersion);
+
+    /** Chuyển SUBMITTED sang APPROVED, ghi người/thời điểm duyệt và tăng version nguyên tử. */
+    boolean markApproved(String receiptId, long expectedVersion, String approvedBy, Instant approvedAt);
+
+    /** Chuyển DRAFT sang SUBMITTED bằng compare-and-set sau khi service đã hoàn tất mọi kiểm tra. */
+    boolean markSubmitted(String receiptId, long expectedVersion);
+
     /** Cập nhật số lượng thực nhận và phân loại cho các dòng trong phiếu. */
     void updateActuals(String receiptId, List<SupplierReceiptLineRecord> lines);
+
+    /** Ghi Location nhận hàng đã được kiểm tra cho toàn bộ dòng trước khi cộng tồn. */
+    void updateLineLocations(String receiptId, List<SupplierReceiptLineRecord> lines);
 
     /** Nối thêm chứng từ bằng insert chống trùng theo unique key receipt_id + asset_id. */
     void appendDocuments(String receiptId, List<String> assetIds);

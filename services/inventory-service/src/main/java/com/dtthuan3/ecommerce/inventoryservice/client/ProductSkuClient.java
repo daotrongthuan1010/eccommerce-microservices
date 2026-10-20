@@ -119,6 +119,11 @@ public class ProductSkuClient implements ActiveSkuValidator {
                     .body(new SkuValidationRequest(codes))
                     .retrieve()
                     .body(SkuValidationResponse.class);
+        } catch (IllegalArgumentException ex) {
+            // LoadBalancer ném IllegalArgumentException khi Eureka không có instance product-service;
+            // đổi thành lỗi phụ thuộc có nghĩa để không trả 500 do lỗi hạ tầng chưa sẵn sàng.
+            throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE,
+                    "Không tìm thấy instance product-service trong Eureka; hãy kiểm tra Product Service đã chạy và đăng ký thành công");
         } catch (RestClientException ex) {
             throw new BusinessException(ErrorCode.DEPENDENCY_ERROR,
                     "Không thể xác thực SKU với product-service; inventory chưa được ghi");

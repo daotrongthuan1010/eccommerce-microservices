@@ -22,5 +22,9 @@ public record SupplierReceiptHeader(
         /** Phiên bản dữ liệu phục vụ optimistic concurrency ở API cập nhật. */
         long version,
         /** Thời điểm tạo chuẩn UTC, ánh xạ với PostgreSQL TIMESTAMPTZ. */
-        Instant createdAt
+        Instant createdAt,
+        /** Tài khoản ADMIN duyệt phiếu; null trước bước phê duyệt. */
+        String approvedBy,
+        /** Thời điểm duyệt phiếu theo UTC; null trước bước phê duyệt. */
+        Instant approvedAt
 ) {}

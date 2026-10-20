@@ -2,6 +2,7 @@ package com.dtthuan3.ecommerce.inventoryservice.repository;
 
 import com.dtthuan3.ecommerce.inventoryservice.repository.model.WarehouseRecord;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,8 +24,8 @@ public interface WarehouseRepository {
     void insert(WarehouseRecord warehouse);
 
     /** Chỉ đổi thông tin hiển thị; không cho sửa enterprise sở hữu hoặc trạng thái tại đây. */
-    void updateDetails(String warehouseId, String code, String name, String address, java.time.Instant updatedAt);
+    void updateDetails(String warehouseId, String code, String name, String address, Instant updatedAt);
 
     /** Đổi trạng thái mềm để giữ nguyên các tham chiếu lịch sử từ tồn kho và phiếu nhập. */
-    void updateStatus(String warehouseId, String status, java.time.Instant updatedAt);
+    void updateStatus(String warehouseId, String status, Instant updatedAt);
 }

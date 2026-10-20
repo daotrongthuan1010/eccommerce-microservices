@@ -4,7 +4,8 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.request.CreateLocationRequest
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.UpdateLocationRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.LocationResponse;
 
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 /** Hợp đồng nghiệp vụ cho quản lý Location thuộc Inventory. */
 public interface LocationManagementService {
@@ -14,8 +15,8 @@ public interface LocationManagementService {
     /** Đọc một Location theo ID. */
     LocationResponse getLocation(String locationId);
 
-    /** Lấy danh sách Location thuộc một Warehouse. */
-    List<LocationResponse> listLocations(String warehouseId);
+    /** Lấy một trang Location để giới hạn bộ nhớ và payload theo Warehouse. */
+    Page<LocationResponse> listLocations(String warehouseId, Pageable pageable);
 
     /** Đổi code/name, không đổi Warehouse sở hữu. */
     LocationResponse updateLocation(String locationId, UpdateLocationRequest request);

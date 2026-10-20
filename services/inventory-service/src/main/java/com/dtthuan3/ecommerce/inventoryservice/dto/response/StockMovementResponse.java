@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 /** Dữ liệu lịch sử trả về; không trả entity để tránh tải quan hệ JPA không cần thiết. */
 public record StockMovementResponse(
-        /** ID tự tăng của bản ghi lịch sử. */
+        /** UUID của bản ghi lịch sử; sinh ở Inventory trước khi ghi JDBC. */
         String id,
         /** Inventory bị tác động. */
         String inventoryId,
