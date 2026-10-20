@@ -206,6 +206,7 @@
         </dependency>
 
 
+
         <!-- ================================================== -->
         <!-- PROTOBUF JAVA                                      -->
         <!-- ByteString nằm trong dependency này                -->
@@ -241,7 +242,7 @@
         </dependency>
         <dependency>
             <groupId>com.dtthuan3.ecommerce</groupId>
-            <artifactId>file-service</artifactId>
+            <artifactId>common</artifactId>
             <version>0.0.1-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>

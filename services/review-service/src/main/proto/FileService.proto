@@ -2,28 +2,20 @@ syntax = "proto3";
 
 package file;
 
-option java_multiple_files = true;
-option java_package = "com.dtthuan3.ecommerce.grpc.file";
-option java_outer_classname = "FileServiceProto";
+option java_package = "com.dtthuan3.ecommerce.fileservice.grpc";
+option java_outer_classname = "FileProto";
 
+// Định nghĩa Service
 service FileGrpcService {
-  rpc UploadFile(UploadFileRequest)
-      returns (UploadFileResponse);
+  rpc GetPublicMediaUrls (MediaUrlRequest) returns (MediaUrlResponse);
 }
 
-message UploadFileRequest {
-  bytes data = 1;
-  string filename = 2;
-  string content_type = 3;
-  string folder = 4;
+// Request: Gửi lên danh sách file_id
+message MediaUrlRequest {
+  repeated string file_ids = 1;
 }
 
-message UploadFileResponse {
-  string key = 1;
-  string bucket = 2;
-  string original_name = 3;
-  string content_type = 4;
-  int64 size = 5;
-  string url = 6;
-  int64 url_expires_in_seconds = 7;
+// Response: Trả về một Map (Dictionary) ánh xạ từ file_id -> url
+message MediaUrlResponse {
+  map<string, string> media_urls = 1;
 }

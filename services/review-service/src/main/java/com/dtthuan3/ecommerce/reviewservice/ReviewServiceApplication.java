@@ -3,8 +3,9 @@ package com.dtthuan3.ecommerce.reviewservice;
 import java.util.TimeZone;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-
+import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication
+@EnableScheduling
 public class ReviewServiceApplication {
     public static void main(String[] args) {
         // Postgres tren VPS khong co tzdata Asia/Saigon; ep UTC de driver

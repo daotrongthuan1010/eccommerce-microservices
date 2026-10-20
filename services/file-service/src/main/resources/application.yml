@@ -87,10 +87,10 @@ storage:
     #
     # file-service chạy trong Docker:
     # MINIO_ENDPOINT=http://minio:9000
-    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    endpoint: ${MINIO_ENDPOINT:http://162.4.177.91:9000}
 
     # URL mà browser/client có thể truy cập.
-    public-endpoint: ${MINIO_PUBLIC_ENDPOINT:http://localhost:9000}
+    public-endpoint: ${MINIO_PUBLIC_ENDPOINT:http://162.4.177.91:9000}
 
     access-key: ${MINIO_ACCESS_KEY:local_minio_admin}
 
@@ -130,7 +130,7 @@ security:
 
       # Nếu file-service chạy từ IntelliJ
       # và ClamAV chạy Docker với port 3310:3310
-      host: ${CLAMAV_HOST:localhost}
+      host: ${CLAMAV_HOST:162.4.177.91}
 
       # Port của ClamAV daemon
       port: ${CLAMAV_PORT:3310}
