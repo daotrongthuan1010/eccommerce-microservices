@@ -37,6 +37,7 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs}
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://162.4.177.91:7080/realms/ecommerce}
 eureka:
   client:
     service-url:
