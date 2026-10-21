@@ -58,19 +58,19 @@ spec:
           resources:
             requests:
               cpu: 150m
-              memory: 300Mi
+              memory: 512Mi
             limits:
-              cpu: 300m
-              memory: 384Mi
+              cpu: 500m
+              memory: 768Mi
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
               port: http
-            initialDelaySeconds: 120
+            initialDelaySeconds: 240
             periodSeconds: 20
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
               port: http
-            initialDelaySeconds: 60
+            initialDelaySeconds: 120
             periodSeconds: 10
