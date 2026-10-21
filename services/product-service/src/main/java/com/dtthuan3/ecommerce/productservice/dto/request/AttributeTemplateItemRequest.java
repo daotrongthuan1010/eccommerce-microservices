@@ -5,6 +5,8 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import lombok.*;
 
+import java.util.UUID;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -14,11 +16,11 @@ public class AttributeTemplateItemRequest {
 
     @NotNull(message = "ID mẫu thuộc tính không được để trống")
     @Positive(message = "ID mẫu thuộc tính phải lớn hơn 0")
-    private Long templateId;
+    private UUID templateId;
 
     @NotNull(message = "ID thuộc tính không được để trống")
     @Positive(message = "ID thuộc tính phải lớn hơn 0")
-    private Long attributeId;
+    private UUID attributeId;
 
     @NotNull(message = "Thứ tự hiển thị không được để trống")
     @PositiveOrZero(message = "Thứ tự hiển thị phải lớn hơn hoặc bằng 0")

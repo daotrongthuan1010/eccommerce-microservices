@@ -1,67 +1,85 @@
 package com.dtthuan3.ecommerce.catalogservice.entity;
 
 import com.dtthuan3.ecommerce.catalogservice.contstant.CategoryStatus;
-import jakarta.persistence.*;
-import lombok.*;
+import com.dtthuan3.ecommerce.catalogservice.generator.StringUuidSequenceGenerator;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
+import lombok.Getter;
+import lombok.Setter;
+import org.hibernate.annotations.GenericGenerator;
+import org.hibernate.annotations.Parameter;
 
 @Entity
-@Table( name = "categories",
+@Table(
+        name = "categories",
         indexes = {
                 @Index(
                         name = "idx_categories_parent_id",
                         columnList = "parent_id"
                 ),
                 @Index(
-                        name = "idx_categories_slug",
-                        columnList = "slug"
+                        name = "idx_categories_slug_parent",
+                        columnList = "slug,parent_id",
+                        unique = true
                 ),
                 @Index(
                         name = "idx_categories_status",
                         columnList = "status"
                 )
-        })
+        }
+)
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class Category extends BaseEntity {
+
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    @SequenceGenerator(
-            name = "category_seq",
-            sequenceName = "categories_id_seq",
-            allocationSize = 50
+    @GeneratedValue(generator = "category_uuid_generator")
+    @GenericGenerator(
+            name = "category_uuid_generator",
+            type = StringUuidSequenceGenerator.class,
+            parameters = {
+                    @Parameter(
+                            name = "sequence_name",
+                            value = "categories_id_seq"
+                    )
+            }
     )
-    private Long id;
+    @Column(
+            name = "id",
+            nullable = false,
+            updatable = false,
+            length = 36
+    )
+    private String id;
 
-    // id danh mục cha
-    @Column(name = "parent_id")
-    private Long parentId;
+    @Column(name = "parent_id", length = 36)
+    private String parentId;
 
-    // tên danh mục
     @Column(name = "name", nullable = false, length = 255)
     private String name;
 
-    // url
-    @Column(name = "slug", nullable = false, unique = true, length = 255)
+    @Column(name = "slug", nullable = false, length = 255)
     private String slug;
 
-    // mô tả sản phẩm
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    // URL hình ảnh danh mục
-    @Column(name = "image_url", length = 500)
-    private String imageUrl;
+    @Column(name = "image_object_key", length = 500)
+    private String imageObjectKey;
 
-    // thứ tự hiển thị
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder = 0;
 
-    // trạng thái danh mục
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
     private CategoryStatus status = CategoryStatus.ACTIVE;
 
+    @Column(name = "revision", nullable = false)
+    private Long revision = 0L;
 }

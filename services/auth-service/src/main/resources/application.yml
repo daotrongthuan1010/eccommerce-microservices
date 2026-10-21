@@ -48,7 +48,7 @@ eureka:
     registry-fetch-interval-seconds: 15
   instance:
     hostname: ${EUREKA_HOSTNAME:auth-service}
-    prefer-ip-address: false
+    prefer-ip-address: ${EUREKA_INSTANCE_PREFER_IP_ADDRESS:false}
 grpc:
   server:
     port: ${GRPC_SERVER_PORT:9081}

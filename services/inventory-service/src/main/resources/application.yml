@@ -5,29 +5,50 @@ spring:
   application:
     name: inventory-service
 
-  # Tắt kích hoạt Flyway vì project dùng Hibernate tự sinh bảng
+  cache:
+    # Buộc dùng RedisCacheManager thay vì cache mặc định trong bộ nhớ của từng instance.
+    type: redis
+
+  # Dự án không dùng Flyway; Hibernate ddl-auto là cơ chế duy nhất tự đồng bộ cấu trúc bảng.
   flyway:
     enabled: false
 
   data:
     redis:
+      # Thông tin kết nối có thể ghi đè bằng REDIS_HOST, REDIS_PORT và REDIS_PASSWORD.
       host: ${REDIS_HOST:162.4.177.91}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:local_redis_change_me}
       timeout: 3s
 
   kafka:
+    # Broker dùng chung; từng môi trường nên cung cấp KAFKA_BOOTSTRAP_SERVERS riêng.
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:162.4.177.91:9092}
 
     consumer:
+      # Cùng group để các instance Inventory chia nhau partition của từng topic.
       group-id: inventory-service
+      # Đọc lại từ đầu nếu group chưa có committed offset; offset được commit sau khi xử lý record.
       auto-offset-reset: earliest
       enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        max.poll.interval.ms: 300000
 
     producer:
       acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
       properties:
         enable.idempotence: true
+        request.timeout.ms: 30000
+        delivery.timeout.ms: 120000
+
+    listener:
+      # Commit offset theo từng message đã xử lý; thiếu topic chưa làm service dừng khởi động.
+      ack-mode: record
+      missing-topics-fatal: false
 
   datasource:
     url: ${DB_URL:jdbc:postgresql://162.4.177.91:5432/inventory_db}
@@ -43,6 +64,7 @@ spring:
 
   jpa:
     hibernate:
+      # Hibernate đọc entity mapping để sinh/cập nhật bảng; truy vấn nghiệp vụ receipt vẫn dùng JdbcTemplate.
       ddl-auto: update
 
     show-sql: ${JPA_SHOW_SQL:false} # Chỉ bật SQL log khi cần debug để tránh log thừa ở môi trường thường.
@@ -50,6 +72,8 @@ spring:
 
     properties:
       hibernate:
+        # Hibernate query counters are exposed by Actuator when statistics are enabled.
+        generate_statistics: ${HIBERNATE_STATISTICS_ENABLED:true}
         format_sql: true
         jdbc:
           batch_size: 50
@@ -69,9 +93,38 @@ spring:
           jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs}
 
 inventory:
+  integration:
+    # Local Inventory gọi File Service qua host dev; Docker Compose ghi đè bằng service name file-service.
+    file-service-base-url: ${FILE_SERVICE_BASE_URL:http://162.4.177.91:8095}
   batch:
     # Số inventory tối đa được chèn trong một request; có thể ghi đè bằng INVENTORY_BATCH_MAX_SIZE.
     max-size: ${INVENTORY_BATCH_MAX_SIZE:500}
+  cache:
+    # Chỉ cache truy vấn theo ID; danh sách warehouse được phân trang và đọc trực tiếp từ PostgreSQL.
+    location-id-ttl: ${INVENTORY_LOCATION_ID_CACHE_TTL:PT2M}
+    outbox-poll-delay-ms: ${INVENTORY_CACHE_OUTBOX_POLL_DELAY_MS:1000}
+    outbox-metrics-refresh-ms: ${INVENTORY_CACHE_OUTBOX_METRICS_REFRESH_MS:10000}
+  sku-projection:
+    # Projection quá tuổi này sẽ được kiểm tra lại với Product Service trước thao tác ghi.
+    max-age: ${INVENTORY_SKU_PROJECTION_MAX_AGE:PT5M}
+  kafka:
+    # Topic Product mà Inventory đăng ký nhận để cập nhật projection SKU.
+    product-events-topic: ${PRODUCT_EVENTS_TOPIC:product-events}
+    # Topic lỗi được tạo sẵn cùng số partition với topic Product để giữ khả năng đối soát theo partition.
+    product-events-dlt-topic: ${PRODUCT_EVENTS_DLT_TOPIC:product-events.DLT}
+    # Outbox phát audit movement sau commit; event key là inventoryId để giữ thứ tự theo bucket tồn.
+    stock-movement-events-topic: ${INVENTORY_STOCK_MOVEMENT_EVENTS_TOPIC:inventory-stock-movement-events}
+    # Event nhận điều chuyển và sai lệch dùng topic riêng, tránh trộn schema với event movement.
+    transfer-events-topic: ${INVENTORY_TRANSFER_EVENTS_TOPIC:inventory-transfer-events}
+    outbox-poll-delay-ms: ${INVENTORY_EVENT_OUTBOX_POLL_DELAY_MS:500}
+    outbox-batch-size: ${INVENTORY_EVENT_OUTBOX_BATCH_SIZE:100}
+    # Kafka có delivery timeout tối đa 120 giây; lease dài hơn để tránh instance khác claim khi lần gửi còn chạy.
+    outbox-lease: ${INVENTORY_EVENT_OUTBOX_LEASE:PT3M}
+    outbox-retention: ${INVENTORY_EVENT_OUTBOX_RETENTION:PT720H}
+    outbox-cleanup-delay-ms: ${INVENTORY_EVENT_OUTBOX_CLEANUP_DELAY_MS:86400000}
+    outbox-metrics-refresh-ms: ${INVENTORY_EVENT_OUTBOX_METRICS_REFRESH_MS:10000}
+    inbox-retention: ${INVENTORY_EVENT_INBOX_RETENTION:P90D}
+    inbox-cleanup-delay-ms: ${INVENTORY_EVENT_INBOX_CLEANUP_DELAY_MS:86400000}
 
 eureka:
   client:
@@ -95,7 +148,20 @@ management:
 
   tracing:
     sampling:
-      probability: 1.0
+      # Lấy mẫu một phần request mặc định để tránh tăng tải exporter khi service scale ngang.
+      probability: ${TRACING_SAMPLING_PROBABILITY:0.1}
+
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      environment: ${DEPLOYMENT_ENV:local}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        inventory.kafka.product_events.processing: true
+        inventory.event.outbox.send.duration: true
+      slo:
+        http.server.requests: 100ms,250ms,500ms,1s,2s
 
   zipkin:
     tracing:
@@ -114,4 +180,9 @@ management:
 info:
   app:
     name: inventory-service
-    stage: scaffold
+    stage: ${DEPLOYMENT_ENV:local}
+
+logging:
+  pattern:
+    # Trace/span ID giúp nối log với Zipkin mà không ghi dữ liệu nhạy cảm vào log.
+    correlation: '[${spring.application.name:},%X{traceId:-},%X{spanId:-}]'

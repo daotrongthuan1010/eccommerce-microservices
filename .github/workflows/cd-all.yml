@@ -1,0 +1,175 @@
+name: cd-all
+
+# FULL ordered rollout of all 14 services, wave by wave.
+# Each wave deploys its services and waits before the next wave starts.
+# For a single service (or a few), use cd-dev.yml instead — failures there
+# stay scoped to that service's job.
+#
+# Wave order (infra k8s/infra/ is applied once, separately — app services only):
+#   core       : discovery-service, api-gateway        (phase 1 platform)
+#   identity   : auth-service, user-service            (phase 1 domain)
+#   data       : file-service, catalog-service, product-service
+#   trade      : inventory-service, order-service, payment-service
+#   downstream : search-service, notification-service
+#   leaf       : review-service, analytics-service
+# Rationale: file + catalog/product own MinIO buckets; inventory gates
+# order/payment; search/notification are downstream consumers; review/analytics
+# are leaves.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Image tag (commit SHA) to deploy; defaults to HEAD sha of develop'
+        required: false
+        default: ''
+
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.out.outputs.sha }}
+    steps:
+      - id: out
+        run: |
+          SHA='${{ inputs.sha }}'
+          if [ -z "$SHA" ]; then SHA="$(git ls-remote https://github.com/${{ github.repository }}.git develop | cut -f1)"; fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+  core:
+    needs: select
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [discovery-service, api-gateway]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: "Deploy ${{ matrix.service }} (wave: core)"
+        uses: ./.github/actions/deploy-service
+        with:
+          service: ${{ matrix.service }}
+          sha: ${{ needs.select.outputs.sha }}
+          host: ${{ secrets.VPS_SSH_HOST }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  identity:
+    needs: [select, core]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [auth-service, user-service]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: "Deploy ${{ matrix.service }} (wave: identity)"
+        uses: ./.github/actions/deploy-service
+        with:
+          service: ${{ matrix.service }}
+          sha: ${{ needs.select.outputs.sha }}
+          host: ${{ secrets.VPS_SSH_HOST }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  data:
+    needs: [select, identity]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [file-service, catalog-service, product-service]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: "Deploy ${{ matrix.service }} (wave: data)"
+        uses: ./.github/actions/deploy-service
+        with:
+          service: ${{ matrix.service }}
+          sha: ${{ needs.select.outputs.sha }}
+          host: ${{ secrets.VPS_SSH_HOST }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  trade:
+    needs: [select, data]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [inventory-service, order-service, payment-service]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: "Deploy ${{ matrix.service }} (wave: trade)"
+        uses: ./.github/actions/deploy-service
+        with:
+          service: ${{ matrix.service }}
+          sha: ${{ needs.select.outputs.sha }}
+          host: ${{ secrets.VPS_SSH_HOST }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  downstream:
+    needs: [select, trade]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [search-service, notification-service]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: "Deploy ${{ matrix.service }} (wave: downstream)"
+        uses: ./.github/actions/deploy-service
+        with:
+          service: ${{ matrix.service }}
+          sha: ${{ needs.select.outputs.sha }}
+          host: ${{ secrets.VPS_SSH_HOST }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  leaf:
+    needs: [select, downstream]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [review-service, analytics-service]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: "Deploy ${{ matrix.service }} (wave: leaf)"
+        uses: ./.github/actions/deploy-service
+        with:
+          service: ${{ matrix.service }}
+          sha: ${{ needs.select.outputs.sha }}
+          host: ${{ secrets.VPS_SSH_HOST }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}

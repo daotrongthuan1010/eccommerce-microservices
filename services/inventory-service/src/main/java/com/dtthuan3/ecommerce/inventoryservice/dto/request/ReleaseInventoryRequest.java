@@ -13,7 +13,7 @@ public record ReleaseInventoryRequest(
         /**
          * ID inventory cần bỏ giữ hàng.
          */
-        @NotBlank(message = "Inventory id is required")
+        @NotBlank(message = "inventoryId là bắt buộc")
         String inventoryId,
 
         /**
@@ -21,10 +21,10 @@ public record ReleaseInventoryRequest(
          *
          * Phải lớn hơn 0.
          */
-        @NotNull(message = "Quantity is required")
-        @Positive(message = "Quantity must be greater than 0")
+        @NotNull(message = "quantity là bắt buộc")
+        @Positive(message = "quantity phải lớn hơn 0")
         BigDecimal quantity,
         /** Version client đã đọc; server trả 409 nếu inventory đã được cập nhật sau đó. */
-        @PositiveOrZero Long expectedVersion
+        @PositiveOrZero(message = "expectedVersion phải lớn hơn hoặc bằng 0") Long expectedVersion
 ) {
 }

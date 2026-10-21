@@ -9,11 +9,12 @@ import java.math.BigDecimal;
 /** Dữ liệu chuyển một SKU từ inventory nguồn sang inventory đích. */
 public record TransferInventoryRequest(
         /** ID inventory bị trừ tồn. */
-        @NotBlank String fromInventoryId,
+        @NotBlank(message = "fromInventoryId là bắt buộc") String fromInventoryId,
         /** ID inventory được cộng tồn. */
-        @NotBlank String toInventoryId,
+        @NotBlank(message = "toInventoryId là bắt buộc") String toInventoryId,
         /** Số lượng phải dương và không vượt quá tồn khả dụng ở nguồn. */
-        @NotNull @Positive BigDecimal quantity,
+        @NotNull(message = "quantity là bắt buộc")
+        @Positive(message = "quantity phải lớn hơn 0") BigDecimal quantity,
         /** Loại chứng từ/giao dịch liên quan; có thể bỏ trống. */
         String referenceType,
         /** Mã tham chiếu chung cho cả movement OUT và IN. */
@@ -21,7 +22,7 @@ public record TransferInventoryRequest(
         /** Lý do chuyển kho để phục vụ kiểm tra lịch sử. */
         String reason,
         /** Version nguồn client đã đọc; bỏ trống nếu không cần kiểm tra optimistic lock. */
-        @PositiveOrZero Long expectedSourceVersion,
+        @PositiveOrZero(message = "expectedSourceVersion phải lớn hơn hoặc bằng 0") Long expectedSourceVersion,
         /** Version đích client đã đọc; bỏ trống nếu không cần kiểm tra optimistic lock. */
-        @PositiveOrZero Long expectedDestinationVersion
+        @PositiveOrZero(message = "expectedDestinationVersion phải lớn hơn hoặc bằng 0") Long expectedDestinationVersion
 ) {}

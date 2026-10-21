@@ -1,18 +1,20 @@
 package com.dtthuan3.ecommerce.catalogservice.service.impl;
 
-
 import com.dtthuan3.ecommerce.catalogservice.contstant.BrandsStatus;
-import com.dtthuan3.ecommerce.catalogservice.dto.request.BrandsRequest;
-import com.dtthuan3.ecommerce.catalogservice.dto.response.BrandsRespone;
-import com.dtthuan3.ecommerce.catalogservice.dto.response.PageResponse;
+import com.dtthuan3.ecommerce.catalogservice.contstant.CacheTtl;
+import com.dtthuan3.ecommerce.catalogservice.dto.request.BrandsCreateRequest;
+import com.dtthuan3.ecommerce.catalogservice.dto.request.BrandsUpdateRequest;
+import com.dtthuan3.ecommerce.catalogservice.dto.response.BrandsResponse;
 import com.dtthuan3.ecommerce.catalogservice.entity.Brands;
 import com.dtthuan3.ecommerce.catalogservice.mapper.BrandsMapper;
-import com.dtthuan3.ecommerce.catalogservice.mapper.PageMapper;
 import com.dtthuan3.ecommerce.catalogservice.repository.BrandsRepository;
 import com.dtthuan3.ecommerce.catalogservice.service.BrandsService;
 import com.dtthuan3.ecommerce.catalogservice.service.CacheKeys;
-import com.dtthuan3.ecommerce.catalogservice.service.MinioService;
 import com.dtthuan3.ecommerce.catalogservice.service.RedisCacheService;
+import com.dtthuan3.ecommerce.common.exception.BusinessException;
+import com.dtthuan3.ecommerce.common.exception.ErrorCode;
+import com.dtthuan3.ecommerce.common.exception.ResourceNotFoundException;
+import com.dtthuan3.ecommerce.common.response.PageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -20,281 +22,398 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.time.Duration;
 import java.util.List;
-import java.util.Set;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(readOnly = true)
 public class BrandsServiceImpl implements BrandsService {
 
-    private static final Duration CACHE_TTL =
-            Duration.ofMinutes(30);
-
     private final BrandsRepository brandsRepository;
-
     private final BrandsMapper brandsMapper;
-
-    private final MinioService minioService;
-
     private final RedisCacheService redisCacheService;
 
-    @Override
-    public BrandsRespone create(
-            BrandsRequest request,
-            MultipartFile image
-    ) {
 
-        validateSlugForCreate(request.getSlug());
+    @Override
+    @Transactional
+    public BrandsResponse create(BrandsCreateRequest request) {
+
+        String slug = normalizeSlug(request.getSlug());
+
+        if (brandsRepository.existsBySlug(slug)) {
+            throw new BusinessException(
+                    ErrorCode.CONFLICT,
+                    "Slug thương hiệu đã tồn tại: " + slug
+            );
+        }
 
         Brands brands = brandsMapper.toEntity(request);
 
-        // Upload logo lên MinIO
-        if (image != null && !image.isEmpty()) {
+        brands.setSlug(slug);
 
-            String objectKey =
-                    minioService.upload(
-                            image,
-                            "brands"
-                    );
-
-            brands.setLogoObjectKey(objectKey);
+        if (brands.getRevision() == null) {
+            brands.setRevision(0L);
         }
 
-        Brands savedBrands =
-                brandsRepository.save(brands);
+        Brands saved = brandsRepository.save(brands);
 
-        return toResponse(savedBrands);
+        // CREATE làm thay đổi các danh sách cache
+        evictBrandsListCaches();
+
+        return brandsMapper.toResponse(saved);
     }
 
+
     @Override
-    @Transactional(readOnly = true)
-    public BrandsRespone getByID(Long id) {
+    public BrandsResponse getById(String id) {
 
-        String cacheKey = CacheKeys.BRAND + id;
+        String cacheKey = CacheKeys.BRANDS + id;
 
-        var cached = redisCacheService.get(
+        Optional<BrandsResponse> cached =
+                redisCacheService.get(
                         cacheKey,
-                        BrandsRespone.class
+                        BrandsResponse.class
                 );
 
         if (cached.isPresent()) {
             return cached.get();
         }
 
-        Brands brands = findBrandById(id);
+        Brands brands = findBrands(id);
 
-        BrandsRespone response = toResponse(brands);
+        BrandsResponse response =
+                brandsMapper.toResponse(brands);
 
-        redisCacheService.set(cacheKey, response, CACHE_TTL);
+        redisCacheService.set(
+                cacheKey,
+                response,
+                CacheTtl.MEDIUM
+        );
 
         return response;
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public List<BrandsRespone> getAll() {
-
-        return brandsRepository
-                .findAllByStatusOrderByNameAsc(
-                        com.dtthuan3.ecommerce.catalogservice.contstant.BrandsStatus.ACTIVE
-                )
-                .stream()
-                .map(this::toResponse)
-                .toList();
-    }
 
     @Override
-    public BrandsRespone update(
-            Long id,
-            BrandsRequest request,
-            MultipartFile image
+    public PageResponse<BrandsResponse> getBrands(
+            BrandsStatus status,
+            String name,
+            int page,
+            int size
     ) {
 
-        Brands brands = findBrandById(id);
-
-        validateSlugForUpdate(request.getSlug(), id);
-
-        String oldLogoObjectKey = brands.getLogoObjectKey();
-
-        brandsMapper.updateEntity(brands, request);
-
-        // Nếu có logo mới
-        if (image != null && !image.isEmpty()) {
-
-            String newLogoObjectKey =
-                    minioService.upload(image, "brands");
-
-            brands.setLogoObjectKey(newLogoObjectKey);
-        }
-
-        Brands updatedBrands = brandsRepository.save(brands);
-
-        // Xóa logo cũ
-        if (
-                image != null
-                        && !image.isEmpty()
-                        && oldLogoObjectKey != null
-                        && !oldLogoObjectKey.isBlank()
-        ) {
-
-            minioService.delete(
-                    oldLogoObjectKey
+        if (page < 0) {
+            throw new BusinessException(
+                    ErrorCode.BAD_REQUEST,
+                    "Page không được nhỏ hơn 0"
             );
         }
 
-        // Xóa cache
-        redisCacheService.delete(
-                CacheKeys.BRAND + id
+        if (size <= 0 || size > 100) {
+            throw new BusinessException(
+                    ErrorCode.BAD_REQUEST,
+                    "Size phải nằm trong khoảng từ 1 đến 100"
+            );
+        }
+
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by(
+                        Sort.Order.asc("name"),
+                        Sort.Order.asc("id")
+                )
         );
 
-        return toResponse(updatedBrands);
+        Page<Brands> result;
+
+        if (status != null) {
+
+            result = brandsRepository.findByStatus(
+                    status,
+                    pageable
+            );
+
+        } else if (name != null && !name.isBlank()) {
+
+            result = brandsRepository.findByNameContainingIgnoreCase(
+                    name.trim(),
+                    pageable
+            );
+
+        } else {
+
+            result = brandsRepository.findAll(pageable);
+        }
+
+        List<BrandsResponse> content =
+                result.getContent()
+                        .stream()
+                        .map(brandsMapper::toResponse)
+                        .toList();
+
+        return PageResponse.of(
+                content,
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages()
+        );
     }
 
+
     @Override
-    public void delete(Long id) {
+    @Transactional
+    public BrandsResponse update(
+            String id,
+            BrandsUpdateRequest request
+    ) {
 
-        Brands brands = findBrandById(id);
+        Brands brands = findBrands(id);
 
-        String logoObjectKey = brands.getLogoObjectKey();
+        String slug = normalizeSlug(request.getSlug());
+
+        if (brandsRepository.existsBySlugAndIdNot(slug, id)) {
+            throw new BusinessException(
+                    ErrorCode.CONFLICT,
+                    "Slug thương hiệu đã tồn tại: " + slug
+            );
+        }
+
+        brands.setName(request.getName());
+        brands.setSlug(slug);
+        brands.setDescription(request.getDescription());
+        brands.setLogoObjectKey(request.getLogoObjectKey());
+        brands.setWebsite(request.getWebsite());
+
+        if (request.getStatus() != null) {
+            brands.setStatus(request.getStatus());
+        }
+
+        Long currentRevision = brands.getRevision();
+
+        if (currentRevision == null) {
+            currentRevision = 0L;
+        }
+
+        brands.setRevision(currentRevision + 1);
+
+        Brands updated = brandsRepository.save(brands);
+
+        // Xóa cache object
+        redisCacheService.delete(
+                CacheKeys.BRANDS + id
+        );
+
+        // Xóa cache các danh sách
+        evictBrandsListCaches();
+
+        return brandsMapper.toResponse(updated);
+    }
+
+
+    @Override
+    @Transactional
+    public void delete(String id) {
+
+        Brands brands = findBrands(id);
+
+        if (brands.getStatus() != BrandsStatus.ARCHIVED) {
+            throw new BusinessException(
+                    ErrorCode.BAD_REQUEST,
+                    "Chỉ được xóa thương hiệu ở trạng thái ARCHIVED"
+            );
+        }
 
         brandsRepository.delete(brands);
 
-        // Xóa cache
-        redisCacheService.delete(CacheKeys.BRAND + id);
+        // Xóa cache object
+        redisCacheService.delete(
+                CacheKeys.BRANDS + id
+        );
 
-        // Xóa logo trên MinIO
-        if (logoObjectKey != null
-                        && !logoObjectKey.isBlank()) {
-
-            minioService.delete(
-                    logoObjectKey
-            );
-        }
+        // Xóa cache list
+        evictBrandsListCaches();
     }
+
 
     @Override
-    public PageResponse<BrandsRespone> search(String keyword, int page, int size, String sortBy, String direction) {
-        return null;
+    @Transactional
+    public BrandsResponse updateStatus(
+            String id,
+            BrandsStatus status
+    ) {
+
+        if (status == null) {
+            throw new BusinessException(
+                    ErrorCode.BAD_REQUEST,
+                    "Trạng thái không được để trống"
+            );
+        }
+
+        Brands brands = findBrands(id);
+
+        brands.setStatus(status);
+
+        Long currentRevision = brands.getRevision();
+
+        if (currentRevision == null) {
+            currentRevision = 0L;
+        }
+
+        brands.setRevision(currentRevision + 1);
+
+        Brands updated = brandsRepository.save(brands);
+
+        // Status thay đổi → object cache + list cache đều phải xóa
+        redisCacheService.delete(
+                CacheKeys.BRANDS + id
+        );
+
+        evictBrandsListCaches();
+
+        return brandsMapper.toResponse(updated);
     }
 
-    private Brands findBrandById(Long id) {
+
+
+    @Override
+    public List<BrandsResponse> getActiveBrands() {
+
+        String cacheKey =
+                CacheKeys.BRANDS_ACTIVE;
+
+        List<BrandsResponse> cached =
+                redisCacheService.getList(
+                        cacheKey,
+                        BrandsResponse.class
+                );
+
+
+        if (!cached.isEmpty()
+                || redisCacheService.hasKey(cacheKey)) {
+
+            return cached;
+        }
+
+        List<BrandsResponse> result =
+                brandsRepository
+                        .findByStatusOrderByNameAsc(
+                                BrandsStatus.ACTIVE
+                        )
+                        .stream()
+                        .map(brandsMapper::toResponse)
+                        .toList();
+
+        redisCacheService.set(
+                cacheKey,
+                result,
+                CacheTtl.MEDIUM
+        );
+
+        return result;
+    }
+
+
+    @Override
+    public List<BrandsResponse> search(String keyword) {
+
+        if (keyword == null || keyword.isBlank()) {
+            return List.of();
+        }
+
+        String normalizedKeyword =
+                keyword.trim().toLowerCase();
+
+        String cacheKey =
+                CacheKeys.BRANDS_SEARCH
+                        + normalizedKeyword;
+
+        List<BrandsResponse> cached =
+                redisCacheService.getList(
+                        cacheKey,
+                        BrandsResponse.class
+                );
+
+        if (!cached.isEmpty()
+                || redisCacheService.hasKey(cacheKey)) {
+
+            return cached;
+        }
+
+        List<BrandsResponse> result =
+                brandsRepository
+                        .findByNameContainingIgnoreCase(
+                                keyword.trim(),
+                                PageRequest.of(
+                                        0,
+                                        20,
+                                        Sort.by("name").ascending()
+                                )
+                        )
+                        .getContent()
+                        .stream()
+                        .map(brandsMapper::toResponse)
+                        .toList();
+
+        redisCacheService.set(
+                cacheKey,
+                result,
+                CacheTtl.MEDIUM
+        );
+
+        return result;
+    }
+
+
+    private Brands findBrands(String id) {
 
         return brandsRepository
                 .findById(id)
-                .orElseThrow(
-                        () -> new RuntimeException(
-                                "Không tìm thấy thương hiệu với id: "
-                                        + id
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Brands",
+                                id
                         )
                 );
     }
 
 
-//    @Override
-//    public PageResponse<BrandsRespone> search(
-//            String keyword,
-//            int page,
-//            int size,
-//            String sortBy,
-//            String direction
-//    ) {
-//
-//        // Không cho page âm
-//        page = Math.max(page, 0);
-//
-//        // Không cho size <= 0 hoặc quá lớn
-//        size = Math.min(Math.max(size, 1), 100);
-//
-//        // Các field được phép sort
-//        if (!Set.of("name", "createdAt", "updatedAt")
-//                .contains(sortBy)) {
-//
-//            sortBy = "name";
-//        }
-//
-//        Sort sort = direction.equalsIgnoreCase("desc")
-//                ? Sort.by(sortBy).descending()
-//                : Sort.by(sortBy).ascending();
-//
-//        Pageable pageable = PageRequest.of(
-//                page,
-//                size,
-//                sort
-//        );
-//
-//        String searchKeyword = keyword == null
-//                ? ""
-//                : keyword.trim();
-//
-//        Page<Brands> result = brandsRepository.search(
-//                searchKeyword,
-//                BrandsStatus.ACTIVE,
-//                pageable
-//        );
-//
-//        return PageMapper.toResponse(
-//                result,
-//                brandsMapper::toResponse
-//        );
-//    }
+    private void evictBrandsListCaches() {
 
+        redisCacheService.delete(
+                CacheKeys.BRANDS_LIST
+        );
 
-    private void validateSlugForCreate(String slug) {
+        redisCacheService.delete(
+                CacheKeys.BRANDS_ACTIVE
+        );
 
-        if (brandsRepository.existsBySlug(slug)) {
-
-            throw new IllegalArgumentException(
-                    "Slug thương hiệu đã tồn tại: "
-                            + slug
-            );
-        }
-    }
-
-    private void validateSlugForUpdate(
-            String slug,
-            Long id
-    ) {
-
-        if (brandsRepository
-                        .existsBySlugAndIdNot(
-                                slug,
-                                id
-                        )
-        ) {
-
-            throw new IllegalArgumentException(
-                    "Slug thương hiệu đã tồn tại: "
-                            + slug
-            );
-        }
-    }
-
-    private BrandsRespone toResponse(Brands brands) {
-
-        String logoUrl =
-                getLogoUrl(brands);
-
-        return brandsMapper.toResponse(
-                brands,
-                logoUrl
+        /*
+         * Search cache có nhiều key:
+         *
+         * catalog:brands:search:apple
+         * catalog:brands:search:samsung
+         * catalog:brands:search:xiaomi
+         *
+         * Khi CRUD thì xóa toàn bộ search cache.
+         */
+        redisCacheService.deleteByPattern(
+                CacheKeys.BRANDS_SEARCH + "*"
         );
     }
 
-    private String getLogoUrl(Brands brands) {
 
-        if (
-                brands.getLogoObjectKey() == null
-                        || brands.getLogoObjectKey().isBlank()
-        ) {
+    private String normalizeSlug(String slug) {
+
+        if (slug == null) {
             return null;
         }
 
-        return minioService.getPresignedUrl(
-                brands.getLogoObjectKey()
-        );
+        return slug
+                .trim()
+                .toLowerCase();
     }
 }

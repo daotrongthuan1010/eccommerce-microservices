@@ -1,4 +1,4 @@
-package com.dtthuan3.ecommerce.reviewservice.grpc;
+package com.dtthuan3.ecommerce.reviewservice.client;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;

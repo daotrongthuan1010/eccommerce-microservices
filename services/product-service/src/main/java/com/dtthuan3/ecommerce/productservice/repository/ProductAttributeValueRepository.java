@@ -1,31 +1,25 @@
+
 package com.dtthuan3.ecommerce.productservice.repository;
 
 import com.dtthuan3.ecommerce.productservice.domain.ProductAttributeValue;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.UUID;
 
 public interface ProductAttributeValueRepository
-        extends JpaRepository<ProductAttributeValue, Long> {
+        extends JpaRepository<ProductAttributeValue, UUID> {
 
-    List<ProductAttributeValue> findByProductId(Long productId);
+    List<ProductAttributeValue> findAllByRevisionId(UUID revisionId);
 
-    Optional<ProductAttributeValue> findByProductIdAndAttributeId(
-            Long productId,
-            Long attributeId
+    boolean existsByRevisionIdAndAttributeId(
+            UUID revisionId,
+            UUID attributeId
     );
 
-    boolean existsByProductIdAndAttributeId(
-            Long productId,
-            Long attributeId
-    );
+    boolean existsByAttributeId(UUID attributeId);
 
-    boolean existsByProductIdAndAttributeIdAndIdNot(
-            Long productId,
-            Long attributeId,
-            Long id
-    );
+    boolean existsByOptionId(UUID optionId);
 
-    void deleteByProductId(Long productId);
+    void deleteAllByRevisionId(UUID revisionId);
 }

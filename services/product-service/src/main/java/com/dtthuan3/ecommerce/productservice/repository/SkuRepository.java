@@ -5,29 +5,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
-public interface SkuRepository
-        extends JpaRepository<Sku, Long> {
+public interface SkuRepository extends JpaRepository<Sku, UUID> {
 
-    Optional<Sku> findBySkuCode(String skuCode);
-
-    Optional<Sku> findByBarcode(String barcode);
-
-    List<Sku> findByVariantId(Long variantId);
-
-    List<Sku> findByVariantIdAndActiveTrue(Long variantId);
-
-    boolean existsBySkuCode(String skuCode);
-
-    boolean existsBySkuCodeAndIdNot(
-            String skuCode,
-            Long id
-    );
+    boolean existsBySkuCodeIgnoreCase(String skuCode);
 
     boolean existsByBarcode(String barcode);
 
-    boolean existsByBarcodeAndIdNot(
-            String barcode,
-            Long id
-    );
+    Optional<Sku> findByIdAndVariantId(UUID id, UUID variantId);
+
+    List<Sku> findAllByVariantId(UUID variantId);
 }

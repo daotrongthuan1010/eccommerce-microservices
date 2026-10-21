@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: search-config
+  namespace: ecommerce
+  labels:
+    app: search-service
+data:
+  SERVER_PORT: "8088"
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75.0"
+  EUREKA_SERVER_URL: "http://discovery-service:8761/eureka/"
+  EUREKA_HOSTNAME: "search-service"
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+  REDIS_HOST: "162.4.177.91"
+  REDIS_PORT: "6379"
+  KAFKA_BOOTSTRAP_SERVERS: "162.4.177.91:9092"
+  ELASTICSEARCH_URIS: "http://162.4.177.91:9200"
+  KEYCLOAK_JWK_SET_URI: "http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs"
+  ZIPKIN_ENDPOINT: "http://162.4.177.91:9411/api/v2/spans"

@@ -1,0 +1,125 @@
+# Port of docker-compose.yml `mysql` (mysql:8.4.6).
+# Init scripts come from ConfigMap `mysql-init` — create BEFORE apply (see README):
+#   kubectl create configmap mysql-init -n ecommerce --from-file=infra/mysql/
+# Credentials come from Secret `infra-mysql-secrets` (see secret-templates.yaml.example).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-data
+  namespace: ecommerce
+  labels:
+    app: mysql
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: ecommerce
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # single writer on RWO volume; never roll while mounted
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.4.6
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: mysql
+              containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-mysql-secrets
+                  key: mysql-root-password
+            - name: AUTH_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-mysql-secrets
+                  key: auth-db-password
+            - name: USER_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-mysql-secrets
+                  key: user-db-password
+            - name: PAYMENT_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-mysql-secrets
+                  key: payment-db-password
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql --protocol=TCP -h127.0.0.1 -uroot -e "SELECT 1" >/dev/null
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql --protocol=TCP -h127.0.0.1 -uroot -e "SELECT 1" >/dev/null
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 20
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mysql-data
+        - name: initdb
+          configMap:
+            name: mysql-init
+            defaultMode: 0755 # *.sh must stay executable for the entrypoint
+---
+# LoadBalancer (k3s Klipper lb) exposes the compose port 3306 on the node IP,
+# preserving the DEV 0.0.0.0 public-access behavior from vps-infra memory.
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: ecommerce
+  labels:
+    app: mysql
+spec:
+  type: LoadBalancer
+  selector:
+    app: mysql
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: mysql

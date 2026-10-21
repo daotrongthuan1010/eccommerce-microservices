@@ -11,20 +11,20 @@ import java.math.BigDecimal;
 public record ReceiveStockRequest(
 
         /** Các trường tạo thành khóa nghiệp vụ của một vị trí tồn. */
-        @NotBlank
+        @NotBlank(message = "enterpriseId là bắt buộc")
         String enterpriseId,
 
-        @NotBlank
+        @NotBlank(message = "warehouseId là bắt buộc")
         String warehouseId,
 
-        @NotBlank
+        @NotBlank(message = "locationId là bắt buộc")
         String locationId,
 
-        @NotBlank
+        @NotBlank(message = "SKU là bắt buộc")
         String sku,
 
-        @NotNull
-        @Positive
+        @NotNull(message = "quantity là bắt buộc")
+        @Positive(message = "quantity phải lớn hơn 0")
         BigDecimal quantity,
 
         /** Loại chứng từ dùng để đối soát lịch sử nhập. */
@@ -37,7 +37,7 @@ public record ReceiveStockRequest(
         String reason,
 
         /** Version client đã đọc; gửi lên để từ chối cập nhật nếu tồn đã đổi. */
-        @PositiveOrZero Long expectedVersion
+        @PositiveOrZero(message = "expectedVersion phải lớn hơn hoặc bằng 0") Long expectedVersion
 
 ) {
 }

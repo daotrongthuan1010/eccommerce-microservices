@@ -1,26 +1,47 @@
 package com.dtthuan3.ecommerce.catalogservice.service;
 
-import com.dtthuan3.ecommerce.catalogservice.dto.request.ManufacturersRequest;
-import com.dtthuan3.ecommerce.catalogservice.dto.response.ManufacturersRespone;
+import com.dtthuan3.ecommerce.catalogservice.contstant.ManufacturerStatus;
+import com.dtthuan3.ecommerce.catalogservice.dto.request.ManufacturerCreateRequest;
+import com.dtthuan3.ecommerce.catalogservice.dto.request.ManufacturerUpdateRequest;
+import com.dtthuan3.ecommerce.catalogservice.dto.response.ManufacturerResponse;
+import com.dtthuan3.ecommerce.common.response.PageResponse;
 
 import java.util.List;
 
 public interface ManufacturersService {
 
-    ManufacturersRespone create(
-            ManufacturersRequest request
+    ManufacturerResponse create(
+            ManufacturerCreateRequest request
     );
 
-    ManufacturersRespone getById(
-            Long id
+    ManufacturerResponse getById(
+            String id
     );
 
-    List<ManufacturersRespone> getAll();
-
-    ManufacturersRespone update(
-            Long id,
-            ManufacturersRequest request
+    PageResponse<ManufacturerResponse> getManufacturers(
+            ManufacturerStatus status,
+            String name,
+            int page,
+            int size
     );
 
-    void delete(Long id);
+    ManufacturerResponse update(
+            String id,
+            ManufacturerUpdateRequest request
+    );
+
+    void delete(
+            String id
+    );
+
+    ManufacturerResponse updateStatus(
+            String id,
+            ManufacturerStatus status
+    );
+
+    List<ManufacturerResponse> getActiveManufacturers();
+
+    List<ManufacturerResponse> search(
+            String keyword
+    );
 }

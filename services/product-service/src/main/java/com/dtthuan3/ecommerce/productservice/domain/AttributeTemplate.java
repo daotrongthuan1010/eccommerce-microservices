@@ -1,7 +1,10 @@
 package com.dtthuan3.ecommerce.productservice.domain;
 
+import com.dtthuan3.ecommerce.productservice.mapper.GeneratedUuidV7;
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.util.UUID;
 
 @Entity
 @Table(
@@ -16,6 +19,10 @@ import lombok.*;
                 @Index(
                         name = "idx_attribute_template_name",
                         columnList = "name"
+                ),
+                @Index(
+                        name = "idx_attribute_template_active",
+                        columnList = "active"
                 )
         }
 )
@@ -25,15 +32,22 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class AttributeTemplate extends BaseEntity {
-
+//Mẫu thuộc tính
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    private Long id;
+    @GeneratedUuidV7
+    @Column(nullable = false, updatable = false)
+    private UUID id;
 
-    @Column(nullable = false, length = 150)
+    @Column(
+            nullable = false,
+            length = 150
+    )
     private String name;
 
-    @Column(nullable = false, length = 100)
+    @Column(
+            nullable = false,
+            length = 100
+    )
     private String code;
 
     @Column(length = 500)

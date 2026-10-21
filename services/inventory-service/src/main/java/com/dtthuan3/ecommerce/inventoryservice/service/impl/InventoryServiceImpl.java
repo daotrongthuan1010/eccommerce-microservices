@@ -1,6 +1,7 @@
 package com.dtthuan3.ecommerce.inventoryservice.service.impl;
 
-
+import com.dtthuan3.ecommerce.common.exception.BusinessException;
+import com.dtthuan3.ecommerce.common.exception.ErrorCode;
 
 import com.dtthuan3.ecommerce.inventoryservice.config.InventoryBatchProperties;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.AdjustInventoryRequest;
@@ -17,14 +18,11 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.response.TransferInventoryRes
 import com.dtthuan3.ecommerce.inventoryservice.entity.Inventory;
 import com.dtthuan3.ecommerce.inventoryservice.entity.MovementType;
 import com.dtthuan3.ecommerce.inventoryservice.entity.StockMovement;
-import com.dtthuan3.ecommerce.inventoryservice.exception.AlreadyExistsException;
-import com.dtthuan3.ecommerce.inventoryservice.exception.ConcurrencyConflictException;
-import com.dtthuan3.ecommerce.inventoryservice.exception.IllegalArgumentException;
-import com.dtthuan3.ecommerce.inventoryservice.exception.InsufficientStockException;
-import com.dtthuan3.ecommerce.inventoryservice.exception.NotFoundException;
 import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryRepository;
 import com.dtthuan3.ecommerce.inventoryservice.repository.StockMovementRepository;
 import com.dtthuan3.ecommerce.inventoryservice.service.InventoryService;
+import com.dtthuan3.ecommerce.inventoryservice.service.InventoryLocationAccessService;
+import com.dtthuan3.ecommerce.inventoryservice.service.ClassifiedStockReceipt;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +34,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +48,7 @@ public class InventoryServiceImpl implements InventoryService {
     private final InventoryRepository inventoryRepository;
     private final StockMovementRepository stockMovementRepository;
     private final InventoryBatchProperties batchProperties;
+    private final InventoryLocationAccessService locationAccessService;
 
     /** Tìm hoặc tạo vị trí tồn theo SKU, cộng hàng nhập và ghi lịch sử trong một giao dịch. */
     @Override
@@ -57,6 +57,8 @@ public class InventoryServiceImpl implements InventoryService {
             ReceiveStockRequest request,
             String performedBy
     ) {
+        locationAccessService.requireWritablePosition(
+                request.enterpriseId(), request.warehouseId(), request.locationId());
         // INSERT ... ON CONFLICT khóa và trả dòng hiện tại, tránh đua nhau tạo cùng vị trí tồn.
         Inventory before = inventoryRepository.createOrFind(
                 request.enterpriseId(),
@@ -72,12 +74,73 @@ public class InventoryServiceImpl implements InventoryService {
         return toResponse(updated);
     }
 
+    /**
+     * Ghi các dòng phiếu nhập vào tồn và movement trong transaction đang xử lý phiếu.
+     * Nếu API ghi sổ phiếu gặp lỗi ở bất kỳ dòng nào, transaction bên ngoài sẽ rollback cả loạt.
+     */
+    @Override
+    @Transactional
+    public void receiveClassifiedStock(List<ClassifiedStockReceipt> requests) {
+        if (requests == null || requests.isEmpty()) return;
+
+        // Kiểm tra và khóa toàn bộ Warehouse/Location theo batch, tránh một truy vấn cho mỗi dòng phiếu.
+        locationAccessService.requireWritablePositions(requests.stream()
+                .map(request -> new InventoryLocationAccessService.Position(
+                        request.enterpriseId(), request.warehouseId(), request.locationId()))
+                .distinct().toList());
+
+        // Gộp các dòng cùng enterprise/kho/location/SKU để chỉ cập nhật một balance cho mỗi vị trí.
+        Map<ClassifiedStockKey, ClassifiedStockReceipt> grouped = new HashMap<>();
+        for (ClassifiedStockReceipt request : requests) {
+            ClassifiedStockKey key = new ClassifiedStockKey(request.enterpriseId(), request.warehouseId(),
+                    request.locationId(), request.sku(), request.receiptId());
+            grouped.merge(key, request, (current, incoming) -> new ClassifiedStockReceipt(
+                    current.enterpriseId(), current.warehouseId(), current.locationId(), current.sku(),
+                    current.goodQuantity().add(incoming.goodQuantity()),
+                    current.damagedQuantity().add(incoming.damagedQuantity()),
+                    current.inspectionQuantity().add(incoming.inspectionQuantity()),
+                    current.receiptId(), current.performedBy()));
+        }
+
+        // Khóa balance theo thứ tự cố định để hai phiếu nhiều SKU không khóa chéo nhau.
+        List<ClassifiedStockReceipt> ordered = grouped.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey(Comparator.comparing(ClassifiedStockKey::enterpriseId)
+                        .thenComparing(ClassifiedStockKey::warehouseId)
+                        .thenComparing(ClassifiedStockKey::locationId)
+                        .thenComparing(ClassifiedStockKey::sku)
+                        .thenComparing(ClassifiedStockKey::receiptId)))
+                .map(Map.Entry::getValue)
+                .toList();
+
+        List<StockMovement> movements = new ArrayList<>();
+        for (ClassifiedStockReceipt request : ordered) {
+            BigDecimal totalReceived = request.goodQuantity()
+                    .add(request.damagedQuantity()).add(request.inspectionQuantity());
+            if (totalReceived.signum() == 0) continue;
+
+            // Tạo dòng tồn nếu chưa có; nếu đã có, repository khóa dòng trước khi cập nhật.
+            Inventory before = inventoryRepository.createOrFind(request.enterpriseId(), request.warehouseId(),
+                    request.locationId(), request.sku());
+            Inventory after = inventoryRepository.receiveClassified(before.getId(), request.goodQuantity(),
+                    request.damagedQuantity(), request.inspectionQuantity());
+
+            // Mỗi movement liên kết về receipt; batch ghi lịch sử sau khi đã cập nhật các balance.
+            movements.add(buildMovement(before, after, MovementType.RECEIVE, totalReceived,
+                    "SUPPLIER_RECEIPT", request.receiptId(), null, request.performedBy()));
+        }
+        if (!movements.isEmpty()) stockMovementRepository.insertMovements(movements);
+    }
+
+    /** Khóa gộp ổn định cho một bucket tồn trong cùng phiếu nhập. */
+    private record ClassifiedStockKey(String enterpriseId, String warehouseId, String locationId,
+                                      String sku, String receiptId) {}
+
     /** Đọc theo ID và dựng phản hồi gồm tồn khả dụng sau khi trừ các lượng không thể bán. */
     @Override
     public InventoryResponse getById(String id) {
         // Đọc vị trí tồn; nếu không tồn tại thì trả lỗi 404.
         Inventory inventory = inventoryRepository.findInventoryRowById(id)
-                .orElseThrow(()-> new NotFoundException("Không tìm thấy id"+id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy Inventory với ID: " + id));
 
         return toResponse(inventory);
     }
@@ -100,8 +163,8 @@ public class InventoryServiceImpl implements InventoryService {
                         sku
                 )
                 .orElseThrow(() ->
-                        new NotFoundException(
-                                "Inventory not found"
+                        new BusinessException(ErrorCode.NOT_FOUND,
+                                "Không tìm thấy Inventory phù hợp với các thông tin đã cung cấp"
                         )
                 );
 
@@ -113,14 +176,17 @@ public class InventoryServiceImpl implements InventoryService {
     @Transactional
     public InventoryResponse create(CreateInventoryRequest request) {
 
+        locationAccessService.requireWritablePosition(
+                request.enterpriseId(), request.warehouseId(), request.locationId());
+
         // INSERT ... ON CONFLICT DO NOTHING tránh race condition và chỉ cần một round-trip.
         Inventory inventory = inventoryRepository.create(
                 request.enterpriseId(),
                 request.warehouseId(),
                 request.locationId(),
                 request.sku()
-        ).orElseThrow(() -> new AlreadyExistsException(
-                "Inventory already exists for sku: " + request.sku()));
+        ).orElseThrow(() -> new BusinessException(ErrorCode.DUPLICATE_RESOURCE,
+                "Inventory cho SKU này đã tồn tại: " + request.sku()));
 
         return toResponse(inventory);
     }
@@ -130,9 +196,15 @@ public class InventoryServiceImpl implements InventoryService {
     @Transactional
     public List<InventoryResponse> createBatch(List<CreateInventoryRequest> requests) {
         if (requests == null || requests.isEmpty() || requests.size() > batchProperties.maxSize()) {
-            throw new IllegalArgumentException(
-                    "Batch must contain between 1 and " + batchProperties.maxSize() + " inventories");
+            throw new BusinessException(ErrorCode.BAD_REQUEST,
+                    "Batch phải có từ 1 đến " + batchProperties.maxSize() + " Inventory");
         }
+
+        locationAccessService.requireWritablePositions(requests.stream()
+                .map(request -> new InventoryLocationAccessService.Position(
+                        request.enterpriseId(), request.warehouseId(), request.locationId()))
+                .distinct()
+                .toList());
 
         // Chuẩn bị ID trước khi gửi JDBC batch vì khóa chính String không dùng sequence database.
         List<Inventory> inventories = requests.stream()
@@ -149,7 +221,7 @@ public class InventoryServiceImpl implements InventoryService {
         int[] results = inventoryRepository.createBatch(inventories);
         for (int result : results) {
             if (result == 0) {
-                throw new AlreadyExistsException("An inventory in the batch already exists");
+                throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE, "Một Inventory trong Batch đã tồn tại");
             }
         }
 
@@ -175,8 +247,8 @@ public class InventoryServiceImpl implements InventoryService {
          * Kiểm tra Inventory có tồn tại không.
          */
         Inventory before = requireLocked(request.inventoryId());
+        locationAccessService.requireWritableInventory(before);
         verifyVersion(before, request.expectedVersion());
-
 
         /*
          * Bước 2:
@@ -195,7 +267,6 @@ public class InventoryServiceImpl implements InventoryService {
                 request.quantity()
         );
         recordMovement(before, inventory, MovementType.RECEIVE, request.quantity(), null, null, null, null);
-
 
         /*
          * Bước 3:
@@ -218,8 +289,8 @@ public class InventoryServiceImpl implements InventoryService {
          * Kiểm tra Inventory có tồn tại không.
          */
         Inventory before = requireLocked(request.inventoryId());
+        locationAccessService.requireWritableInventory(before);
         verifyVersion(before, request.expectedVersion());
-
 
         /*
          * Bước 2:
@@ -236,13 +307,12 @@ public class InventoryServiceImpl implements InventoryService {
                         request.quantity()
                 )
                 .orElseThrow(() ->
-                        new InsufficientStockException(
-                                "Insufficient available stock for inventory id: "
+                        new BusinessException(ErrorCode.INSUFFICIENT_STOCK,
+                                "Tồn khả dụng không đủ cho Inventory có ID: "
                                         + request.inventoryId()
                         )
                 );
         recordMovement(before, inventory, MovementType.RESERVE, request.quantity(), null, null, null, null);
-
 
         return toResponse(inventory);
     }
@@ -260,8 +330,8 @@ public class InventoryServiceImpl implements InventoryService {
          * Kiểm tra Inventory có tồn tại không.
          */
         Inventory before = requireLocked(request.inventoryId());
+        locationAccessService.requireWritableInventory(before);
         verifyVersion(before, request.expectedVersion());
-
 
         /*
          * Bước 2:
@@ -278,13 +348,11 @@ public class InventoryServiceImpl implements InventoryService {
                         request.quantity()
                 )
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Release quantity cannot be greater "
-                                        + "than reserved quantity"
+                        new BusinessException(ErrorCode.INVALID_QUANTITY,
+                                "Số lượng cần bỏ giữ không được lớn hơn số lượng đã reserve"
                         )
                 );
         recordMovement(before, inventory, MovementType.RELEASE, request.quantity(), null, null, null, null);
-
 
         return toResponse(inventory);
     }
@@ -302,8 +370,8 @@ public class InventoryServiceImpl implements InventoryService {
          * Kiểm tra Inventory có tồn tại không.
          */
         Inventory before = requireLocked(request.inventoryId());
+        locationAccessService.requireWritableInventory(before);
         verifyVersion(before, request.expectedVersion());
-
 
         /*
          * Bước 2:
@@ -320,13 +388,12 @@ public class InventoryServiceImpl implements InventoryService {
                         request.quantity()
                 )
                 .orElseThrow(() ->
-                        new InsufficientStockException(
-                                "Insufficient available stock for inventory id: "
+                        new BusinessException(ErrorCode.INSUFFICIENT_STOCK,
+                                "Tồn khả dụng không đủ cho Inventory có ID: "
                                         + request.inventoryId()
                         )
                 );
         recordMovement(before, inventory, MovementType.ISSUE, request.quantity(), null, null, null, null);
-
 
         return toResponse(inventory);
     }
@@ -341,6 +408,7 @@ public class InventoryServiceImpl implements InventoryService {
         // Bước 1:
         // Kiểm tra Inventory có tồn tại hay không.
         Inventory before = requireLocked(request.inventoryId());
+        locationAccessService.requireWritableInventory(before);
         verifyVersion(before, request.expectedVersion());
 
         // Bước 2:
@@ -351,9 +419,8 @@ public class InventoryServiceImpl implements InventoryService {
                         request.actualQuantity()
                 )
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Actual quantity cannot be less than "
-                                        + "reserved + defective + pending quantity"
+                        new BusinessException(ErrorCode.INVALID_QUANTITY,
+                                "actualQuantity không được nhỏ hơn tổng reserved, defective và pending"
                         )
                 );
         recordMovement(before, inventory, MovementType.ADJUSTMENT,
@@ -373,8 +440,8 @@ public class InventoryServiceImpl implements InventoryService {
     public TransferInventoryResponse transfer(TransferInventoryRequest request) {
         // Một dòng tồn không thể vừa là nguồn vừa là đích của cùng lần chuyển.
         if (request.fromInventoryId().equals(request.toInventoryId())) {
-            throw new IllegalArgumentException(
-                    "Source and destination inventory must be different");
+            throw new BusinessException(ErrorCode.INVALID_OPERATION,
+                    "Inventory nguồn và Inventory đích phải khác nhau");
         }
 
         // Khóa ID theo thứ tự cố định để hạn chế deadlock khi có hai luồng chuyển ngược chiều.
@@ -385,18 +452,21 @@ public class InventoryServiceImpl implements InventoryService {
         // Ghép lại vai trò nguồn/đích sau khi đã khóa theo thứ tự ID.
         Inventory sourceBefore = first.getId().equals(request.fromInventoryId()) ? first : second;
         Inventory destinationBefore = first.getId().equals(request.toInventoryId()) ? first : second;
+        locationAccessService.requireWritableInventory(sourceBefore);
+        locationAccessService.requireWritableInventory(destinationBefore);
         // Kiểm tra version client gửi và bảo đảm hai đầu thuộc cùng doanh nghiệp, cùng SKU.
         verifyVersion(sourceBefore, request.expectedSourceVersion());
         verifyVersion(destinationBefore, request.expectedDestinationVersion());
         if (!sourceBefore.getEnterpriseId().equals(destinationBefore.getEnterpriseId())
                 || !sourceBefore.getSku().equals(destinationBefore.getSku())) {
-            throw new IllegalArgumentException(
-                    "Transfer must stay within one enterprise and use the same SKU");
+            throw new BusinessException(ErrorCode.INVALID_OPERATION,
+                    "Transfer phải nằm trong cùng enterprise và sử dụng cùng SKU");
         }
 
         // Trừ nguồn trước; nếu lượng khả dụng không đủ, ném lỗi để rollback giao dịch.
         Inventory sourceAfter = inventoryRepository.issue(sourceBefore.getId(), request.quantity())
-                .orElseThrow(() -> new InsufficientStockException("Insufficient available stock for transfer"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.INSUFFICIENT_STOCK,
+                        "Tồn khả dụng không đủ để thực hiện Transfer"));
         // Chỉ cộng đích sau khi trừ nguồn thành công; cả hai câu lệnh nằm trong cùng giao dịch.
         Inventory destinationAfter = inventoryRepository.receive(destinationBefore.getId(), request.quantity());
         // Dùng chung một mã tham chiếu để truy ngược hai biến động xuất/nhập của lần chuyển này.
@@ -419,30 +489,30 @@ public class InventoryServiceImpl implements InventoryService {
     /** Tra vị trí tồn theo SKU; một SKU có thể nằm ở nhiều kho hoặc vị trí. */
     @Override
     @Transactional(readOnly = true)
-    public List<InventoryResponse> bySku(String sku) {
-        return inventoryRepository.findBySku(sku).stream().map(this::toResponse).toList();
+    public Page<InventoryResponse> bySku(String sku, Pageable pageable) {
+        return inventoryRepository.findBySku(sku, pageable).map(this::toResponse);
     }
 
     /** Tra các vị trí tồn thuộc một kho. */
     @Override
     @Transactional(readOnly = true)
-    public List<InventoryResponse> byWarehouse(String warehouseId) {
-        return inventoryRepository.findByWarehouse(warehouseId).stream().map(this::toResponse).toList();
+    public Page<InventoryResponse> byWarehouse(String warehouseId, Pageable pageable) {
+        return inventoryRepository.findByWarehouse(warehouseId, pageable).map(this::toResponse);
     }
 
     /** Tra các vị trí tồn thuộc một khu vực lưu trữ. */
     @Override
     @Transactional(readOnly = true)
-    public List<InventoryResponse> byLocation(String locationId) {
-        return inventoryRepository.findByLocation(locationId).stream().map(this::toResponse).toList();
+    public Page<InventoryResponse> byLocation(String locationId, Pageable pageable) {
+        return inventoryRepository.findByLocation(locationId, pageable).map(this::toResponse);
     }
 
     /** Tra các vị trí còn hàng có thể bán, có thể lọc thêm theo SKU/kho/vị trí. */
     @Override
     @Transactional(readOnly = true)
-    public List<InventoryResponse> available(String sku, String warehouseId, String locationId) {
-        return inventoryRepository.findAvailable(sku, warehouseId, locationId)
-                .stream().map(this::toResponse).toList();
+    public Page<InventoryResponse> available(String sku, String warehouseId, String locationId, Pageable pageable) {
+        return inventoryRepository.findAvailable(sku, warehouseId, locationId, pageable)
+                .map(this::toResponse);
     }
 
     /** Kiểm tra khoảng thời gian rồi chuyển bộ lọc và thông tin trang xuống truy vấn SQL. */
@@ -452,8 +522,8 @@ public class InventoryServiceImpl implements InventoryService {
                                                        String referenceId, LocalDateTime from,
                                                        LocalDateTime to, Pageable pageable) {
         if (from != null && to != null && from.isAfter(to)) {
-            throw new IllegalArgumentException(
-                    "from must be before or equal to to");
+            throw new BusinessException(ErrorCode.INVALID_TIME_RANGE,
+                    "Thời điểm from phải trước hoặc bằng thời điểm to");
         }
         return stockMovementRepository.searchMovements(inventoryId, type, referenceId, from, to, pageable);
     }
@@ -461,14 +531,14 @@ public class InventoryServiceImpl implements InventoryService {
     /** Lấy khóa ghi ở cơ sở dữ liệu; khóa được giữ đến khi giao dịch kết thúc. */
     private Inventory requireLocked(String id) {
         return inventoryRepository.findInventoryRowByIdForUpdate(id)
-                .orElseThrow(() -> new NotFoundException("Inventory not found with id: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy Inventory với ID: " + id));
     }
 
     /** So sánh version client đã đọc với version hiện tại để phát hiện ghi dựa trên dữ liệu cũ. */
     private void verifyVersion(Inventory inventory, Long expectedVersion) {
         if (expectedVersion != null && !expectedVersion.equals(inventory.getVersion())) {
-            throw new ConcurrencyConflictException(
-                    "Inventory version is stale; reload and retry");
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT,
+                    "Version Inventory đã cũ; hãy tải lại dữ liệu rồi thử lại");
         }
     }
 
@@ -489,7 +559,7 @@ public class InventoryServiceImpl implements InventoryService {
         }
         return StockMovement.builder()
                 .id(UUID.randomUUID().toString())
-                .inventory(after)
+                .inventoryId(after.getId())
                 .movementType(type)
                 .quantity(quantity)
                 .physicalBefore(before.getPhysicalQuantity())

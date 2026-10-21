@@ -1,55 +1,71 @@
 package com.dtthuan3.ecommerce.catalogservice.entity;
 
 import com.dtthuan3.ecommerce.catalogservice.contstant.ManufacturerStatus;
+import com.dtthuan3.ecommerce.catalogservice.generator.StringUuidSequenceGenerator;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.Getter;
+import lombok.Setter;
+import org.hibernate.annotations.GenericGenerator;
+import org.hibernate.annotations.Parameter;
 
 @Entity
 @Table(
         name = "manufacturers",
         indexes = {
                 @Index(
-                        name = "idx_manufacturers_status",
-                        columnList = "status"
+                        name = "idx_manufacturers_name",
+                        columnList = "name",
+                        unique = true
                 ),
                 @Index(
-                        name = "idx_manufacturers_name",
-                        columnList = "name"
+                        name = "idx_manufacturers_status",
+                        columnList = "status"
                 )
         }
 )
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class Manufacturers extends BaseEntity {
 
     @Id
-    @GeneratedValue(
-            strategy = GenerationType.SEQUENCE,
-            generator = "manufacturers_seq"
+    @GeneratedValue(generator = "manufacturer_uuid_generator")
+    @GenericGenerator(
+            name = "manufacturer_uuid_generator",
+            type = StringUuidSequenceGenerator.class,
+            parameters = {
+                    @Parameter(
+                            name = "sequence_name",
+                            value = "manufacturers_id_seq"
+                    )
+            }
     )
-    @SequenceGenerator(
-            name = "manufacturers_seq",
-            sequenceName = "manufacturers_id_seq",
-            allocationSize = 50
+    @Column(
+            name = "id",
+            nullable = false,
+            updatable = false,
+            length = 36
     )
-    private Long id;
+    private String id;
 
     @Column(
             name = "name",
             nullable = false,
-            length = 255
+            length = 255,
+            unique = true
     )
     private String name;
 
     @Column(
             name = "country",
-            nullable = false,
-            length = 50
+            length = 255
     )
     private String country;
+
+    @Column(
+            name = "website",
+            length = 500
+    )
+    private String website;
 
     @Column(
             name = "description",
@@ -58,10 +74,10 @@ public class Manufacturers extends BaseEntity {
     private String description;
 
     @Column(
-            name = "website",
+            name = "logo_object_key",
             length = 500
     )
-    private String website;
+    private String logoObjectKey;
 
     @Enumerated(EnumType.STRING)
     @Column(
@@ -69,7 +85,11 @@ public class Manufacturers extends BaseEntity {
             nullable = false,
             length = 30
     )
-    @Builder.Default
-    private ManufacturerStatus status =
-            ManufacturerStatus.ACTIVE;
+    private ManufacturerStatus status;
+
+    @Column(
+            name = "revision",
+            nullable = false
+    )
+    private Long revision = 0L;
 }

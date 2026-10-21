@@ -1,105 +1,110 @@
 package com.dtthuan3.ecommerce.catalogservice.controller;
 
-import com.dtthuan3.ecommerce.catalogservice.dto.request.CategoryRequest;
+import com.dtthuan3.ecommerce.catalogservice.dto.request.CategoryCreateRequest;
+import com.dtthuan3.ecommerce.catalogservice.dto.request.CategoryUpdateRequest;
 import com.dtthuan3.ecommerce.catalogservice.dto.response.CategoryResponse;
+import com.dtthuan3.ecommerce.catalogservice.dto.response.CategoryTreeResponse;
 import com.dtthuan3.ecommerce.catalogservice.service.CategoryService;
-import io.swagger.v3.oas.annotations.Parameter;
+import com.dtthuan3.ecommerce.common.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
-@RequestMapping("/api/catalog/categories")
+@RequestMapping("/categories")
 @RequiredArgsConstructor
 public class CategoryController {
 
     private final CategoryService categoryService;
 
-
-    @PostMapping(
-            consumes = MediaType.APPLICATION_JSON_VALUE,
-            produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CategoryResponse> create(
-            @Valid @RequestBody CategoryRequest request
-    ) {
-
-        CategoryResponse response =
-                categoryService.create(request, null);
-
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(response);
-    }
-
-
-    @GetMapping(
-            value = "/{id}",
-            produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<CategoryResponse> getById(
-
-            @Parameter(
-                    description = "ID danh mục",
-                    example = "1"
-            )
-            @PathVariable Long id
-    ) {
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<CategoryResponse>>> getRoots() {
 
         return ResponseEntity.ok(
-                categoryService.getById(id)
-        );
-    }
-
-
-    @PutMapping(
-            value = "/{id}",
-            consumes = MediaType.APPLICATION_JSON_VALUE,
-            produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CategoryResponse> update(
-
-            @Parameter(
-                    description = "ID danh mục",
-                    example = "1"
-            )
-            @PathVariable Long id,
-
-            @Valid @RequestBody CategoryRequest request
-    ) {
-
-        return ResponseEntity.ok(
-                categoryService.update(
-                        id,
-                        request,
-                        null
+                ApiResponse.ok(
+                        categoryService.getRootCategories()
                 )
         );
     }
 
+    @GetMapping("/tree")
+    public ResponseEntity<ApiResponse<List<CategoryTreeResponse>>> getTree() {
+
+        return ResponseEntity.ok(
+                ApiResponse.ok(
+                        categoryService.getTree()
+                )
+        );
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<CategoryResponse>> getById(
+            @PathVariable String id
+    ) {
+
+        return ResponseEntity.ok(
+                ApiResponse.ok(
+                        categoryService.getById(id)
+                )
+        );
+    }
+
+    @GetMapping("/{parentId}/children")
+    public ResponseEntity<ApiResponse<List<CategoryResponse>>> getChildren(
+            @PathVariable String parentId
+    ) {
+
+        return ResponseEntity.ok(
+                ApiResponse.ok(
+                        categoryService.getChildren(parentId)
+                )
+        );
+    }
+
+    @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'CATALOG_MANAGER')")
+    public ResponseEntity<ApiResponse<CategoryResponse>> create(
+            @Valid @RequestBody CategoryCreateRequest request
+    ) {
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(
+                        ApiResponse.created(
+                                categoryService.create(request)
+                        )
+                );
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CATALOG_MANAGER')")
+    public ResponseEntity<ApiResponse<CategoryResponse>> update(
+            @PathVariable String id,
+            @Valid @RequestBody CategoryUpdateRequest request
+    ) {
+
+        return ResponseEntity.ok(
+                ApiResponse.ok(
+                        categoryService.update(id, request)
+                )
+        );
+    }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> delete(
-
-            @Parameter(
-                    description = "ID danh mục",
-                    example = "1"
-            )
-            @PathVariable Long id
+    public ResponseEntity<ApiResponse<Void>> delete(
+            @PathVariable String id
     ) {
 
         categoryService.delete(id);
 
-        return ResponseEntity
-                .noContent()
-                .build();
+        return ResponseEntity.ok(
+                ApiResponse.ok()
+        );
     }
 }

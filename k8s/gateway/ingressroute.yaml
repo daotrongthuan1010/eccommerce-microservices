@@ -1,0 +1,18 @@
+# Exposes ONLY api-gateway:8080. Do not add routes for discovery dashboard
+# (use kubectl port-forward when needed).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: api-gateway
+  namespace: ecommerce
+  labels:
+    app: api-gateway
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: PathPrefix(`/`)
+      kind: Rule
+      services:
+        - name: api-gateway
+          port: 8080

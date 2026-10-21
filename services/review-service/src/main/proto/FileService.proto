@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package file;
+
+option java_package = "com.dtthuan3.ecommerce.fileservice.grpc";
+option java_outer_classname = "FileProto";
+
+// Định nghĩa Service
+service FileGrpcService {
+  rpc GetPublicMediaUrls (MediaUrlRequest) returns (MediaUrlResponse);
+}
+
+// Request: Gửi lên danh sách file_id
+message MediaUrlRequest {
+  repeated string file_ids = 1;
+}
+
+// Response: Trả về một Map (Dictionary) ánh xạ từ file_id -> url
+message MediaUrlResponse {
+  map<string, string> media_urls = 1;
+}

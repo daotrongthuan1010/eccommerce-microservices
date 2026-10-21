@@ -1,0 +1,78 @@
+{
+  "title": "Inventory Service Operations",
+  "uid": "inventory-service-operations",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Service up",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [{ "expr": "up{job=\"spring-apps\",instance=\"inventory-service:8084\"}", "refId": "A" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "background", "graphMode": "none", "orientation": "auto", "textMode": "auto" }
+    },
+    {
+      "id": 2,
+      "title": "HTTP requests / sec",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 10, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [{ "expr": "sum(rate(http_server_requests_seconds_count{application=\"inventory-service\"}[5m])) by (uri)", "legendFormat": "{{uri}}", "refId": "A" }]
+    },
+    {
+      "id": 3,
+      "title": "HTTP 5xx ratio",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 10, "x": 14, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [{ "expr": "sum(rate(http_server_requests_seconds_count{application=\"inventory-service\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{application=\"inventory-service\"}[5m])), 0.001)", "legendFormat": "5xx ratio", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] }
+    },
+    {
+      "id": 4,
+      "title": "HTTP p95 latency",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{application=\"inventory-service\"}[5m])))", "legendFormat": "{{uri}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
+    },
+    {
+      "id": 5,
+      "title": "Event outbox pending",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [{ "expr": "inventory_event_outbox_pending", "legendFormat": "pending", "refId": "A" }, { "expr": "inventory_event_outbox_oldest_age_seconds", "legendFormat": "oldest age (s)", "refId": "B" }]
+    },
+    {
+      "id": 6,
+      "title": "Outbox publish rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [{ "expr": "sum(rate(inventory_event_outbox_published_total[5m]))", "legendFormat": "published/s", "refId": "A" }, { "expr": "sum(rate(inventory_event_outbox_publish_failures_total[5m]))", "legendFormat": "failed/s", "refId": "B" }]
+    },
+    {
+      "id": 7,
+      "title": "Product event duplicate and DLT rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [{ "expr": "rate(inventory_kafka_product_events_duplicates_total[5m])", "legendFormat": "duplicates/s", "refId": "A" }, { "expr": "rate(inventory_kafka_consumer_dead_letter_total[5m])", "legendFormat": "DLT/s", "refId": "B" }, { "expr": "rate(inventory_kafka_product_events_failures_total[5m])", "legendFormat": "processing failures/s", "refId": "C" }, { "expr": "histogram_quantile(0.95, sum by (le) (rate(inventory_kafka_product_events_processing_seconds_bucket[5m])))", "legendFormat": "consumer p95 (s)", "refId": "D" }]
+    },
+    {
+      "id": 8,
+      "title": "Database connection pool",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [{ "expr": "hikaricp_connections_active{application=\"inventory-service\"}", "legendFormat": "active", "refId": "A" }, { "expr": "hikaricp_connections_pending{application=\"inventory-service\"}", "legendFormat": "pending", "refId": "B" }, { "expr": "hikaricp_connections_max{application=\"inventory-service\"}", "legendFormat": "max", "refId": "C" }]
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+# Port of docker-compose.yml `clamav` (clamav/clamav:1.4.3_base, stateless).
+# NOTE: intentionally NOT "small" — freshclam + clamd need ~1 GiB for the
+# signature DB. First start downloads signatures and can take several minutes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clamav
+  namespace: ecommerce
+  labels:
+    app: clamav
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clamav
+  template:
+    metadata:
+      labels:
+        app: clamav
+    spec:
+      containers:
+        - name: clamav
+          image: clamav/clamav:1.4.3_base
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: clamav
+              containerPort: 3310
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          livenessProbe:
+            tcpSocket:
+              port: clamav
+            initialDelaySeconds: 300
+            periodSeconds: 30
+            failureThreshold: 6
+          readinessProbe:
+            tcpSocket:
+              port: clamav
+            initialDelaySeconds: 180
+            periodSeconds: 30
+            failureThreshold: 20
+---
+# LoadBalancer (k3s Klipper lb) exposes the compose port 3310 on the node IP,
+# preserving the DEV 0.0.0.0 public-access behavior from vps-infra memory.
+# In-cluster clients (file-service) use clamav:3310.
+apiVersion: v1
+kind: Service
+metadata:
+  name: clamav
+  namespace: ecommerce
+  labels:
+    app: clamav
+spec:
+  type: LoadBalancer
+  selector:
+    app: clamav
+  ports:
+    - name: clamav
+      port: 3310
+      targetPort: clamav

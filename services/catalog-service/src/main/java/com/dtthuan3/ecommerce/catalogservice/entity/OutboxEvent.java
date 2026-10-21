@@ -1,191 +1,94 @@
 package com.dtthuan3.ecommerce.catalogservice.entity;
 
 import com.dtthuan3.ecommerce.catalogservice.contstant.OutboxEventStatus;
+import com.dtthuan3.ecommerce.catalogservice.generator.StringUuidSequenceGenerator;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.Getter;
+import lombok.Setter;
+import org.hibernate.annotations.GenericGenerator;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.Parameter;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
+import java.util.Map;
 
 @Entity
 @Table(
         name = "outbox_events",
         indexes = {
-                @Index(
-                        name = "idx_outbox_events_status",
-                        columnList = "status"
-                ),
-                @Index(
-                        name = "idx_outbox_events_event_type",
-                        columnList = "event_type"
-                ),
-                @Index(
-                        name = "idx_outbox_events_aggregate",
-                        columnList = "aggregate_type, aggregate_id"
-                ),
-                @Index(
-                        name = "idx_outbox_events_occurred_at",
-                        columnList = "occurred_at"
-                )
+                @Index(name = "idx_outbox_events_event_id", columnList = "event_id"),
+                @Index(name = "idx_outbox_events_status", columnList = "status"),
+                @Index(name = "idx_outbox_events_occurred_at", columnList = "occurred_at")
         }
 )
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class OutboxEvent extends BaseEntity {
 
-    /**
-     * ID của bản ghi Outbox
-     */
+    /** ID duy nhất của bản ghi outbox. */
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    /**
-     * Loại entity phát sinh event.
-     *
-     * Ví dụ:
-     * CATEGORY
-     * BRAND
-     * MANUFACTURER
-     */
-    @Column(
-            name = "aggregate_type",
-            nullable = false,
-            length = 100
+    @GeneratedValue(generator = "outbox_event_uuid_generator")
+    @GenericGenerator(
+            name = "outbox_event_uuid_generator",
+            type = StringUuidSequenceGenerator.class,
+            parameters = {
+                    @Parameter(
+                            name = "sequence_name",
+                            value = "outbox_events_id_seq"
+                    )
+            }
     )
+    @Column(name = "id", nullable = false, updatable = false, length = 36)
+    private String id;
+
+    /** Loại aggregate phát sinh event. */
+    @Column(name = "aggregate_type", nullable = false, length = 100)
     private String aggregateType;
 
-    /**
-     * ID của entity phát sinh event.
-     *
-     * Ví dụ:
-     * Category id = 10
-     */
-    @Column(
-            name = "aggregate_id",
-            nullable = false
-    )
-    private Long aggregateId;
+    /** ID của aggregate phát sinh event. */
+    @Column(name = "aggregate_id", nullable = false, length = 36)
+    private String aggregateId;
 
-    /**
-     * ID duy nhất của event.
-     *
-     * Dùng để phân biệt từng event.
-     */
-    @Column(
-            name = "event_id",
-            nullable = false,
-            unique = true,
-            columnDefinition = "UUID"
-    )
-    private UUID eventId;
+    /** ID duy nhất của event. */
+    @Column(name = "event_id", nullable = false, unique = true, length = 36)
+    private String eventId;
 
-    /**
-     * Loại event.
-     *
-     * Ví dụ:
-     * CATEGORY_CREATED
-     * CATEGORY_UPDATED
-     * CATEGORY_DELETED
-     */
-    @Column(
-            name = "event_type",
-            nullable = false,
-            length = 100
-    )
+    /** Tên loại event được phát ra. */
+    @Column(name = "event_type", nullable = false, length = 150)
     private String eventType;
 
-    /**
-     * Service tạo ra event.
-     *
-     * Ví dụ:
-     * catalog-service
-     */
-    @Column(
-            name = "producer",
-            nullable = false,
-            length = 100
-    )
+    /** Tên service phát sinh event. */
+    @Column(name = "producer", nullable = false, length = 100)
     private String producer;
 
-    /**
-     * Version của event schema.
-     *
-     * Ví dụ: 1
-     */
-    @Column(
-            name = "schema_version",
-            nullable = false
-    )
+    /** Phiên bản schema của event. */
+    @Column(name = "schema_version", nullable = false)
     private Integer schemaVersion;
 
-    /**
-     * Nội dung event dạng JSON.
-     *
-     * Ví dụ:
-     * {
-     *   "id": 1,
-     *   "name": "Điện thoại",
-     *   "slug": "dien-thoai"
-     * }
-     */
-    @Column(
-            name = "payload",
-            nullable = false,
-            columnDefinition = "TEXT"
-    )
-    private String payload;
+    /** Payload của event được lưu dưới dạng JSONB. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "payload", nullable = false, columnDefinition = "jsonb")
+    private Map<String, Object> payload;
 
-    /**
-     * Thời điểm event được tạo.
-     */
-    @Column(
-            name = "occurred_at",
-            nullable = false
-    )
+    /** Thời điểm event được tạo. */
+    @Column(name = "occurred_at", nullable = false)
     private LocalDateTime occurredAt;
 
-    /**
-     * Thời điểm event được publish thành công lên Kafka.
-     *
-     * NULL = chưa publish thành công.
-     */
+    /** Thời điểm event được publish thành công. */
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
 
-    /**
-     * Trạng thái Outbox.
-     *
-     * PENDING
-     * PUBLISHED
-     * FAILED
-     */
+    /** Trạng thái publish của outbox event. */
     @Enumerated(EnumType.STRING)
-    @Column(
-            name = "status",
-            nullable = false,
-            length = 30
-    )
+    @Column(name = "status", nullable = false, length = 30)
     private OutboxEventStatus status;
 
-    /**
-     * Số lần retry gửi Kafka.
-     */
-    @Column(
-            name = "retry_count",
-            nullable = false
-    )
+    /** Số lần thử publish lại. */
+    @Column(name = "retry_count", nullable = false)
     private Integer retryCount = 0;
 
-    /**
-     * Lỗi gần nhất khi publish Kafka.
-     */
-    @Column(
-            name = "last_error",
-            columnDefinition = "TEXT"
-    )
+    /** Lỗi publish gần nhất. */
+    @Column(name = "last_error", columnDefinition = "TEXT")
     private String lastError;
 }

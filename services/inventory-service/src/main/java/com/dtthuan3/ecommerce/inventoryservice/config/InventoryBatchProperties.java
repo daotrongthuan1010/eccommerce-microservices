@@ -8,7 +8,7 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties(prefix = "inventory.batch")
 public record InventoryBatchProperties(
-        @Min(value = 1, message = "inventory.batch.max-size phải lớn hơn 0")
+        @Min(value = 1, message = "inventory.batch.max-size phải ít nhất là 1")
         int maxSize
 ) {
 }

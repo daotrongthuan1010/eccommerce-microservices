@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+  namespace: ecommerce
+  labels:
+    app: api-gateway
+data:
+  SERVER_PORT: "8080"
+  EUREKA_SERVER_URL: "http://discovery-service:8761/eureka/"
+  EUREKA_HOSTNAME: "api-gateway"
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+  AUTH_SERVICE_URL: "lb://auth-service"
+  USER_SERVICE_URL: "lb://user-service"
+  CATALOG_SERVICE_URL: "lb://catalog-service"
+  INVENTORY_SERVICE_URL: "lb://inventory-service"
+  ORDER_SERVICE_URL: "lb://order-service"
+  PAYMENT_SERVICE_URL: "lb://payment-service"
+  NOTIFICATION_SERVICE_URL: "lb://notification-service"
+  SEARCH_SERVICE_URL: "lb://search-service"
+  PRODUCT_SERVICE_URL: "lb://product-service"
+  REVIEW_SERVICE_URL: "lb://review-service"
+  ANALYTICS_SERVICE_URL: "lb://analytics-service"
+  FILE_SERVICE_URL: "lb://file-service"
+  KEYCLOAK_JWK_SET_URI: "http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs"
+  ZIPKIN_ENDPOINT: "http://162.4.177.91:9411/api/v2/spans"

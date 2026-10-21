@@ -102,6 +102,8 @@ Route ví dụ `/api/catalog/**` → catalog-service, `/api/order/**` → order-
 - `scripts/smoke.sh`: kiểm tra hạ tầng và health các project sau khi chạy stack đầy đủ.
 - `docs/OPERATIONS.md`: vận hành, xử lý lỗi và giới hạn.
 - `docs/VALIDATION.md`: kết quả kiểm tra trong môi trường dựng scaffold.
+- `services/inventory-service/docs/inventory-reliability-operations.md`: metrics, Kafka outbox/inbox, backup/restore và lịch load test Inventory.
+- `performance/inventory/available-inventory.js`: k6 read-only load baseline; workflow chạy theo tuần.
 
 Hạ tầng dùng volume riêng để lưu dữ liệu. Không tự tạo bảng nghiệp vụ. Kafka tắt tự tạo topic; chưa có topic/message để tránh đặt trước contract nghiệp vụ.
 

@@ -1,15 +1,13 @@
 package com.dtthuan3.ecommerce.productservice.service;
 
-import com.dtthuan3.ecommerce.productservice.dto.request.SkuRequest;
-import com.dtthuan3.ecommerce.productservice.dto.response.SkuResponse;
+import com.dtthuan3.ecommerce.productservice.domain.Sku;
+import com.dtthuan3.ecommerce.productservice.dto.request.CreateSkuRequest;
+
+import java.util.UUID;
 
 public interface SkuService {
 
-    SkuResponse create(SkuRequest request);
+    Sku create(UUID variantId, CreateSkuRequest request);
 
-    SkuResponse getById(Long id);
-
-    SkuResponse update(Long id, SkuRequest request);
-
-    void delete(Long id);
+    Sku getById(UUID skuId);
 }

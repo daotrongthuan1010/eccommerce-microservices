@@ -1,0 +1,49 @@
+[33mcommit fadb4092972ac1162c23b53d12609db0f8908066[m
+Author: hangdao <daothuyhangtb456@gmail.com>
+Date:   Sat Oct 10 20:28:39 2026 +0700
+
+    hang push
+
+ services/catalog-service/pom.xml                   |  95 [32m+++++++[m[31m---[m
+ .../catalogservice/config/FileServiceConfig.java   |  21 [32m+++[m
+ .../catalogservice/config/MinioConfig.java         |  27 [31m---[m
+ .../catalogservice/config/SecurityConfig.java      |  62 [31m------[m
+ .../controller/CategoryController.java             |   6 [32m+[m[31m-[m
+ .../contstant/CategoryRedirectStatus.java          |   7 [32m+[m
+ .../contstant/CategoryRevisionAction.java          |  11 [32m++[m
+ .../catalogservice/contstant/CheckpointStatus.java |   8 [32m+[m
+ .../catalogservice/contstant/CollectionStatus.java |   9 [32m+[m
+ .../contstant/DisplayRuleStatus.java               |   7 [32m+[m
+ .../contstant/ProjectionEventStatus.java           |   4 [32m+[m
+ .../catalogservice/contstant/ReindexRunStatus.java |   4 [32m+[m
+ .../catalogservice/contstant/RuleType.java         |  12 [32m++[m
+ .../catalogservice/contstant/SourceType.java       |  10 [32m+[m
+ .../catalogservice/contstant/SynonymSetStatus.java |   8 [32m+[m
+ ...goryRequest.java => CategoryCreateRequest.java} |  20 [32m+[m[31m-[m
+ .../dto/request/CategoryUpdateRequest.java         |  52 [32m++++++[m
+ .../dto/response/CategoryResponse.java             |  19 [32m+[m[31m-[m
+ .../dto/response/CategoryTreeResponse.java         |  28 [32m+++[m
+ .../ecommerce/catalogservice/entity/Brands.java    | 102 [32m++++[m[31m------[m
+ .../ecommerce/catalogservice/entity/Category.java  |  79 [32m++++[m[31m----[m
+ .../catalogservice/entity/CategoryRedirect.java    |  51 [32m+++++[m
+ .../catalogservice/entity/CategoryRevision.java    |  68 [32m+++++++[m
+ .../catalogservice/entity/Collection.java          |  77 [32m++++++++[m
+ .../catalogservice/entity/DisplayRule.java         |  66 [32m+++++++[m
+ .../catalogservice/entity/Manufacturers.java       |  83 [32m++++[m[31m-----[m
+ .../catalogservice/entity/OutboxEvent.java         | 207 [32m++++++[m[31m---------------[m
+ .../catalogservice/entity/ProductCategory.java     |  55 [32m++++++[m
+ .../catalogservice/entity/ProjectionEvent.java     |  84 [32m+++++++++[m
+ .../catalogservice/entity/ReindexRun.java          |  80 [32m++++++++[m
+ .../entity/SearchProjectionCheckpoint.java         |  56 [32m++++++[m
+ .../ecommerce/catalogservice/entity/Synonym.java   |  49 [32m+++++[m
+ .../catalogservice/entity/SynonymSet.java          |  50 [32m+++++[m
+ .../exception/DuplicateResourceException.java      |  24 [32m+[m[31m--[m
+ .../exception/GlobalExceptionHandler.java          | 128 [32m++++++[m[31m-------[m
+ .../exception/ResourceNotFoundException.java       |  18 [32m+[m[31m-[m
+ .../generator/StringUuidSequenceGenerator.java     |  31 [32m+++[m
+ .../catalogservice/mapper/CategoryMapper.java      |  85 [32m++++++[m[31m---[m
+ .../repository/CategoryRepository.java             |  51 [32m++++[m[31m-[m
+ .../catalogservice/service/CategoryService.java    |  12 [32m+[m[31m-[m
+ .../service/impl/CategoryServiceImpl.java          |   6 [32m+[m[31m-[m
+ .../src/main/resources/application.yml             |  79 [32m++++++[m[31m--[m
+ 42 files changed, 1378 insertions(+), 573 deletions(-)

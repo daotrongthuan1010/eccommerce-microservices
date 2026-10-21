@@ -4,25 +4,25 @@ import com.dtthuan3.ecommerce.catalogservice.contstant.CategoryStatus;
 import lombok.Builder;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
-
 @Getter
 @Builder
 public class CategoryResponse {
 
-    private Long id;
+    private String id;
 
-    private Long parentId;
+    private String parentId;
 
     private String name;
 
     private String slug;
 
-    private String imageUrl;
+    private String description;
+
+    private String imageObjectKey;
 
     private Integer displayOrder;
 
     private CategoryStatus status;
 
-
+    private Long revision;
 }

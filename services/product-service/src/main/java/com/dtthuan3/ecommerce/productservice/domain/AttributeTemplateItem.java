@@ -1,7 +1,10 @@
 package com.dtthuan3.ecommerce.productservice.domain;
 
+import com.dtthuan3.ecommerce.productservice.mapper.GeneratedUuidV7;
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.util.UUID;
 
 @Entity
 @Table(
@@ -9,7 +12,10 @@ import lombok.*;
         uniqueConstraints = {
                 @UniqueConstraint(
                         name = "uk_template_attribute",
-                        columnNames = {"template_id", "attribute_id"}
+                        columnNames = {
+                                "template_id",
+                                "attribute_id"
+                        }
                 )
         },
         indexes = {
@@ -29,16 +35,46 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class AttributeTemplateItem extends BaseEntity {
-
+//Chi tiết mẫu thuộc tính
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    private Long id;
+    @GeneratedUuidV7
+    @Column(nullable = false, updatable = false)
+    private UUID id;
 
-    @Column(name = "template_id", nullable = false)
-    private Long templateId;
+    /**
+     * AttributeTemplate chứa attribute này.
+     */
+    @Column(
+            name = "template_id",
+            nullable = false
+    )
+    private UUID templateId;
 
-    @Column(name = "attribute_id", nullable = false)
-    private Long attributeId;
+    /**
+     * Attribute được sử dụng.
+     */
+    @Column(
+            name = "attribute_id",
+            nullable = false
+    )
+    private UUID attributeId;
+
+    /**
+     * Attribute này có tham gia tạo SKU/variant hay không.
+     *
+     * Ví dụ:
+     *
+     * Color    -> true
+     * Storage  -> true
+     * RAM      -> false
+     * Voltage  -> false
+     */
+    @Column(
+            name = "variant_attribute",
+            nullable = false
+    )
+    @Builder.Default
+    private Boolean variantAttribute = false;
 
     @Column(name = "display_order")
     private Integer displayOrder;

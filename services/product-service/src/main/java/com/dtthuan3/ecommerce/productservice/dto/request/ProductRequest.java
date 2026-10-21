@@ -3,6 +3,8 @@ package com.dtthuan3.ecommerce.productservice.dto.request;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
+import java.util.UUID;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -37,17 +39,17 @@ public class ProductRequest {
 
     @NotNull(message = "ID danh mục không được để trống")
     @Positive(message = "ID danh mục phải lớn hơn 0")
-    private Long categoryId;
+    private UUID categoryId;
 
     @NotNull(message = "ID thương hiệu không được để trống")
     @Positive(message = "ID thương hiệu phải lớn hơn 0")
-    private Long brandId;
+    private UUID brandId;
 
     @NotNull(message = "ID nhà sản xuất không được để trống")
     @Positive(message = "ID nhà sản xuất phải lớn hơn 0")
-    private Long manufacturerId;
+    private UUID manufacturerId;
 
     @NotNull(message = "ID mẫu thuộc tính không được để trống")
     @Positive(message = "ID mẫu thuộc tính phải lớn hơn 0")
-    private Long attributeTemplateId;
+    private UUID attributeTemplateId;
 }

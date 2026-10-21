@@ -1,10 +1,8 @@
 package com.dtthuan3.ecommerce.catalogservice.entity;
 
-
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.MappedSuperclass;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.data.annotation.CreatedBy;
@@ -15,12 +13,10 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 
-@MappedSuperclass
-@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
-
-
+@MappedSuperclass
+@EntityListeners(AuditingEntityListener.class)
 public abstract class BaseEntity {
 
     @CreatedDate
@@ -40,16 +36,16 @@ public abstract class BaseEntity {
 
     @CreatedBy
     @Column(
-            name = "created_by_name",
+            name = "created_by",
             updatable = false,
-            length = 100
+            length = 255
     )
     private String createdBy;
 
     @LastModifiedBy
     @Column(
-            name = "updated_by_name",
-            length = 100
+            name = "updated_by",
+            length = 255
     )
     private String updatedBy;
 }
