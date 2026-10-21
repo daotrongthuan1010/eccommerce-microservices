@@ -23,5 +23,7 @@ public record SupplierReceiptLineRecord(
         /** Số lượng đã xác định hỏng. */
         BigDecimal damagedQty,
         /** Số lượng đang chờ kiểm tra chất lượng. */
-        BigDecimal inspectionQty
+        BigDecimal inspectionQty,
+        /** Location được gán khi ghi sổ; null trước khi phiếu được ghi nhận vào tồn. */
+        String locationId
 ) {}

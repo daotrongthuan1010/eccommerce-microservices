@@ -60,4 +60,12 @@ public class SupplierReceipt {
     /** Thời điểm tạo theo UTC; PostgreSQL/Hibernate ánh xạ Instant thành timestamp có múi giờ. */
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    /** Tài khoản ADMIN đã duyệt phiếu; chỉ có giá trị từ trạng thái APPROVED trở đi. */
+    @Column(name = "approved_by", length = 160)
+    private String approvedBy;
+
+    /** Thời điểm duyệt phiếu; được lưu cùng chuyển trạng thái SUBMITTED sang APPROVED. */
+    @Column(name = "approved_at")
+    private Instant approvedAt;
 }

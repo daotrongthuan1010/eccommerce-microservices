@@ -1,0 +1,72 @@
+name: Inventory weekly load baseline
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: inventory-weekly-load
+  cancel-in-progress: false
+
+jobs:
+  load-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check test environment secrets
+        id: prerequisites
+        shell: bash
+        env:
+          INVENTORY_STAGING_BASE_URL: ${{ secrets.INVENTORY_STAGING_BASE_URL }}
+          AUTH_TOKEN_URL: ${{ secrets.AUTH_TOKEN_URL }}
+          AUTH_CLIENT_ID: ${{ secrets.AUTH_CLIENT_ID }}
+          AUTH_CLIENT_SECRET: ${{ secrets.AUTH_CLIENT_SECRET }}
+        run: |
+          if [[ -n "$INVENTORY_STAGING_BASE_URL" && -n "$AUTH_TOKEN_URL" && -n "$AUTH_CLIENT_ID" && -n "$AUTH_CLIENT_SECRET" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Explain skipped run
+        if: steps.prerequisites.outputs.ready != 'true'
+        run: echo "::warning::Chưa chạy k6; hãy cấu hình staging secrets INVENTORY_STAGING_BASE_URL, AUTH_TOKEN_URL, AUTH_CLIENT_ID và AUTH_CLIENT_SECRET."
+
+      - name: Run read-only Inventory load baseline
+        if: steps.prerequisites.outputs.ready == 'true'
+        shell: bash
+        env:
+          INVENTORY_BASE_URL: ${{ secrets.INVENTORY_STAGING_BASE_URL }}
+          INVENTORY_READ_PATH: ${{ vars.INVENTORY_READ_PATH }}
+          AUTH_TOKEN_URL: ${{ secrets.AUTH_TOKEN_URL }}
+          AUTH_CLIENT_ID: ${{ secrets.AUTH_CLIENT_ID }}
+          AUTH_CLIENT_SECRET: ${{ secrets.AUTH_CLIENT_SECRET }}
+          AUTH_CLIENT_SCOPE: ${{ vars.AUTH_CLIENT_SCOPE }}
+          K6_PEAK_VUS: ${{ vars.INVENTORY_K6_PEAK_VUS }}
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/performance/inventory:/scripts:ro" \
+            -v "$GITHUB_WORKSPACE/artifacts:/artifacts" \
+            -e INVENTORY_BASE_URL -e INVENTORY_READ_PATH \
+            -e AUTH_TOKEN_URL -e AUTH_CLIENT_ID -e AUTH_CLIENT_SECRET -e AUTH_CLIENT_SCOPE \
+            -e K6_PEAK_VUS \
+            grafana/k6:2.3.0 run \
+            --summary-export=/artifacts/inventory-load-summary.json \
+            /scripts/available-inventory.js
+
+      - name: Upload load summary
+        if: always() && steps.prerequisites.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: inventory-load-summary-${{ github.run_id }}
+          path: artifacts/inventory-load-summary.json
+          if-no-files-found: ignore
+          retention-days: 30

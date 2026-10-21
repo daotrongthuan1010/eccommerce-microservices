@@ -1,10 +1,12 @@
 package com.dtthuan3.ecommerce.productservice.domain;
 
 import com.dtthuan3.ecommerce.productservice.constant.ProductStatus;
+import com.dtthuan3.ecommerce.productservice.mapper.GeneratedUuidV7;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(
@@ -13,6 +15,10 @@ import java.time.LocalDateTime;
                 @Index(
                         name = "idx_publishing_history_product",
                         columnList = "product_id"
+                ),
+                @Index(
+                        name = "idx_publishing_history_revision",
+                        columnList = "revision_id"
                 ),
                 @Index(
                         name = "idx_publishing_history_changed_at",
@@ -26,16 +32,25 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class ProductPublishingHistory extends BaseEntity {
+//Lịch sử xuất bản sản phẩm
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    private Long id;
-
+    @GeneratedUuidV7
+    @Column(nullable = false, updatable = false)
+    private UUID id;
 
     @Column(
             name = "product_id",
             nullable = false
     )
-    private Long productId;
+    private UUID productId;
+
+    /**
+     * Revision liên quan đến lần thay đổi trạng thái.
+     */
+    @Column(
+            name = "revision_id"
+    )
+    private UUID revisionId;
 
     @Enumerated(EnumType.STRING)
     @Column(
@@ -56,12 +71,10 @@ public class ProductPublishingHistory extends BaseEntity {
     private String reason;
 
     /**
-     * ID của user/admin bên identity/user-service.
-     *
-     * Không dùng @ManyToOne.
+     * User/admin từ identity-service.
      */
     @Column(name = "changed_by")
-    private Long changedBy;
+    private UUID changedBy;
 
     @Column(
             name = "changed_at",

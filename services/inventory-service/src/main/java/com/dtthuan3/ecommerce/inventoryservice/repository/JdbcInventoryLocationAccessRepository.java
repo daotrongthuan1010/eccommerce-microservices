@@ -41,16 +41,20 @@ public class JdbcInventoryLocationAccessRepository implements InventoryLocationA
                         resultSet.getBoolean("active")));
     }
 
-    /** Một truy vấn theo lô và khóa SHARE các kho nội bộ theo thứ tự ID ổn định. */
+    /**
+     * Một truy vấn theo lô và khóa SHARE các kho nội bộ theo thứ tự ID ổn định.
+     * Bảng inventory_warehouse dùng cột khóa chính là id; alias thành warehouse_id
+     * để ánh xạ thống nhất với WarehouseSnapshot và cột tham chiếu của Location.
+     */
     @Override
     public List<WarehouseSnapshot> findWarehousesForShare(Collection<String> warehouseIds) {
         if (warehouseIds == null || warehouseIds.isEmpty()) return List.of();
 
         return jdbcTemplate.query("""
-                        SELECT warehouse_id, enterprise_id, status
+                        SELECT id AS warehouse_id, enterprise_id, status
                         FROM inventory_warehouse
-                        WHERE warehouse_id IN (:warehouseIds)
-                        ORDER BY warehouse_id
+                        WHERE id IN (:warehouseIds)
+                        ORDER BY id
                         FOR SHARE
                         """,
                 new MapSqlParameterSource("warehouseIds", warehouseIds),
@@ -60,13 +64,16 @@ public class JdbcInventoryLocationAccessRepository implements InventoryLocationA
                         resultSet.getString("status")));
     }
 
-    /** Đọc kho bằng khóa chính và khóa dòng để trạng thái không đổi giữa kiểm tra và ghi. */
+    /**
+     * Đọc kho bằng khóa chính id và khóa dòng để trạng thái không đổi giữa kiểm tra và ghi.
+     * Alias id thành warehouse_id để giữ nguyên cấu trúc WarehouseSnapshot.
+     */
     @Override
     public Optional<WarehouseSnapshot> findWarehouseForShare(String warehouseId) {
         List<WarehouseSnapshot> matches = jdbcTemplate.query("""
-                        SELECT warehouse_id, enterprise_id, status
+                        SELECT id AS warehouse_id, enterprise_id, status
                         FROM inventory_warehouse
-                        WHERE warehouse_id = :warehouseId
+                        WHERE id = :warehouseId
                         FOR SHARE
                         """,
                 new MapSqlParameterSource("warehouseId", warehouseId),

@@ -1,10 +1,12 @@
 package com.dtthuan3.ecommerce.productservice.domain;
 
+import com.dtthuan3.ecommerce.productservice.mapper.GeneratedUuidV7;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.UUID;
 
 @Entity
 @Table(
@@ -39,22 +41,26 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @Builder
 public class VariantAttributeValue extends BaseEntity {
+//Giá trị thuộc tính biến thể
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    private Long id;
+    @GeneratedUuidV7
+    @Column(nullable = false, updatable = false)
+    private UUID id;
 
-
+    /**
+     * Variant chứa attribute value này.
+     */
     @Column(
             name = "variant_id",
             nullable = false
     )
-    private Long variantId;
+    private UUID variantId;
 
     @Column(
             name = "attribute_id",
             nullable = false
     )
-    private Long attributeId;
+    private UUID attributeId;
 
     @Column(
             name = "value_text",
@@ -76,8 +82,8 @@ public class VariantAttributeValue extends BaseEntity {
     private Boolean valueBoolean;
 
     /**
-     * ID của AttributeOption.
+     * Dùng khi attribute có kiểu SELECT.
      */
     @Column(name = "option_id")
-    private Long optionId;
+    private UUID optionId;
 }

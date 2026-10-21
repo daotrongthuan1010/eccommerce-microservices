@@ -3,6 +3,8 @@ import com.dtthuan3.ecommerce.productservice.constant.ProductStatus;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -10,9 +12,9 @@ import java.time.LocalDateTime;
 @Builder
 public class ProductPublishingHistoryResponse {
 
-    private Long id;
+    private UUID id;
 
-    private Long productId;
+    private UUID productId;
 
     private ProductStatus fromStatus;
 
@@ -20,7 +22,7 @@ public class ProductPublishingHistoryResponse {
 
     private String reason;
 
-    private Long changedBy;
+    private UUID changedBy;
 
     private LocalDateTime changedAt;
 

@@ -1,22 +1,20 @@
+
 package com.dtthuan3.ecommerce.productservice.repository;
 
 import com.dtthuan3.ecommerce.productservice.domain.SkuMedia;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface SkuMediaRepository
-        extends JpaRepository<SkuMedia, Long> {
+        extends JpaRepository<SkuMedia, UUID> {
 
-    List<SkuMedia> findBySkuId(Long skuId);
+    List<SkuMedia> findBySkuId(UUID skuId);
 
-    List<SkuMedia> findBySkuIdOrderByDisplayOrderAsc(
-            Long skuId
-    );
+    List<SkuMedia> findBySkuIdOrderByDisplayOrderAsc(UUID skuId);
 
-    List<SkuMedia> findBySkuIdAndPrimaryTrue(
-            Long skuId
-    );
+    List<SkuMedia> findBySkuIdAndPrimaryTrue(UUID skuId);
 
-    void deleteBySkuId(Long skuId);
+    void deleteBySkuId(UUID skuId);
 }

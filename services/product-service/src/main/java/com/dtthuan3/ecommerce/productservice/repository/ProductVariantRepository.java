@@ -5,22 +5,22 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface ProductVariantRepository
-        extends JpaRepository<ProductVariant, Long> {
+        extends JpaRepository<ProductVariant, UUID> {
 
-    List<ProductVariant> findByProductId(Long productId);
-
-    List<ProductVariant> findByProductIdAndActiveTrue(
-            Long productId
+    boolean existsByProductIdAndVariantCode(
+            UUID productId,
+            String variantCode
     );
 
-    Optional<ProductVariant> findByVariantCode(String variantCode);
+    Optional<ProductVariant> findByIdAndProductId(
+            UUID id,
+            UUID productId
+    );
 
-    boolean existsByVariantCode(String variantCode);
-
-    boolean existsByVariantCodeAndIdNot(
-            String variantCode,
-            Long id
+    List<ProductVariant> findAllByProductIdOrderByCreatedAtDesc(
+            UUID productId
     );
 }

@@ -8,4 +8,13 @@ providers:
     updateIntervalSeconds: 30
     allowUiUpdates: true
     options:
-      path: /etc/grafana/provisioning/dashboards/spring-boot.json
+      path: /etc/grafana/provisioning/dashboards/spring-boot
+  - name: inventory-service
+    orgId: 1
+    folder: Inventory Service
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/inventory-service

@@ -22,6 +22,7 @@ import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryRepository;
 import com.dtthuan3.ecommerce.inventoryservice.repository.StockMovementRepository;
 import com.dtthuan3.ecommerce.inventoryservice.service.InventoryService;
 import com.dtthuan3.ecommerce.inventoryservice.service.InventoryLocationAccessService;
+import com.dtthuan3.ecommerce.inventoryservice.service.ClassifiedStockReceipt;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +73,67 @@ public class InventoryServiceImpl implements InventoryService {
                 request.referenceId(), request.reason(), performedBy);
         return toResponse(updated);
     }
+
+    /**
+     * Ghi các dòng phiếu nhập vào tồn và movement trong transaction đang xử lý phiếu.
+     * Nếu API ghi sổ phiếu gặp lỗi ở bất kỳ dòng nào, transaction bên ngoài sẽ rollback cả loạt.
+     */
+    @Override
+    @Transactional
+    public void receiveClassifiedStock(List<ClassifiedStockReceipt> requests) {
+        if (requests == null || requests.isEmpty()) return;
+
+        // Kiểm tra và khóa toàn bộ Warehouse/Location theo batch, tránh một truy vấn cho mỗi dòng phiếu.
+        locationAccessService.requireWritablePositions(requests.stream()
+                .map(request -> new InventoryLocationAccessService.Position(
+                        request.enterpriseId(), request.warehouseId(), request.locationId()))
+                .distinct().toList());
+
+        // Gộp các dòng cùng enterprise/kho/location/SKU để chỉ cập nhật một balance cho mỗi vị trí.
+        Map<ClassifiedStockKey, ClassifiedStockReceipt> grouped = new HashMap<>();
+        for (ClassifiedStockReceipt request : requests) {
+            ClassifiedStockKey key = new ClassifiedStockKey(request.enterpriseId(), request.warehouseId(),
+                    request.locationId(), request.sku(), request.receiptId());
+            grouped.merge(key, request, (current, incoming) -> new ClassifiedStockReceipt(
+                    current.enterpriseId(), current.warehouseId(), current.locationId(), current.sku(),
+                    current.goodQuantity().add(incoming.goodQuantity()),
+                    current.damagedQuantity().add(incoming.damagedQuantity()),
+                    current.inspectionQuantity().add(incoming.inspectionQuantity()),
+                    current.receiptId(), current.performedBy()));
+        }
+
+        // Khóa balance theo thứ tự cố định để hai phiếu nhiều SKU không khóa chéo nhau.
+        List<ClassifiedStockReceipt> ordered = grouped.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey(Comparator.comparing(ClassifiedStockKey::enterpriseId)
+                        .thenComparing(ClassifiedStockKey::warehouseId)
+                        .thenComparing(ClassifiedStockKey::locationId)
+                        .thenComparing(ClassifiedStockKey::sku)
+                        .thenComparing(ClassifiedStockKey::receiptId)))
+                .map(Map.Entry::getValue)
+                .toList();
+
+        List<StockMovement> movements = new ArrayList<>();
+        for (ClassifiedStockReceipt request : ordered) {
+            BigDecimal totalReceived = request.goodQuantity()
+                    .add(request.damagedQuantity()).add(request.inspectionQuantity());
+            if (totalReceived.signum() == 0) continue;
+
+            // Tạo dòng tồn nếu chưa có; nếu đã có, repository khóa dòng trước khi cập nhật.
+            Inventory before = inventoryRepository.createOrFind(request.enterpriseId(), request.warehouseId(),
+                    request.locationId(), request.sku());
+            Inventory after = inventoryRepository.receiveClassified(before.getId(), request.goodQuantity(),
+                    request.damagedQuantity(), request.inspectionQuantity());
+
+            // Mỗi movement liên kết về receipt; batch ghi lịch sử sau khi đã cập nhật các balance.
+            movements.add(buildMovement(before, after, MovementType.RECEIVE, totalReceived,
+                    "SUPPLIER_RECEIPT", request.receiptId(), null, request.performedBy()));
+        }
+        if (!movements.isEmpty()) stockMovementRepository.insertMovements(movements);
+    }
+
+    /** Khóa gộp ổn định cho một bucket tồn trong cùng phiếu nhập. */
+    private record ClassifiedStockKey(String enterpriseId, String warehouseId, String locationId,
+                                      String sku, String receiptId) {}
 
     /** Đọc theo ID và dựng phản hồi gồm tồn khả dụng sau khi trừ các lượng không thể bán. */
     @Override

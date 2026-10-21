@@ -1,0 +1,209 @@
+name: ci
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to build (all = resolve from changed paths)'
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - discovery-service
+          - api-gateway
+          - auth-service
+          - user-service
+          - catalog-service
+          - inventory-service
+          - order-service
+          - payment-service
+          - notification-service
+          - search-service
+          - product-service
+          - review-service
+          - analytics-service
+          - file-service
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAMESPACE: daotrongthuan
+  ALL_SERVICES: '["discovery-service","api-gateway","auth-service","user-service","catalog-service","inventory-service","order-service","payment-service","notification-service","search-service","product-service","review-service","analytics-service","file-service"]'
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.filter.outputs.changes }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            discovery-service:
+              - 'services/discovery-service/**'
+            api-gateway:
+              - 'services/api-gateway/**'
+            auth-service:
+              - 'services/auth-service/**'
+            user-service:
+              - 'services/user-service/**'
+            catalog-service:
+              - 'services/catalog-service/**'
+            inventory-service:
+              - 'services/inventory-service/**'
+            order-service:
+              - 'services/order-service/**'
+            payment-service:
+              - 'services/payment-service/**'
+            notification-service:
+              - 'services/notification-service/**'
+            search-service:
+              - 'services/search-service/**'
+            product-service:
+              - 'services/product-service/**'
+            review-service:
+              - 'services/review-service/**'
+            analytics-service:
+              - 'services/analytics-service/**'
+            file-service:
+              - 'services/file-service/**'
+            common:
+              - 'common/**'
+              - 'pom.xml'
+              - 'Dockerfile'
+              - '.github/**'
+
+  resolve:
+    needs: changes
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.out.outputs.services }}
+    steps:
+      - id: out
+        run: |
+          # Manual dispatch of a single service wins over paths-filter.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.service }}" != "all" ]; then
+            echo 'services=["${{ inputs.service }}"]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Manual dispatch with 'all' forces the full list (paths-filter is
+          # meaningless on dispatch — it would resolve to empty/partial).
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo 'services=${{ env.ALL_SERVICES }}' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Push + PR: selective via paths-filter (fix what changed, nothing more).
+          # common/** change still builds ALL. Manual dispatch 'all' forces full list.
+          CHANGED='${{ needs.changes.outputs.matrix }}'
+          if echo "$CHANGED" | grep -q '"common"'; then
+            echo 'services=${{ env.ALL_SERVICES }}' >> "$GITHUB_OUTPUT"
+          else
+            echo "services=$CHANGED" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Single per-service pipeline: build(SHA) -> scan -> promote(alias).
+  # One service failing affects ONLY its own leg (fail-fast: false),
+  # never blocks other services. Alias is pushed only if scan passed.
+  build:
+    needs: resolve
+    if: ${{ needs.resolve.outputs.services != '[]' && needs.resolve.outputs.services != '' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.resolve.outputs.services) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 21 (Temurin) with Maven cache
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Maven Central mirror settings (VPS Nexus unreachable from runner)
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'EOF'
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>central-mirror</id>
+                <mirrorOf>central</mirrorOf>
+                <url>https://repo.maven.apache.org/maven2</url>
+              </mirror>
+            </mirrors>
+          </settings>
+          EOF
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push SHA tag only
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          build-args: SERVICE=${{ matrix.service }}
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
+          # Registry buildcache is primary (shared across runs/branches);
+          # GHA cache is fallback (branch-scoped). Per-service ref/scope
+          # via matrix so services never poison each other's cache.
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:buildcache
+            type=gha,scope=${{ matrix.service }}
+          cache-to: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:buildcache,mode=max
+            type=gha,mode=max,scope=${{ matrix.service }}
+
+      - name: Cache Trivy vulnerability DB
+        uses: actions/cache@v4
+        with:
+          # Default Trivy cache location; reused via skip-db-update on PRs.
+          path: ~/.cache/trivy
+          # Unique key per run so the refreshed DB is always re-saved;
+          # restore-keys picks up the most recent DB from any prior run.
+          key: trivy-db-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            trivy-db-${{ runner.os }}-
+
+      - name: Trivy scan (report on develop, block HIGH/CRITICAL on main)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
+          format: sarif
+          output: trivy-${{ matrix.service }}.sarif
+          severity: HIGH,CRITICAL
+          # PRs reuse the cached DB (fast, no download); pushes to
+          # branches refresh it for a full fresh-DB scan.
+          skip-db-update: ${{ github.event_name == 'pull_request' }}
+          # Block on main only; develop gets a non-blocking report.
+          exit-code: ${{ github.ref_name == 'main' && '1' || '0' }}
+
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-${{ matrix.service }}
+          path: trivy-${{ matrix.service }}.sarif
+
+      - name: Promote SHA tag to env alias (no rebuild, only if scan passed)
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then ALIAS="latest"; else ALIAS="develop"; fi
+          SRC="${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}"
+          DST="${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${ALIAS}"
+          docker buildx imagetools create --tag "$DST" "$SRC"

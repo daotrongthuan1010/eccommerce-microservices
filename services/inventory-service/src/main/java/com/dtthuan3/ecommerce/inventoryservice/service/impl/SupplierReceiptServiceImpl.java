@@ -4,15 +4,22 @@ import com.dtthuan3.ecommerce.common.exception.BusinessException;
 import com.dtthuan3.ecommerce.common.exception.ErrorCode;
 
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.CreateSupplierReceiptRequest;
+import com.dtthuan3.ecommerce.inventoryservice.dto.request.ApproveSupplierReceiptRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.UpdateSupplierReceiptActualsRequest;
+import com.dtthuan3.ecommerce.inventoryservice.dto.request.PostSupplierReceiptRequest;
+import com.dtthuan3.ecommerce.inventoryservice.dto.request.SubmitSupplierReceiptRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptResponse;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptSummaryResponse;
 import com.dtthuan3.ecommerce.inventoryservice.repository.SupplierReceiptRepository;
 import com.dtthuan3.ecommerce.inventoryservice.repository.model.SupplierReceiptHeader;
 import com.dtthuan3.ecommerce.inventoryservice.repository.model.SupplierReceiptLineRecord;
 import com.dtthuan3.ecommerce.inventoryservice.service.SupplierReceiptService;
+import com.dtthuan3.ecommerce.inventoryservice.service.InventoryService;
+import com.dtthuan3.ecommerce.inventoryservice.service.ClassifiedStockReceipt;
+import com.dtthuan3.ecommerce.inventoryservice.service.WarehouseManagementService;
 import com.dtthuan3.ecommerce.inventoryservice.port.ActiveSkuValidator;
 import com.dtthuan3.ecommerce.inventoryservice.port.ActiveWarehouseValidator;
+import com.dtthuan3.ecommerce.inventoryservice.port.ReceiptDocumentValidator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +35,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +68,15 @@ public class SupplierReceiptServiceImpl implements SupplierReceiptService {
 
     /** Ranh giới transaction cục bộ bao trùm header, lines và document references. */
     private final TransactionTemplate transactionTemplate;
+
+    /** Cộng tồn và ghi lịch sử nhập trong transaction đang ghi sổ receipt. */
+    private final InventoryService inventoryService;
+
+    /** Warehouse nằm trong cùng Inventory Service nên lấy enterpriseId trực tiếp, không gọi mạng. */
+    private final WarehouseManagementService warehouseService;
+
+    /** Port xác minh các file đính kèm trước khi phiếu chuyển sang bước chờ duyệt. */
+    private final ReceiptDocumentValidator receiptDocumentValidator;
 
     /** Đọc phiếu cùng toàn bộ dữ liệu con để response API luôn có cấu trúc đầy đủ. */
     @Override
@@ -145,7 +163,9 @@ public class SupplierReceiptServiceImpl implements SupplierReceiptService {
                 "DRAFT",
                 0L,
                 // PostgreSQL TIMESTAMPTZ lưu độ chính xác microsecond; chuẩn hóa để response retry giống lần đầu.
-                Instant.now().truncatedTo(ChronoUnit.MICROS));
+                Instant.now().truncatedTo(ChronoUnit.MICROS),
+                null,
+                null);
 
         // INSERT ... ON CONFLICT là thao tác claim operationId nguyên tử trong PostgreSQL.
         boolean created = receiptRepository.insertHeaderIfAbsent(candidate);
@@ -161,7 +181,7 @@ public class SupplierReceiptServiceImpl implements SupplierReceiptService {
         SupplierReceiptHeader header = candidate;
 
         // Đánh số theo đúng thứ tự request để người dùng đối chiếu phiếu trên màn hình hoặc chứng từ.
-        List<SupplierReceiptLineRecord> lines = new java.util.ArrayList<>(request.lines().size());
+        List<SupplierReceiptLineRecord> lines = new ArrayList<>(request.lines().size());
         for (int index = 0; index < request.lines().size(); index++) {
             CreateSupplierReceiptRequest.Line input = request.lines().get(index);
             lines.add(new SupplierReceiptLineRecord(
@@ -174,7 +194,8 @@ public class SupplierReceiptServiceImpl implements SupplierReceiptService {
                     BigDecimal.ZERO.setScale(4),
                     BigDecimal.ZERO.setScale(4),
                     BigDecimal.ZERO.setScale(4),
-                    BigDecimal.ZERO.setScale(4)));
+                    BigDecimal.ZERO.setScale(4),
+                    null));
         }
         receiptRepository.insertLines(receiptId, lines);
 
@@ -206,10 +227,11 @@ public class SupplierReceiptServiceImpl implements SupplierReceiptService {
         List<SupplierReceiptResponse.Line> responseLines = lines.stream()
                 .map(line -> new SupplierReceiptResponse.Line(line.lineId(), line.lineNumber(), line.skuId(),
                         line.uom(), line.expectedQty(), line.lotCode(), line.actualQty(), line.goodQty(),
-                        line.damagedQty(), line.inspectionQty()))
+                        line.damagedQty(), line.inspectionQty(), line.locationId()))
                 .toList();
         return new SupplierReceiptResponse(header.id(), header.warehouseId(), header.supplierRef(),
-                header.status(), header.version(), header.operationId(), responseLines, assetIds, header.createdAt());
+                header.status(), header.version(), header.operationId(), responseLines, assetIds,
+                header.createdAt(), header.approvedBy(), header.approvedAt());
     }
 
     /**
@@ -316,7 +338,8 @@ public class SupplierReceiptServiceImpl implements SupplierReceiptService {
             UpdateSupplierReceiptActualsRequest.Line input = requestedById.get(current.lineId());
             return new SupplierReceiptLineRecord(current.lineId(), current.lineNumber(), current.skuId(),
                     current.uom(), current.expectedQty(), current.lotCode(), input.actualQty().setScale(4),
-                    input.goodQty().setScale(4), input.damagedQty().setScale(4), input.inspectionQty().setScale(4));
+                    input.goodQty().setScale(4), input.damagedQty().setScale(4), input.inspectionQty().setScale(4),
+                    current.locationId());
         }).toList();
 
         receiptRepository.updateActuals(receiptId, updatedLines);
@@ -325,7 +348,258 @@ public class SupplierReceiptServiceImpl implements SupplierReceiptService {
         // Đọc lại các liên kết để response chứa cả chứng từ lúc tạo và bằng chứng vừa bổ sung.
         SupplierReceiptHeader updatedHeader = new SupplierReceiptHeader(header.id(), header.warehouseId(),
                 header.supplierRef(), header.operationId(), header.payloadHash(), header.status(),
-                request.expectedVersion() + 1, header.createdAt());
+                request.expectedVersion() + 1, header.createdAt(), header.approvedBy(), header.approvedAt());
         return toResponse(updatedHeader, updatedLines, receiptRepository.findDocumentAssetIds(receiptId));
+    }
+
+    /**
+     * Gửi phiếu sau kiểm đếm sang SUBMITTED. Kiểm tra File Service trước transaction,
+     * sau đó khóa header và đối chiếu version lần nữa trước khi đổi trạng thái.
+     */
+    @Override
+    public SupplierReceiptResponse submit(String receiptId, SubmitSupplierReceiptRequest request,
+                                          String bearerToken) {
+        SupplierReceiptHeader snapshot = receiptRepository.findById(receiptId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "Không tìm thấy phiếu nhập: " + receiptId));
+
+        // Retry sau timeout trả lại kết quả đã submit nếu version và trạng thái khớp lần gửi trước.
+        if ("SUBMITTED".equals(snapshot.status())) {
+            if (request.expectedVersion() != null && request.expectedVersion() + 1 == snapshot.version()) {
+                return toResponse(snapshot, receiptRepository.findLines(receiptId),
+                        receiptRepository.findDocumentAssetIds(receiptId));
+            }
+            throw new BusinessException(ErrorCode.INVALID_RESOURCE_STATE,
+                    "Phiếu nhập đã được gửi sang trạng thái chờ duyệt");
+        }
+        if (!"DRAFT".equals(snapshot.status())) {
+            throw new BusinessException(ErrorCode.INVALID_RESOURCE_STATE,
+                    "Chỉ được gửi phiếu nhập ở trạng thái DRAFT");
+        }
+        if (request.expectedVersion() == null || snapshot.version() != request.expectedVersion().longValue()) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT,
+                    "Phiếu đã thay đổi; hãy tải lại dữ liệu mới nhất trước khi gửi duyệt");
+        }
+        // Khi tạo mới version bằng 0; cập nhật actuals là bước bắt buộc trước khi gửi duyệt.
+        if (snapshot.version() == 0) {
+            throw new BusinessException(ErrorCode.INVALID_RESOURCE_STATE,
+                    "Cần cập nhật số lượng thực nhận trước khi gửi phiếu sang chờ duyệt");
+        }
+
+        List<SupplierReceiptLineRecord> checkedLines = receiptRepository.findLines(receiptId);
+        validateReceiptClassification(checkedLines);
+        List<String> documentAssetIds = receiptRepository.findDocumentAssetIds(receiptId);
+        receiptDocumentValidator.requireUploaded(documentAssetIds, bearerToken);
+
+        // Gọi mạng xong mới mở transaction; tránh giữ khóa DB trong thời gian chờ File Service.
+        return transactionTemplate.execute(status -> submitInsideTransaction(
+                receiptId, request, checkedLines, documentAssetIds));
+    }
+
+    /** Khóa phiếu và kiểm tra lại dữ liệu sau khi đã xác minh file để chống race với request cập nhật khác. */
+    private SupplierReceiptResponse submitInsideTransaction(String receiptId,
+                                                             SubmitSupplierReceiptRequest request,
+                                                             List<SupplierReceiptLineRecord> checkedLines,
+                                                             List<String> checkedDocumentIds) {
+        SupplierReceiptHeader header = receiptRepository.findByIdForUpdate(receiptId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "Không tìm thấy phiếu nhập: " + receiptId));
+
+        if (request.expectedVersion() == null
+                || !"DRAFT".equals(header.status())
+                || header.version() != request.expectedVersion().longValue()) {
+            // Nếu một request đồng thời đã submit đúng version, retry này nhận lại kết quả đã commit.
+            if ("SUBMITTED".equals(header.status())
+                    && request.expectedVersion() != null
+                    && request.expectedVersion() + 1 == header.version()) {
+                return toResponse(header, receiptRepository.findLines(receiptId),
+                        receiptRepository.findDocumentAssetIds(receiptId));
+            }
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT,
+                    "Phiếu đã thay đổi trong lúc xác minh chứng từ; hãy tải lại trước khi gửi duyệt");
+        }
+
+        List<String> currentDocumentIds = receiptRepository.findDocumentAssetIds(receiptId);
+        if (!currentDocumentIds.equals(checkedDocumentIds)) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT,
+                    "Danh sách chứng từ đã thay đổi trong lúc xác minh; hãy tải lại phiếu");
+        }
+        List<SupplierReceiptLineRecord> currentLines = receiptRepository.findLines(receiptId);
+        if (!currentLines.equals(checkedLines)) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT,
+                    "Số liệu phiếu đã thay đổi trong lúc xác minh; hãy tải lại phiếu");
+        }
+        validateReceiptClassification(currentLines);
+
+        if (!receiptRepository.markSubmitted(receiptId, request.expectedVersion())) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT,
+                    "Phiếu đã đổi trạng thái hoặc version trong lúc gửi duyệt");
+        }
+        SupplierReceiptHeader submittedHeader = new SupplierReceiptHeader(header.id(), header.warehouseId(),
+                header.supplierRef(), header.operationId(), header.payloadHash(), "SUBMITTED",
+                header.version() + 1, header.createdAt(), header.approvedBy(), header.approvedAt());
+        return toResponse(submittedHeader, currentLines, currentDocumentIds);
+    }
+
+    /**
+     * Duyệt phiếu đã submit trong transaction ngắn; ghi trạng thái, người duyệt và thời điểm cùng nhau.
+     * Request lặp sau timeout chỉ được trả lại thành công khi cùng version và cùng người duyệt.
+     */
+    @Override
+    public SupplierReceiptResponse approve(String receiptId, ApproveSupplierReceiptRequest request,
+                                           String approvedBy) {
+        return transactionTemplate.execute(status -> {
+            SupplierReceiptHeader header = receiptRepository.findByIdForUpdate(receiptId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                            "Không tìm thấy phiếu nhập: " + receiptId));
+
+            if ("APPROVED".equals(header.status())
+                    && request.expectedVersion() != null
+                    && request.expectedVersion() + 1 == header.version()
+                    && approvedBy != null
+                    && approvedBy.equals(header.approvedBy())) {
+                return toResponse(header, receiptRepository.findLines(receiptId),
+                        receiptRepository.findDocumentAssetIds(receiptId));
+            }
+            if (!"SUBMITTED".equals(header.status())) {
+                throw new BusinessException(ErrorCode.INVALID_RESOURCE_STATE,
+                        "Chỉ được duyệt phiếu đang ở trạng thái SUBMITTED");
+            }
+            if (request.expectedVersion() == null || header.version() != request.expectedVersion().longValue()) {
+                throw new BusinessException(ErrorCode.VERSION_CONFLICT,
+                        "Phiếu đã thay đổi; hãy tải lại dữ liệu mới nhất trước khi duyệt");
+            }
+            if (approvedBy == null || approvedBy.isBlank()) {
+                throw new BusinessException(ErrorCode.UNAUTHORIZED,
+                        "Không xác định được tài khoản đang duyệt phiếu");
+            }
+
+            List<SupplierReceiptLineRecord> lines = receiptRepository.findLines(receiptId);
+            validateReceiptClassification(lines);
+            Instant approvedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
+            if (!receiptRepository.markApproved(receiptId, request.expectedVersion(), approvedBy, approvedAt)) {
+                throw new BusinessException(ErrorCode.VERSION_CONFLICT,
+                        "Phiếu đã đổi trạng thái hoặc version trong lúc duyệt");
+            }
+
+            SupplierReceiptHeader approvedHeader = new SupplierReceiptHeader(header.id(), header.warehouseId(),
+                    header.supplierRef(), header.operationId(), header.payloadHash(), "APPROVED",
+                    header.version() + 1, header.createdAt(), approvedBy, approvedAt);
+            return toResponse(approvedHeader, lines, receiptRepository.findDocumentAssetIds(receiptId));
+        });
+    }
+
+    /** Bảo đảm mỗi dòng đã kiểm đếm và toàn bộ số thực nhận đã được phân vào đúng các bucket chất lượng. */
+    private void validateReceiptClassification(List<SupplierReceiptLineRecord> lines) {
+        if (lines.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_OPERATION_CONTENT,
+                    "Không thể gửi phiếu nhập không có dòng hàng");
+        }
+        for (SupplierReceiptLineRecord line : lines) {
+            BigDecimal classified = line.goodQty().add(line.damagedQty()).add(line.inspectionQty());
+            if (classified.compareTo(line.actualQty()) != 0) {
+                throw new BusinessException(ErrorCode.INVALID_QUANTITY,
+                        "Phân loại số lượng chưa khớp thực nhận tại dòng " + line.lineId());
+            }
+        }
+    }
+
+    /**
+     * Ghi sổ phiếu APPROVED theo một transaction cục bộ: khóa phiếu, kiểm tra version và dòng,
+     * xác nhận Location, cộng các bucket tồn, ghi movement rồi chuyển trạng thái RECEIVED.
+     */
+    @Override
+    public SupplierReceiptResponse post(String receiptId, PostSupplierReceiptRequest request, String performedBy) {
+        return transactionTemplate.execute(status -> postInsideTransaction(receiptId, request, performedBy));
+    }
+
+    private SupplierReceiptResponse postInsideTransaction(String receiptId,
+                                                           PostSupplierReceiptRequest request,
+                                                           String performedBy) {
+        SupplierReceiptHeader header = receiptRepository.findByIdForUpdate(receiptId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "Không tìm thấy phiếu nhập: " + receiptId));
+
+        // Retry sau timeout có thể đến khi server đã commit; version + 1 chứng minh là cùng một lần ghi sổ.
+        if ("RECEIVED".equals(header.status())) {
+            List<SupplierReceiptLineRecord> receivedLines = receiptRepository.findLines(receiptId);
+            Map<String, String> requestedLocations = new HashMap<>();
+            for (PostSupplierReceiptRequest.Line input : request.lines()) {
+                if (requestedLocations.putIfAbsent(input.lineId().trim(), input.locationId().trim()) != null) {
+                    throw new BusinessException(ErrorCode.INVALID_OPERATION_CONTENT,
+                            "lineId bị lặp trong request: " + input.lineId());
+                }
+            }
+            boolean samePosting = request.expectedVersion() != null
+                    && request.expectedVersion() + 1 == header.version()
+                    && requestedLocations.size() == receivedLines.size()
+                    && receivedLines.stream().allMatch(line ->
+                            line.locationId() != null
+                                    && line.locationId().equals(requestedLocations.get(line.lineId())));
+            if (samePosting) {
+                return toResponse(header, receivedLines, receiptRepository.findDocumentAssetIds(receiptId));
+            }
+            throw new BusinessException(ErrorCode.INVALID_RESOURCE_STATE,
+                    "Phiếu nhập đã được ghi sổ trước đó");
+        }
+        if (!"APPROVED".equals(header.status())) {
+            throw new BusinessException(ErrorCode.INVALID_RESOURCE_STATE,
+                    "Chỉ được ghi sổ phiếu nhập đã ở trạng thái APPROVED");
+        }
+        if (request.expectedVersion() == null || header.version() != request.expectedVersion()) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT,
+                    "Phiếu đã thay đổi; hãy tải lại dữ liệu mới nhất trước khi ghi sổ");
+        }
+
+        List<SupplierReceiptLineRecord> currentLines = receiptRepository.findLines(receiptId);
+        Map<String, SupplierReceiptLineRecord> linesById = currentLines.stream()
+                .collect(Collectors.toMap(SupplierReceiptLineRecord::lineId, Function.identity()));
+        Map<String, String> locationsByLine = new HashMap<>();
+        for (PostSupplierReceiptRequest.Line input : request.lines()) {
+            String lineId = input.lineId().trim();
+            if (locationsByLine.putIfAbsent(lineId, input.locationId().trim()) != null) {
+                throw new BusinessException(ErrorCode.INVALID_OPERATION_CONTENT,
+                        "lineId bị lặp trong request: " + lineId);
+            }
+            if (!linesById.containsKey(lineId)) {
+                throw new BusinessException(ErrorCode.INVALID_OPERATION_CONTENT,
+                        "lineId không thuộc phiếu nhập này: " + lineId);
+            }
+        }
+        if (!locationsByLine.keySet().equals(linesById.keySet())) {
+            throw new BusinessException(ErrorCode.INVALID_OPERATION_CONTENT,
+                    "Phải gán đúng một Location cho toàn bộ dòng phiếu nhập");
+        }
+
+        List<SupplierReceiptLineRecord> locatedLines = currentLines.stream().map(line -> {
+            BigDecimal classified = line.goodQty().add(line.damagedQty()).add(line.inspectionQty());
+            if (classified.compareTo(line.actualQty()) != 0) {
+                throw new BusinessException(ErrorCode.INVALID_QUANTITY,
+                        "Phân loại số lượng không khớp số thực nhận tại dòng " + line.lineId());
+            }
+            return new SupplierReceiptLineRecord(line.lineId(), line.lineNumber(), line.skuId(), line.uom(),
+                    line.expectedQty(), line.lotCode(), line.actualQty(), line.goodQty(), line.damagedQty(),
+                    line.inspectionQty(), locationsByLine.get(line.lineId()));
+        }).toList();
+
+        // Xác nhận warehouse tồn tại/active và lấy enterpriseId làm khóa phạm vi tồn kho.
+        String enterpriseId = warehouseService.getById(header.warehouseId()).enterpriseId();
+        List<ClassifiedStockReceipt> stockReceipts = locatedLines.stream()
+                .map(line -> new ClassifiedStockReceipt(enterpriseId, header.warehouseId(), line.locationId(),
+                        line.skuId(), line.goodQty(), line.damagedQty(), line.inspectionQty(), receiptId, performedBy))
+                .toList();
+
+        // Cùng transaction: nếu kiểm tra Location, cập nhật tồn hay ghi movement lỗi thì phiếu vẫn APPROVED.
+        receiptRepository.updateLineLocations(receiptId, locatedLines);
+        inventoryService.receiveClassifiedStock(stockReceipts);
+        if (!receiptRepository.markReceived(receiptId, request.expectedVersion())) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT,
+                    "Phiếu đã thay đổi trạng thái hoặc version trong lúc ghi sổ");
+        }
+
+        SupplierReceiptHeader receivedHeader = new SupplierReceiptHeader(header.id(), header.warehouseId(),
+                header.supplierRef(), header.operationId(), header.payloadHash(), "RECEIVED",
+                header.version() + 1, header.createdAt(), header.approvedBy(), header.approvedAt());
+        return toResponse(receivedHeader, locatedLines, receiptRepository.findDocumentAssetIds(receiptId));
     }
 }

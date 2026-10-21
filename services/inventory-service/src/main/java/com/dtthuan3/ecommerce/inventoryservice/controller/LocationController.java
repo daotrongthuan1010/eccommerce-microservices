@@ -1,6 +1,7 @@
 package com.dtthuan3.ecommerce.inventoryservice.controller;
 
 import com.dtthuan3.ecommerce.common.response.ApiResponse;
+import com.dtthuan3.ecommerce.common.response.PageResponse;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.CreateLocationRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.SetActiveRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.UpdateLocationRequest;
@@ -22,8 +23,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 
-import java.util.List;
 
 /** REST API quản lý Location thuộc một Warehouse nội bộ của Inventory. */
 @RestController
@@ -52,9 +54,15 @@ public class LocationController {
     /** Liệt kê các Location thuộc warehouseId được truyền vào, đã sắp xếp theo code. */
     @GetMapping
     @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
-    public ApiResponse<List<LocationResponse>> list(
-            @RequestParam @NotBlank(message = "warehouseId là bắt buộc") String warehouseId) {
-        return ApiResponse.ok("Lấy danh sách Location thành công", locationService.listLocations(warehouseId));
+    public ApiResponse<PageResponse<LocationResponse>> list(
+            @RequestParam @NotBlank(message = "warehouseId là bắt buộc") String warehouseId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        Page<LocationResponse> result = locationService.listLocations(warehouseId,
+                PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 100))));
+        return ApiResponse.ok("Lấy danh sách Location thành công",
+                PageResponse.of(result.getContent(), result.getNumber(), result.getSize(),
+                        result.getTotalElements(), result.getTotalPages()));
     }
 
     /** Cập nhật code và name; API không cho chuyển Location sang Warehouse khác. */

@@ -1,0 +1,115 @@
+# Port of docker-compose.yml `keycloak` (quay.io/keycloak/keycloak:26.0, start-dev).
+# Realm comes from ConfigMap `keycloak-realm` — create BEFORE apply (see README):
+#   kubectl create configmap keycloak-realm -n ecommerce --from-file=realm.json=infra/keycloak/realm.json
+# Admin credentials come from Secret `infra-keycloak-secrets` (see secret-templates.yaml.example).
+# DB credentials: KC_DB user is fixed `keycloak_user`; its password lives in the
+# keycloak secret (same value as `keycloak-db-password` in infra-postgres-secrets).
+# Depends on postgres Ready — apply only after postgres is healthy (see README order).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: ecommerce
+  labels:
+    app: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - start-dev
+            - --import-realm
+            - --health-enabled=true
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: mgmt
+              containerPort: 9000
+          env:
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: infra-keycloak-secrets
+                  key: admin-username
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-keycloak-secrets
+                  key: admin-password
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL
+              value: jdbc:postgresql://postgres:5432/keycloak_db
+            - name: KC_DB_USERNAME
+              value: keycloak_user
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-keycloak-secrets
+                  key: db-password
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+          volumeMounts:
+            - name: realm
+              mountPath: /opt/keycloak/data/import/realm.json
+              subPath: realm.json
+              readOnly: true
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: mgmt
+            initialDelaySeconds: 180
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: mgmt
+            initialDelaySeconds: 90
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 20
+      volumes:
+        - name: realm
+          configMap:
+            name: keycloak-realm
+---
+# LoadBalancer (k3s Klipper lb) exposes compose port 7080 -> container 8080,
+# preserving the DEV http://162.4.177.91:7080 URL used by all app services.
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: ecommerce
+  labels:
+    app: keycloak
+spec:
+  type: LoadBalancer
+  selector:
+    app: keycloak
+  ports:
+    - name: http
+      port: 7080
+      targetPort: http

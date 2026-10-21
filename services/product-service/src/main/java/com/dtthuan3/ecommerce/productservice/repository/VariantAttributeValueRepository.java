@@ -1,3 +1,4 @@
+
 package com.dtthuan3.ecommerce.productservice.repository;
 
 import com.dtthuan3.ecommerce.productservice.domain.VariantAttributeValue;
@@ -5,27 +6,32 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface VariantAttributeValueRepository
-        extends JpaRepository<VariantAttributeValue, Long> {
+        extends JpaRepository<VariantAttributeValue, UUID> {
 
-    List<VariantAttributeValue> findByVariantId(Long variantId);
+    List<VariantAttributeValue> findAllByVariantId(UUID variantId);
 
     Optional<VariantAttributeValue> findByVariantIdAndAttributeId(
-            Long variantId,
-            Long attributeId
+            UUID variantId,
+            UUID attributeId
     );
 
     boolean existsByVariantIdAndAttributeId(
-            Long variantId,
-            Long attributeId
+            UUID variantId,
+            UUID attributeId
     );
+
+    boolean existsByAttributeId(UUID attributeId);
+
+    boolean existsByOptionId(UUID optionId);
 
     boolean existsByVariantIdAndAttributeIdAndIdNot(
-            Long variantId,
-            Long attributeId,
-            Long id
+            UUID variantId,
+            UUID attributeId,
+            UUID id
     );
 
-    void deleteByVariantId(Long variantId);
+    void deleteAllByVariantId(UUID variantId);
 }

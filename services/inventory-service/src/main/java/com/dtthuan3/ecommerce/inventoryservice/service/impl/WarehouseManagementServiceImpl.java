@@ -2,6 +2,7 @@ package com.dtthuan3.ecommerce.inventoryservice.service.impl;
 
 import com.dtthuan3.ecommerce.common.exception.BusinessException;
 import com.dtthuan3.ecommerce.common.exception.ErrorCode;
+import com.dtthuan3.ecommerce.common.exception.ResourceNotFoundException;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.CreateWarehouseRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.UpdateWarehouseRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.WarehouseResponse;
@@ -113,7 +114,6 @@ public class WarehouseManagementServiceImpl implements WarehouseManagementServic
 
     /** Dùng cùng loại lỗi NOT_FOUND cho cả truy vấn và cập nhật một kho không tồn tại. */
     private ResourceNotFoundException notFound(String warehouseId) {
-        return new BusinessException(ErrorCode.NOT_FOUND,
-                "Không tìm thấy Warehouse: " + warehouseId);
+        return new ResourceNotFoundException("Không tìm thấy Warehouse: " + warehouseId);
     }
 }

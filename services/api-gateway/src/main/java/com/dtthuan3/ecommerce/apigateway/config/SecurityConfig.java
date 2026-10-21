@@ -15,10 +15,18 @@ public class SecurityConfig {
         JwtAuthenticationConverter jwtConverter = new JwtAuthenticationConverter();
         jwtConverter.setJwtGrantedAuthoritiesConverter(new JwtRoleConverter());
         http.csrf(ServerHttpSecurity.CsrfSpec::disable)
-                .authorizeExchange(exchange -> exchange.pathMatchers("/api/auth/**", "/actuator/**")
-                        .permitAll()
+                .authorizeExchange(exchange -> exchange
+                        // P0: /internal/** la API noi bo giua cac service, KHONG expose public qua gateway.
+                        // Chan truoc moi rule permitAll de /api/auth/internal/** khong lot qua rule /api/auth/**.
+                        .pathMatchers("/api/*/internal/**")
+                        .denyAll()
+                        // Dat rule admin TRUOC rule /api/auth/** permitAll ben duoi: neu khong
+                        // /api/auth/admin/me se lot qua permitAll o gateway (van bi service chan
+                        // 403, nhung gateway nen chan som + thong nhat voi moi service).
                         .pathMatchers("/api/*/admin/**")
                         .hasRole("ADMIN")
+                        .pathMatchers("/api/auth/**", "/actuator/**")
+                        .permitAll()
                         .pathMatchers("/api/**")
                         .authenticated()
                         .anyExchange()

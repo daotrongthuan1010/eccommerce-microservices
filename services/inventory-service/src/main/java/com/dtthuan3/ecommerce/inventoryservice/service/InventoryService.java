@@ -12,6 +12,7 @@ import java.util.List;
 
 public interface InventoryService {
     InventoryResponse receiveStock(ReceiveStockRequest request, String performedBy);
+    void receiveClassifiedStock(List<ClassifiedStockReceipt> requests);
     InventoryResponse getById(String id);
 
     InventoryResponse getByPosition(

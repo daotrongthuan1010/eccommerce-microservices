@@ -7,6 +7,8 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 
+import java.util.UUID;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -16,7 +18,7 @@ public class ProductVariantRequest {
 
     @NotNull(message = "ID sản phẩm không được để trống")
     @Positive(message = "ID sản phẩm phải lớn hơn 0")
-    private Long productId;
+    private UUID productId;
 
     @NotBlank(message = "Mã biến thể không được để trống")
     @Size(max = 100,

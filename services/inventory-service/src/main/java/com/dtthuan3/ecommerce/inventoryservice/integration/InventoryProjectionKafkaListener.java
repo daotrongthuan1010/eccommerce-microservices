@@ -3,6 +3,8 @@ package com.dtthuan3.ecommerce.inventoryservice.integration;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.dtthuan3.ecommerce.inventoryservice.integration.event.ProductSkuEvent;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -19,17 +21,33 @@ public class InventoryProjectionKafkaListener {
 
     private final ObjectMapper objectMapper;
     private final InventoryProjectionEventService projectionEventService;
+    private final MeterRegistry meterRegistry;
 
     /** Đồng bộ trạng thái SKU từ Product Service để giảm các lần gọi validate đồng bộ. */
     @KafkaListener(topics = "${inventory.kafka.product-events-topic:product-events}")
     public void onProductEvent(String payload) {
-        ProductSkuEvent event = readEvent(payload, ProductSkuEvent.class);
-        // Topic có thể chứa thêm event Product khác; chỉ xử lý event nằm trong hợp đồng projection SKU.
-        if (!"SkuCreated".equals(event.eventType()) && !"SkuDisabled".equals(event.eventType())) {
-            log.debug("Bỏ qua Product event không thuộc projection SKU: {}", event.eventType());
-            return;
+        Timer.Sample processingTimer = Timer.start(meterRegistry);
+        String outcome = "success";
+        meterRegistry.counter("inventory.kafka.product_events.received").increment();
+        try {
+            ProductSkuEvent event = readEvent(payload, ProductSkuEvent.class);
+            // Topic có thể chứa thêm event Product khác; chỉ xử lý hợp đồng projection SKU đã đăng ký.
+            if (!"SkuCreated".equals(event.eventType()) && !"SkuDisabled".equals(event.eventType())) {
+                meterRegistry.counter("inventory.kafka.product_events.unsupported").increment();
+                log.debug("Bỏ qua Product event không thuộc projection SKU: {}", event.eventType());
+                return;
+            }
+            InventoryProjectionEventService.ApplyOutcome applyOutcome = projectionEventService.applyProductEvent(event);
+            log.debug("Product event xử lý xong: eventId={}, sku={}, outcome={}",
+                    event.eventId(), event.skuCode(), applyOutcome);
+        } catch (RuntimeException failure) {
+            outcome = "failure";
+            meterRegistry.counter("inventory.kafka.product_events.failures").increment();
+            throw failure;
+        } finally {
+            processingTimer.stop(Timer.builder("inventory.kafka.product_events.processing")
+                    .tag("outcome", outcome).register(meterRegistry));
         }
-        projectionEventService.applyProductEvent(event);
     }
 
     /** Payload dùng JSON phẳng theo hợp đồng INV-01; payload sai định dạng được đẩy cho listener container xử lý lỗi. */

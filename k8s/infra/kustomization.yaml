@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Apply order is NOT guaranteed by kustomize — follow k8s/infra/README.md
+# (secrets + init ConfigMaps first, then postgres/mysql/redis, then the rest).
+resources:
+  - postgres.yaml
+  - mysql.yaml
+  - redis.yaml
+  - kafka.yaml
+  - elasticsearch.yaml
+  - minio.yaml
+  - keycloak.yaml
+  - zipkin.yaml
+  - clamav.yaml

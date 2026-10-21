@@ -1,206 +1,189 @@
 package com.dtthuan3.ecommerce.reviewservice.service.impl;
 
-import com.dtthuan3.ecommerce.reviewservice.Mapper.ReviewMapper;
-import com.dtthuan3.ecommerce.reviewservice.Mapper.ReviewMediaMapper;
-import com.dtthuan3.ecommerce.reviewservice.dto.request.ReviewCreateRequest;
-import com.dtthuan3.ecommerce.reviewservice.dto.request.ReviewMediaRequest;
-import com.dtthuan3.ecommerce.reviewservice.dto.request.ReviewUpdateRequest;
-import com.dtthuan3.ecommerce.reviewservice.dto.request.SellerReplyRequest;
-import com.dtthuan3.ecommerce.reviewservice.dto.response.HelpfulResponse;
-import com.dtthuan3.ecommerce.reviewservice.dto.response.ReviewListResponse;
+import com.dtthuan3.ecommerce.reviewservice.dto.request.ModerationRequest;
+import com.dtthuan3.ecommerce.reviewservice.dto.request.ReviewRequest;
 import com.dtthuan3.ecommerce.reviewservice.dto.response.ReviewResponse;
-import com.dtthuan3.ecommerce.reviewservice.dto.response.ReviewSummaryResponse;
-import com.dtthuan3.ecommerce.reviewservice.entity.Review;
-import com.dtthuan3.ecommerce.reviewservice.entity.ReviewHelpful;
-import com.dtthuan3.ecommerce.reviewservice.entity.ReviewMedia;
-import com.dtthuan3.ecommerce.reviewservice.entity.enums.ReviewMediaType;
-import com.dtthuan3.ecommerce.reviewservice.entity.enums.ReviewStatus;
-import com.dtthuan3.ecommerce.reviewservice.repository.ReviewHelpfulRepository;
-import com.dtthuan3.ecommerce.reviewservice.repository.ReviewMediaRepository;
-import com.dtthuan3.ecommerce.reviewservice.repository.ReviewRepository;
+import com.dtthuan3.ecommerce.reviewservice.enums.ReviewStatus;
+import com.dtthuan3.ecommerce.reviewservice.entity.*;
+import com.dtthuan3.ecommerce.reviewservice.enums.IdempotencyStatus;
+import com.dtthuan3.ecommerce.reviewservice.enums.RevisionStatus;
+import com.dtthuan3.ecommerce.reviewservice.mapper.ReviewMapper;
+import com.dtthuan3.ecommerce.reviewservice.repository.*;
 import com.dtthuan3.ecommerce.reviewservice.service.ReviewService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ReviewServiceImpl implements ReviewService {
     private final ReviewRepository reviewRepository;
-    private final ReviewMediaRepository reviewMediaRepository;
-    private final ReviewHelpfulRepository reviewHelpfulRepository;
-    private final ReviewMediaMapper reviewMediaMapper;
+    private final ReviewRevisionRepository revisionRepository;
+    private final ReviewImageRepository imageRepository;
+    private final EligibilityProjectionRepository eligibilityRepository;
+    private final OutboxEventRepository outboxRepository;
+    private final IdempotencyRecordRepository idempotencyRepository;
     private final ReviewMapper reviewMapper;
-    @Override
-    public Page<ReviewListResponse> getReviewByProduct(Long productId, Integer rating, int page, int size) {
-          Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-          Page<Review> reviews;
-          if(rating!=null){
-               reviews= reviewRepository.findByProductIdAndRatingAndStatus(productId,rating,ReviewStatus.PUBLISHED,pageable);
-          }
-          else{
-              reviews= reviewRepository.findByProductIdAndStatus(productId,ReviewStatus.PUBLISHED,pageable);
-          }
-          return reviews.map(reviewMapper::toListResponse);
-    }
-
-    @Override
-    public Page<ReviewResponse> getMyReview(Long userId, int page, int size) {
-        Pageable pageable=PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<Review> reviews=reviewRepository.findByUserId(userId,pageable);
-        return reviews.map(reviewMapper::toResponse);
-    }
 
     @Override
     @Transactional
-    public ReviewResponse createReview(Long userId, ReviewCreateRequest request) {
-        if(reviewRepository.existsByUserIdAndOrderItemId(userId,request.getOrderItemId())){
-            throw new RuntimeException("Bạn đã đánh giá sản phẩm này rồi");
-        }
-        // giả lập thông tin
-        Long orderId = 1L;
-        Long productId = 1L;
-        Long variantId = null;
-        Review review = reviewMapper.toEntity(request,userId,orderId,productId,variantId);
-        Review save=reviewRepository.save(review);
-        //chưa có minio
-        if(request.getMedia()!=null){
-            saveMedia(save.getId(),request.getMedia());
-        }
-        return reviewMapper.toResponse(save);
+    public ReviewResponse createReview(String userId, String userName, String idempotencyKey, ReviewRequest request) {
+        String fingerprint = generateFingerprint(request);
+        Optional<IdempotencyRecord> idemOpt = idempotencyRepository
+                .findByActorIdAndOperationTypeAndIdempotencyKey(userId, "CREATE_REVIEW", idempotencyKey);
 
-    }
+        if (idemOpt.isPresent()) {
+            IdempotencyRecord record = idemOpt.get();
+            if (!record.getFingerprint().equals(fingerprint)) {
+                throw new RuntimeException("IDEMPOTENCY_CONFLICT: Cùng Key nhưng nội dung khác nhau");
+            }
+            if (record.getStatus() == IdempotencyStatus.PROCESSING) {
+                throw new RuntimeException("REQUEST_PROCESSING: Đang xử lý, vui lòng chờ");
+            }
+            Review existingReview = reviewRepository.findById(record.getResultRef())
+                    .orElseThrow(() -> new RuntimeException("Lỗi: Không tìm thấy đánh giá cũ"));
 
-    @Override
-    @Transactional
-    public ReviewResponse updateReview(Long reviewId, Long userId, ReviewUpdateRequest request) {
-        Review review=findReview(reviewId);
-        if(!review.getUserId().equals(userId)){
-            throw new RuntimeException("Bạn không có quyền sửa reivew này");
+            return reviewMapper.toResponse(existingReview); // Trả về kết quả cũ
         }
-        if(review.getStatus()!=ReviewStatus.PUBLISHED){
-            throw new RuntimeException("Không thể sửa review này");
-        }
-        if(request.getRating()!=null)review.setRating(request.getRating());
-        if(request.getComment()!=null){
-            String comment = request.getComment().trim();
-            review.setComment(comment.isEmpty() ? null : comment);
-        }
-        if(request.getAnonymous() != null)review.setAnonymous(request.getAnonymous());
-        review.setEdited(true);
-        Review save=reviewRepository.save(review);
-        //chưa có minio
-        if(request.getMedia()!=null){
-            reviewMediaRepository.deleteByReviewId(reviewId);
-            saveMedia(reviewId, request.getMedia());
-        }
-        return reviewMapper.toResponse(save);
-    }
 
-    @Override
-    @Transactional
-    public void deleteReview(Long reviewId, Long userId) {
-          Review review=findReview(reviewId);
-          if(!review.getUserId().equals(userId)) {
-              throw new RuntimeException("Bạn không có quyền xoá review này");
-          }
-          review.setStatus(ReviewStatus.DELETED);
-          reviewRepository.save(review);
-    }
+        IdempotencyRecord idemRecord = IdempotencyRecord.builder()
+                .actorId(userId)
+                .operationType("CREATE_REVIEW")
+                .idempotencyKey(idempotencyKey)
+                .fingerprint(fingerprint)
+                .status(IdempotencyStatus.PROCESSING)
+                .expiresAt(LocalDateTime.now().plusHours(72))
+                .build();
+        idempotencyRepository.save(idemRecord);
 
-    @Override
-    public ReviewResponse getReviewById(Long reviewId) {
-        Review review=findReview(reviewId);
-        if(review.getStatus()!=ReviewStatus.PUBLISHED){
-            throw new RuntimeException("Review không tồn tại hoặc không hiển thị");
+        EligibilityProjection eligibility = eligibilityRepository.findByLineId(request.getLineId())
+                .orElseThrow(() -> new RuntimeException("REVIEW_NOT_ELIGIBLE: Đơn hàng chưa giao"));
+
+        if (!eligibility.getUserId().equals(userId)) {
+            throw new RuntimeException("REVIEW_NOT_ELIGIBLE: Bạn không có quyền đánh giá đơn này");
         }
+        if (eligibility.getEligibleUntil().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("REVIEW_NOT_ELIGIBLE: Đã quá hạn 30 ngày");
+        }
+        if (reviewRepository.findByLineId(request.getLineId()).isPresent()) {
+            throw new RuntimeException("REVIEW_ALREADY_EXISTS: Sản phẩm này đã được đánh giá");
+        }
+
+        boolean hasPhoto = request.getFileIds() != null && !request.getFileIds().isEmpty();
+        if (hasPhoto && request.getFileIds().size() > 5) {
+            throw new RuntimeException("VALIDATION_ERROR: Tối đa 5 ảnh đính kèm");
+        }
+        boolean anonymous = (request.getIsAnonymous() == null || request.getIsAnonymous());
+        String finalDisplayName = anonymous ? maskDisplayName(userName) : userName.trim();
+
+        Review review = reviewMapper.createReviewEntity(userId, finalDisplayName, eligibility, request, hasPhoto);
+        review = reviewRepository.save(review);
+
+        ReviewRevision revision = reviewMapper.createInitialRevision(review.getId(), request);
+        revision = revisionRepository.save(revision);
+
+        if (hasPhoto) {
+            List<ReviewImage> images = reviewMapper.createReviewImages(revision.getId(), request.getFileIds());
+            imageRepository.saveAll(images);
+        }
+
+        OutboxEvent outbox = reviewMapper.createReviewSubmittedEvent(review);
+        outboxRepository.save(outbox);
+
+        idemRecord.setStatus(IdempotencyStatus.COMPLETED);
+        idemRecord.setResultRef(review.getId());
+        idempotencyRepository.save(idemRecord);
+
+        log.info("User {} created review {} for lineId {}", userId, review.getId(), request.getLineId());
+
         return reviewMapper.toResponse(review);
     }
 
     @Override
-    public ReviewSummaryResponse getReviewSummary(Long productId) {
-        long[] stars = new long[6];
-        for (Object[] row : reviewRepository.countRatingsByProductId(productId, ReviewStatus.PUBLISHED)) {
-            int rating = ((Number) row[0]).intValue();
-            long count = ((Number) row[1]).longValue();
-            if (rating >= 1 && rating <= 5) {
-                stars[rating] = count;
-            }
+    @Transactional
+    public ReviewResponse updateReview(String userId, String reviewId, ReviewRequest request) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new RuntimeException("REVIEW_NOT_FOUND: Không tìm thấy đánh giá"));
+
+        if (!review.getUserId().equals(userId)) {
+            throw new RuntimeException("FORBIDDEN: Bạn không có quyền sửa đánh giá này");
         }
-
-        double averageRating = reviewRepository.findAverageRating(productId, ReviewStatus.PUBLISHED);
-
-        long withImages = reviewMediaRepository
-                .countReviewsWithMedia(productId, ReviewStatus.PUBLISHED, ReviewMediaType.IMAGE);
-        long withVideos = reviewMediaRepository
-                .countReviewsWithMedia(productId, ReviewStatus.PUBLISHED, ReviewMediaType.VIDEO);
-
-        return reviewMapper.toSummaryResponse(productId, stars, averageRating, withImages, withVideos);
+        if (review.getEditableUntil().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("REVIEW_LOCKED: Đã quá thời hạn 7 ngày, không thể sửa đánh giá");
+        }
+        if (!review.getVersion().equals(request.getVersion())) {
+            throw new RuntimeException("OPTIMISTIC_LOCK: Đánh giá đã được cập nhật ở một nơi khác, vui lòng tải lại trang");
+        }
+        boolean hasPhoto = request.getFileIds() != null && !request.getFileIds().isEmpty();
+        if (hasPhoto && request.getFileIds().size() > 5) {
+            throw new RuntimeException("VALIDATION_ERROR: Chỉ được đính kèm tối đa 5 ảnh");
+        }
+        revisionRepository.findByReviewIdAndRevisionNo(review.getId(), review.getLatestRevisionNo())
+                .ifPresent(oldRevision -> {
+                    oldRevision.setStatus(RevisionStatus.SUPERSEDED);
+                    revisionRepository.save(oldRevision);
+                });
+        reviewMapper.updateReviewEntity(review, request, hasPhoto);
+        review = reviewRepository.save(review);
+        ReviewRevision revision = reviewMapper.createNewRevision(review, request);
+        revision = revisionRepository.save(revision);
+        if (hasPhoto) {
+            List<ReviewImage> images = reviewMapper.createReviewImages(revision.getId(), request.getFileIds());
+            imageRepository.saveAll(images);
+        }
+        OutboxEvent outbox = reviewMapper.createReviewUpdatedEvent(review);
+        outboxRepository.save(outbox);
+        log.info("User {} updated review {} to revision {}", userId, reviewId, review.getLatestRevisionNo());
+        return reviewMapper.toResponse(review);
     }
 
     @Override
     @Transactional
-    public ReviewResponse replyReview(Long reviewId, SellerReplyRequest request) {
-        Review review=findReview(reviewId);
-        if(review.getStatus() != ReviewStatus.PUBLISHED){
-            throw new RuntimeException("Không thể phản hồi review này");
+    public void deleteReview(String userId, String reviewId) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new RuntimeException("REVIEW_NOT_FOUND: Không tìm thấy đánh giá"));
+        if (!review.getUserId().equals(userId)) {
+            throw new RuntimeException("FORBIDDEN: Bạn không có quyền xóa đánh giá này");
         }
-        String reply = request.getReply() == null ? "" : request.getReply().trim();
-        if(reply.isEmpty()){
-            throw new RuntimeException("Nội dung phản hồi không được để trống");
+        if (review.getStatus() == ReviewStatus.DELETED) {
+            throw new RuntimeException("ALREADY_DELETED: Đánh giá này đã bị xóa");
         }
-        review.setSellerReply(reply);
-        review.setSellerRepliedAt(LocalDateTime.now());
-        Review save=reviewRepository.save(review);
-        return reviewMapper.toResponse(save);
-    }
-
-    @Override
-    @Transactional
-    public HelpfulResponse toggleHelpful(Long reviewId, Long userId) {
-        Review review=findReview(reviewId);
-        if(review.getStatus()!=ReviewStatus.PUBLISHED){
-            throw new RuntimeException("Không thể thao tác với review này");
-        }
-        if(review.getUserId().equals(userId)){
-            throw new RuntimeException("bạn không thể bấn hữu ích cho reivew của chính mình");
-        }
-        boolean existed=reviewHelpfulRepository.existsByReviewIdAndUserId(reviewId,userId);
-        if(existed){
-            reviewHelpfulRepository.deleteByReviewIdAndUserId(reviewId, userId);
-        }
-        else {
-            ReviewHelpful helpful=ReviewHelpful.builder().reviewId(reviewId).userId(userId).build();
-            reviewHelpfulRepository.save(helpful);
-        }
-        long helpfulCount=reviewHelpfulRepository.countByReviewId(reviewId);
-        review.setHelpfulCount(helpfulCount);
+        review.setStatus(ReviewStatus.DELETED);
         reviewRepository.save(review);
-        return reviewMapper.toHelpfulResponse(reviewId,helpfulCount,!existed);
+        OutboxEvent outbox = reviewMapper.createReviewDeletedEvent(review);
+        outboxRepository.save(outbox);
+        log.info("User {} successfully soft-deleted review {}", userId, reviewId);
     }
-    private Review findReview(Long reviewId) {
-        return reviewRepository.findById(reviewId)
-                .orElseThrow(()->new RuntimeException("Không thấy review id: "+reviewId));
-    }
-    private void saveMedia(Long reviewId, List<ReviewMediaRequest> mediaRequests) {
-        if (mediaRequests == null || mediaRequests.isEmpty()) {return;}
 
-        List<ReviewMedia> mediaList = new ArrayList<>();
-        for (int i = 0; i < mediaRequests.size(); i++) {
-            ReviewMediaRequest request = mediaRequests.get(i);
-            ReviewMedia media = reviewMediaMapper.toEntity(request, reviewId, i);
-            mediaList.add(media);
+
+    private String generateFingerprint(ReviewRequest request) {
+        try {
+            String raw = request.getLineId() + "|" + request.getRating() + "|" + request.getContent();
+            if (request.getFileIds() != null) {
+                raw += "|" + String.join(",", request.getFileIds());
+            }
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(raw.getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Lỗi hệ thống khi băm nội dung", e);
         }
+    }
 
-        reviewMediaRepository.saveAll(mediaList);
+    private String maskDisplayName(String rawName) {
+        if (rawName == null || rawName.trim().isEmpty()) return "Khách hàng";
+        String name = rawName.trim();
+        if (name.length() <= 2) return name.charAt(0) + "***";
+        return name.charAt(0) + "***" + name.charAt(name.length() - 1);
     }
 }

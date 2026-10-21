@@ -4,6 +4,8 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.UUID;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -11,11 +13,11 @@ import java.time.LocalDateTime;
 @Builder
 public class VariantAttributeValueResponse {
 
-    private Long id;
+    private UUID id;
 
-    private Long variantId;
+    private UUID variantId;
 
-    private Long attributeId;
+    private UUID attributeId;
 
     private String valueText;
 
@@ -25,7 +27,7 @@ public class VariantAttributeValueResponse {
 
     private Boolean valueBoolean;
 
-    private Long optionId;
+    private UUID optionId;
 
     private LocalDateTime createdAt;
 

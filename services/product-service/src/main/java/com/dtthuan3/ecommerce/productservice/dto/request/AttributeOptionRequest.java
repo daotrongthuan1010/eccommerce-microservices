@@ -7,6 +7,8 @@ import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Positive;
 import lombok.*;
 
+import java.util.UUID;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -16,7 +18,7 @@ public class AttributeOptionRequest {
 
     @NotNull(message = "ID thuộc tính không được để trống")
     @Positive(message = "ID thuộc tính phải lớn hơn 0")
-    private Long attributeId;
+    private UUID attributeId;
 
     @NotBlank(message = "Giá trị tùy chọn không được để trống")
     @Size(max = 255,

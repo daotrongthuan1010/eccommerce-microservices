@@ -1,53 +1,54 @@
 package com.dtthuan3.ecommerce.reviewservice.dto.response;
 
-import com.dtthuan3.ecommerce.reviewservice.entity.enums.ReviewStatus;
-import lombok.*;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
-@Getter
-@Setter
+@Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@JsonInclude(JsonInclude.Include.NON_NULL) // Tự động loại bỏ các trường null khi parse ra JSON
 public class ReviewResponse {
 
-    private Long id;
+    // --- Thông tin định danh ---
+    private String id;
+    private String productId;
 
-    private Long userId;
-
-    private String displayUserName;
-
-    private Long orderId;
-
-    private Long orderItemId;
-
-    private Long productId;
-
-    private Long variantId;
-
+    // --- Nội dung đánh giá (Lấy từ Revision & Image) ---
     private Integer rating;
+    private String content;
+    private List<String> images; // Danh sách các fileId hoặc URL ảnh
 
-    private String comment;
+    // --- Thông tin hiển thị ---
+    private String reviewerDisplayName;
+    private Boolean verifiedPurchase; // Cờ đánh dấu "Đã mua hàng"
 
-    private boolean verifiedPurchase;
+    // --- Trạng thái & Tương tác ---
+    private String status;
+    private Integer revisionNo;
+    private Integer helpfulCount;
+    private ReviewReplyDto reply; // Phản hồi của doanh nghiệp
 
-    private boolean anonymous;
+    // --- Thời gian ---
+    private LocalDateTime submittedAt;
+    private LocalDateTime publishedAt;
+    private LocalDateTime editableUntil;
 
-    private Long helpfulCount;
+    // --- Version để kiểm soát Update ---
+    private Long version;
 
-    private String sellerReply;
-
-    private LocalDateTime sellerRepliedAt;
-
-    private ReviewStatus status;
-
-    private boolean edited;
-
-    private List<ReviewMediaResponse> media;
-
-    private LocalDateTime createdAt;
-
-    private LocalDateTime updatedAt;
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ReviewReplyDto {
+        private String content;
+        private LocalDateTime publishedAt;
+    }
 }
