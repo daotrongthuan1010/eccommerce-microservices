@@ -25,6 +25,14 @@ inputs:
     required: true
   dockerhub_token:
     required: true
+  iam_internal_token:
+    description: 'Shared secret auth<->gateway (X-Internal-Token). Empty = secret channel off.'
+    required: false
+    default: ''
+  keycloak_admin_client_secret:
+    description: 'Keycloak service-account secret for auth register/forgot/change-password. Empty = 501 mode.'
+    required: false
+    default: ''
 
 # DEV/learning defaults (matches .env + /opt/eccommerce/.env).
 # No DB/Redis/MinIO passwords in GitHub Secrets by design.
@@ -64,12 +72,14 @@ runs:
         IMAGE_TAG: ${{ inputs.sha }}
         DH_USER: ${{ inputs.dockerhub_username }}
         DH_TOKEN: ${{ inputs.dockerhub_token }}
+        IAM_INTERNAL_TOKEN: ${{ inputs.iam_internal_token }}
+        KEYCLOAK_ADMIN_CLIENT_SECRET: ${{ inputs.keycloak_admin_client_secret }}
       with:
         host: ${{ inputs.host }}
         port: ${{ inputs.port }}
         username: ${{ inputs.username }}
         key: ${{ inputs.key }}
-        envs: SVC,IMAGE_TAG,DH_USER,DH_TOKEN
+        envs: SVC,IMAGE_TAG,DH_USER,DH_TOKEN,IAM_INTERNAL_TOKEN,KEYCLOAK_ADMIN_CLIENT_SECRET
         script: |
           set -euo pipefail
           # DEV defaults (same as .env / /opt/eccommerce/.env) — learning env, no secrets.
@@ -131,7 +141,13 @@ runs:
             *)                  DBPW=""                          ; NEEDS_DB=no;  NEEDS_REDIS=no;  NEEDS_MINIO=no ;;
           esac
           SHORT="${SVC%-service}"
-          if [ "$NEEDS_DB" = "yes" ] || [ "$NEEDS_REDIS" = "yes" ] || [ "$NEEDS_MINIO" = "yes" ]; then
+          # IAM secrets (auth + gateway). Rendered ONLY from GitHub Secrets inputs,
+          # never committed. Empty = channel stays off (safe default).
+          NEEDS_IAM=no
+          case "$SVC" in
+            auth-service|api-gateway) NEEDS_IAM=yes ;;
+          esac
+          if [ "$NEEDS_DB" = "yes" ] || [ "$NEEDS_REDIS" = "yes" ] || [ "$NEEDS_MINIO" = "yes" ] || [ "$NEEDS_IAM" = "yes" ]; then
             {
               echo "apiVersion: v1"
               echo "kind: Secret"
@@ -143,6 +159,12 @@ runs:
               if [ "$NEEDS_MINIO" = "yes" ]; then
                 echo "  minio-access-key: $MINIO_ROOT_USER"
                 echo "  minio-secret-key: $MINIO_ROOT_PASSWORD"
+              fi
+              if [ "$NEEDS_IAM" = "yes" ]; then
+                echo "  iam-internal-token: ${IAM_INTERNAL_TOKEN:-}"
+              fi
+              if [ "$SVC" = "auth-service" ]; then
+                echo "  keycloak-admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-}"
               fi
             } > "$SECRETS_FILE"
             kubectl apply -f "$SECRETS_FILE"

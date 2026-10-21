@@ -34,8 +34,9 @@ done
 
 ## 3. Runtime secrets (never committed)
 
-Key-shape reference lives in k8s/auth/secret-template.yaml.example and
-k8s/user/secret-template.yaml.example. The `.example` suffix is deliberate:
+Key-shape reference lives in k8s/auth/secret-template.yaml.example,
+k8s/gateway/secret-template.yaml.example and k8s/user/secret-template.yaml.example.
+The `.example` suffix is deliberate:
 it keeps `kubectl apply -f k8s/auth/` (directory apply) from creating a
 Secret with the CHANGEME placeholder — always create the real Secret via the
 commands below, never by applying the template.
@@ -43,16 +44,29 @@ commands below, never by applying the template.
 ```bash
 kubectl create secret generic auth-secrets -n ecommerce \
   --from-literal=db-password='<AUTH_DB_PASSWORD>' \
-  --from-literal=redis-password='<REDIS_PASSWORD>'
+  --from-literal=redis-password='<REDIS_PASSWORD>' \
+  --from-literal=iam-internal-token='<RANDOM_32B>' \
+  --from-literal=keycloak-admin-client-secret='<KC_ADMIN_SECRET>'
 kubectl create secret generic user-secrets -n ecommerce \
   --from-literal=db-password='<USER_DB_PASSWORD>' \
   --from-literal=redis-password='<REDIS_PASSWORD>'
+kubectl create secret generic gateway-secrets -n ecommerce \
+  --from-literal=iam-internal-token='<GIONG_AUTH_IAM_INTERNAL_TOKEN>'
 ```
+iam-internal-token phai GIONG nhau giua auth-secrets va gateway-secrets.
+De trong keycloak-admin-client-secret = auth register/forgot/change-password tra 501.
 
-## 4. Rollout order (substitute __IMAGE_TAG__ with $TAG first)
+## 4. Rollout order (NEVER sed __IMAGE_TAG__ in repo files)
+
+P2 note: khong `sed -i` truc tiep len file repo (lam ban working tree).
+Render ra thu muc tam roi apply — CD lam san (xem .github/actions/deploy-service).
+Thu cong tren VPS:
 
 ```bash
-sed -i "s/__IMAGE_TAG__/$TAG/g" k8s/*/deployment.yaml
+TAG=phase1-$(git rev-parse --short HEAD)
+rm -rf /tmp/k8s-render && mkdir -p /tmp/k8s-render && cp -r k8s /tmp/k8s-render/
+grep -rl "__IMAGE_TAG__" /tmp/k8s-render --include=deployment.yaml \
+  | xargs sed -i "s/__IMAGE_TAG__/$TAG/g"
 kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/discovery/
 kubectl rollout status deployment/discovery-service -n ecommerce
@@ -96,7 +110,21 @@ docker compose --profile apps up -d
 ## 6. Secret inventory (names only, no values)
 
 - K8s ns ecommerce: dockerhub-pull (.dockerconfigjson),
-  auth-secrets (db-password, redis-password),
-  user-secrets (db-password, redis-password).
-- GitHub Secrets (CI): DOCKERHUB_USERNAME, DOCKERHUB_TOKEN.
+  auth-secrets (db-password, redis-password, iam-internal-token, keycloak-admin-client-secret),
+  user-secrets (db-password, redis-password),
+  gateway-secrets (iam-internal-token).
+- GitHub Secrets (CI): DOCKERHUB_USERNAME, DOCKERHUB_TOKEN,
+  VPS_SSH_HOST/PORT/USER/KEY, IAM_INTERNAL_TOKEN, KEYCLOAK_ADMIN_CLIENT_SECRET.
+  Tao 2 secret moi nay trong repo Settings > Secrets and variables > Actions
+  truoc khi CD auth/gateway — de trong = kenh secret tat (safe default).
 - Verify no plaintext: grep -rEi 'password\s*[:=]\s*[^C]' k8s/ must only hit CHANGEME placeholders.
+
+## 7. Monitoring + TLS (P1/P2 note)
+
+- Monitoring toi thieu hien tai = compose: Prometheus (infra/prometheus/prometheus.yml
+  + rules/) + Grafana. Chua port sang k8s vi RAM VPS 13/15GB — neu port, dung
+  manifests gon (retention 7d, resource requests nho) hoac giu compose hien co.
+- Traefik smoke di qua port 80 (entryPoint web), KHONG phai 8080.
+- TLS/issuer sau DEV: hien tai issuer-uri = http://162.4.177.91:7080/... (plain HTTP,
+  DEV public). Khi siet TLS, doi KEYCLOAK_*_URI sang https + cap nhat ConfigMap
+  auth/gateway, rollout restart ca hai.

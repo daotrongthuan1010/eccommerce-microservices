@@ -58,6 +58,8 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          iam_internal_token: ${{ secrets.IAM_INTERNAL_TOKEN }}
+          keycloak_admin_client_secret: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
 
   identity:
     needs: [select, core]
@@ -81,6 +83,8 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          iam_internal_token: ${{ secrets.IAM_INTERNAL_TOKEN }}
+          keycloak_admin_client_secret: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
 
   data:
     needs: [select, identity]
@@ -104,6 +108,8 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          iam_internal_token: ${{ secrets.IAM_INTERNAL_TOKEN }}
+          keycloak_admin_client_secret: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
 
   trade:
     needs: [select, data]
@@ -127,6 +133,8 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          iam_internal_token: ${{ secrets.IAM_INTERNAL_TOKEN }}
+          keycloak_admin_client_secret: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
 
   downstream:
     needs: [select, trade]
@@ -150,6 +158,8 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          iam_internal_token: ${{ secrets.IAM_INTERNAL_TOKEN }}
+          keycloak_admin_client_secret: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
 
   leaf:
     needs: [select, downstream]
@@ -173,3 +183,5 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          iam_internal_token: ${{ secrets.IAM_INTERNAL_TOKEN }}
+          keycloak_admin_client_secret: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
