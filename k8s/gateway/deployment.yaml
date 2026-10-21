@@ -1,4 +1,5 @@
 # Image tag: replace __IMAGE_TAG__ with phase1-<git-sha> at rollout time (see k8s/discovery/deployment.yaml header).
+# Secret gateway-secrets must exist before apply (see secret-template.yaml.example header).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,6 +29,12 @@ spec:
           envFrom:
             - configMapRef:
                 name: gateway-config
+          env:
+            - name: IAM_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gateway-secrets
+                  key: iam-internal-token
           resources:
             requests:
               cpu: 100m

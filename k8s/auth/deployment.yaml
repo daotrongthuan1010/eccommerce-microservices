@@ -42,6 +42,16 @@ spec:
                 secretKeyRef:
                   name: auth-secrets
                   key: redis-password
+            - name: IAM_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: auth-secrets
+                  key: iam-internal-token
+            - name: KEYCLOAK_ADMIN_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-secrets
+                  key: keycloak-admin-client-secret
           resources:
             requests:
               cpu: 100m

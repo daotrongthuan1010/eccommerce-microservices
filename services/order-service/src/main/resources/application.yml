@@ -32,6 +32,14 @@ spring:
   sql:
     init:
       mode: never
+  # DEV: tu dong tao schema khi entity xuat hien. Hien tai order-service chua co
+  # @Entity nao (0 tables la dung) — them entity + spring-boot-starter-data-jpa
+  # thi bang se tu tao. Production doi sang validate + Flyway.
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    show-sql: ${JPA_SHOW_SQL:false}
   security:
     oauth2:
       resourceserver:
