@@ -11,5 +11,11 @@ resources:
   - elasticsearch.yaml
   - minio.yaml
   - keycloak.yaml
-  - zipkin.yaml
   - clamav.yaml
+  - nexus.yaml
+  - monitoring.yaml # Phase 4: prometheus + grafana
+  - loki.yaml # Phase 4: loki + promtail
+  - tempo.yaml # Phase 4: replaces zipkin (Zipkin-format receiver)
+  - cert-manager.yaml # Phase 4: CRDs applied imperatively first (see README)
+  - argocd.yaml # Phase 4: CRDs applied imperatively first (see README)
+  - backup.yaml # Phase 4: nightly db + minio backup CronJob

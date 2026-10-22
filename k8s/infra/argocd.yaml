@@ -1,0 +1,425 @@
+# Phase 4 — ArgoCD (quay.io/argoproj/argocd:v2.14.2, namespaced in `ecommerce`).
+# Tracks this repo (origin, branch develop) and syncs ns `ecommerce`.
+# CRDs (Application/AppProject) are installed FIRST, imperatively (README §7):
+#   kubectl apply -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.14.2/manifests/crds/application-crd.yaml
+#   kubectl apply -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.14.2/manifests/crds/appproject-crd.yaml
+# Server secret key comes from Secret `infra-argocd-secrets` (create per README §1;
+# admin initial password is auto-generated into `argocd-initial-admin-secret`).
+# Sizing ~1Gi.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-server
+  namespace: ecommerce
+  labels:
+    app: argocd-server
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-controller
+  namespace: ecommerce
+  labels:
+    app: argocd-controller
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-repo-server
+  namespace: ecommerce
+  labels:
+    app: argocd-repo-server
+---
+# Controller applies/syncs resources cluster-wide (same as upstream install);
+# server only needs namespaced reads + exec into controller-managed pods.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-controller
+  labels:
+    app: argocd-controller
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-controller
+  labels:
+    app: argocd-controller
+subjects:
+  - kind: ServiceAccount
+    name: argocd-controller
+    namespace: ecommerce
+roleRef:
+  kind: ClusterRole
+  name: argocd-controller
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-server
+  namespace: ecommerce
+  labels:
+    app: argocd-server
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "appprojects"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["secrets", "configmaps", "pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["argocd-secret", "infra-argocd-secrets", "argocd-initial-admin-secret"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-server
+  namespace: ecommerce
+  labels:
+    app: argocd-server
+subjects:
+  - kind: ServiceAccount
+    name: argocd-server
+    namespace: ecommerce
+roleRef:
+  kind: Role
+  name: argocd-server
+  apiGroup: rbac.authorization.k8s.io
+---
+# ArgoCD's own cache/state redis (separate from app `redis` — no key collisions).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-redis
+  namespace: ecommerce
+  labels:
+    app: argocd-redis
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: argocd-redis
+  template:
+    metadata:
+      labels:
+        app: argocd-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.4.5-alpine
+          imagePullPolicy: IfNotPresent
+          args: ["--save", "", "--appendonly", "no"]
+          ports:
+            - name: redis
+              containerPort: 6379
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: 15
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-redis
+  namespace: ecommerce
+  labels:
+    app: argocd-redis
+spec:
+  type: ClusterIP
+  selector:
+    app: argocd-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-repo-server
+  namespace: ecommerce
+  labels:
+    app: argocd-repo-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: argocd-repo-server
+  template:
+    metadata:
+      labels:
+        app: argocd-repo-server
+    spec:
+      serviceAccountName: argocd-repo-server
+      containers:
+        - name: repo-server
+          image: quay.io/argoproj/argocd:v2.14.2
+          imagePullPolicy: IfNotPresent
+          command: ["argocd-repo-server"]
+          args:
+            - --redis
+            - argocd-redis:6379
+          ports:
+            - name: server
+              containerPort: 8081
+            - name: metrics
+              containerPort: 8084
+          volumeMounts:
+            - name: ssh-known-hosts
+              mountPath: /app/config/ssh
+            - name: tls-certs
+              mountPath: /app/config/tls
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 12
+      volumes:
+        - name: ssh-known-hosts
+          emptyDir: {}
+        - name: tls-certs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-repo-server
+  namespace: ecommerce
+  labels:
+    app: argocd-repo-server
+spec:
+  type: ClusterIP
+  selector:
+    app: argocd-repo-server
+  ports:
+    - name: server
+      port: 8081
+      targetPort: server
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-controller
+  namespace: ecommerce
+  labels:
+    app: argocd-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: argocd-controller
+  template:
+    metadata:
+      labels:
+        app: argocd-controller
+    spec:
+      serviceAccountName: argocd-controller
+      containers:
+        - name: controller
+          image: quay.io/argoproj/argocd:v2.14.2
+          imagePullPolicy: IfNotPresent
+          command: ["argocd-application-controller"]
+          args:
+            - --repo-server
+            - argocd-repo-server:8081
+            - --redis
+            - argocd-redis:6379
+            - --status-processors
+            - "10"
+            - --operation-processors
+            - "5"
+            - --kubectl-parallelism-limit
+            - "5"
+          ports:
+            - name: metrics
+              containerPort: 8082
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-server
+  namespace: ecommerce
+  labels:
+    app: argocd-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: argocd-server
+  template:
+    metadata:
+      labels:
+        app: argocd-server
+    spec:
+      serviceAccountName: argocd-server
+      containers:
+        - name: server
+          image: quay.io/argoproj/argocd:v2.14.2
+          imagePullPolicy: IfNotPresent
+          command: ["argocd-server"]
+          args:
+            - --repo-server
+            - argocd-repo-server:8081
+            - --redis
+            - argocd-redis:6379
+            - --insecure # TLS terminates at Traefik/LB; keeps DEV http://IP:8080 working
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 8083
+          env:
+            - name: ARGOCD_SERVER_SECRETKEY
+              valueFrom:
+                secretKeyRef:
+                  name: infra-argocd-secrets
+                  key: server-secretkey
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 12
+---
+# LoadBalancer preserves the DEV 0.0.0.0 public-access behavior (compose parity).
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-server
+  namespace: ecommerce
+  labels:
+    app: argocd-server
+spec:
+  type: LoadBalancer
+  selector:
+    app: argocd-server
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+# Project scoping what the bootstrap Application may manage.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ecommerce
+  namespace: ecommerce
+  labels:
+    app: argocd
+spec:
+  description: ecommerce-microservices on develop
+  sourceRepos:
+    - https://github.com/daotrongthuan1010/eccommerce-microservices.git
+  destinations:
+    - namespace: ecommerce
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+---
+# Bootstrap Application: tracks origin/develop, syncs ns `ecommerce`.
+# Directory-recurse over k8s/ (no root kustomization exists yet).
+# Sync is MANUAL (click Sync in UI) — auto-sync is intentionally off until the
+# team confirms GitOps cutover, so ArgoCD never fights imperative kubectl today.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ecommerce
+  namespace: ecommerce
+  labels:
+    app: argocd
+spec:
+  project: ecommerce
+  source:
+    repoURL: https://github.com/daotrongthuan1010/eccommerce-microservices.git
+    targetRevision: develop
+    path: k8s
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ecommerce
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true

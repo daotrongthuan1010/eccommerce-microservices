@@ -22,6 +22,7 @@
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
         <protobuf-maven-plugin.version>0.6.1</protobuf-maven-plugin.version>
         <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
+        <lombok.version>1.18.40</lombok.version>
     </properties>
     <dependencies>
         <!-- Shared modules -->
