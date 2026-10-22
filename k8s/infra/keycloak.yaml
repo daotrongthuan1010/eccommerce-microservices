@@ -75,6 +75,7 @@ spec:
             #     --from-file=template.ftl=infra/keycloak/themes/htad/login/template.ftl \
             #     --from-file=login.css=infra/keycloak/themes/htad/login/resources/css/login.css \
             #     --from-file=logo.png=infra/keycloak/themes/htad/login/resources/img/logo.png
+            #     --from-file=messages_vi.properties=infra/keycloak/themes/htad/login/messages/messages_vi.properties
             - name: theme
               mountPath: /opt/keycloak/themes/htad/login/theme.properties
               subPath: theme.properties
@@ -90,6 +91,10 @@ spec:
             - name: theme
               mountPath: /opt/keycloak/themes/htad/login/resources/img/logo.png
               subPath: logo.png
+              readOnly: true
+            - name: theme
+              mountPath: /opt/keycloak/themes/htad/login/messages/messages_vi.properties
+              subPath: messages_vi.properties
               readOnly: true
           resources:
             requests:

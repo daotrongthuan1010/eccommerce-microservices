@@ -88,7 +88,8 @@ kubectl create configmap keycloak-theme -n ecommerce \
   --from-file=theme.properties=infra/keycloak/themes/htad/login/theme.properties \
   --from-file=template.ftl=infra/keycloak/themes/htad/login/template.ftl \
   --from-file=login.css=infra/keycloak/themes/htad/login/resources/css/login.css \
-  --from-file=logo.png=infra/keycloak/themes/htad/login/resources/img/logo.png
+  --from-file=logo.png=infra/keycloak/themes/htad/login/resources/img/logo.png \
+  --from-file=messages_vi.properties=infra/keycloak/themes/htad/login/messages/messages_vi.properties
 # NOTE: realm.json chi import luc DB rong. Doi loginTheme/i18n tren realm da co
 # phai update qua Admin API (realm cu khong tu nhan realm.json moi):
 #   Admin token + PUT /admin/realms/ecommerce (loginTheme=htad, i18n vi/en, defaultLocale vi).
