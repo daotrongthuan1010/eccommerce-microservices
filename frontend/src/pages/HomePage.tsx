@@ -8,17 +8,17 @@ export default function HomePage() {
     <div>
       <PageHeader
         title="Ecommerce Microservices"
-        subTitle="Cua hang demo — duyet san pham, quan ly kho, theo doi don hang"
+        subTitle="Cửa hàng demo — duyệt sản phẩm, quản lý kho, theo dõi đơn hàng"
       />
       <Space wrap>
         <Link to="/products">
-          <Button type="primary">Xem san pham</Button>
+          <Button type="primary">Xem sản phẩm</Button>
         </Link>
         <Link to="/catalog">
-          <Button>Danh muc</Button>
+          <Button>Danh mục</Button>
         </Link>
         <Link to="/cart">
-          <Button>Gio hang (mock)</Button>
+          <Button>Giỏ hàng (mock)</Button>
         </Link>
         <Link to="/dashboard">
           <Button>Dashboard (mock)</Button>

@@ -15,7 +15,7 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     getCart().then(setCart).catch((e: unknown) => {
-      setError(e instanceof Error ? e.message : 'Khong tai duoc gio hang');
+      setError(e instanceof Error ? e.message : 'Không tải được giỏ hàng');
     });
   }, []);
 
@@ -24,7 +24,7 @@ export default function CheckoutPage() {
     paymentMethod: 'COD' | 'BANK_TRANSFER' | 'E_WALLET';
   }) => {
     if (!cart || cart.items.length === 0) {
-      message.warning('Gio hang trong');
+      message.warning('Giỏ hàng trống');
       return;
     }
     setLoading(true);
@@ -40,10 +40,10 @@ export default function CheckoutPage() {
         amount: order.totalAmount,
         method: values.paymentMethod,
       });
-      message.success(`Dat hang thanh cong: ${order.code}`);
+      message.success(`Đặt hàng thành công: ${order.code}`);
       navigate('/orders');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Checkout that bai');
+setError(e instanceof Error ? e.message : 'Checkout thất bại');
     } finally {
       setLoading(false);
     }
@@ -53,41 +53,41 @@ export default function CheckoutPage() {
 
   return (
     <div>
-      <PageHeader title="Thanh toan (mock)" subTitle="Checkout offline — khong goi API that" />
+      <PageHeader title="Thanh toán (mock)" subTitle="Checkout offline — không gọi API thật" />
       <ApiErrorAlert message={error} />
       <p>
-        {cart.totalQuantity} mon — Tong:{' '}
+        {cart.totalQuantity} món — Tổng:{' '}
         <strong>{cart.totalAmount.toLocaleString('vi-VN')} ₫</strong>
       </p>
       <Form layout="vertical" onFinish={(v) => void onFinish(v)} style={{ maxWidth: 520 }}>
-        <FormSection title="Giao hang">
+        <FormSection title="Giao hàng">
           <Form.Item
             name="shippingAddress"
-            label="Dia chi nhan hang"
-            rules={[{ required: true, message: 'Nhap dia chi' }]}
+            label="Địa chỉ nhận hàng"
+            rules={[{ required: true, message: 'Nhập địa chỉ' }]}
           >
-            <Input placeholder="So nha, duong, quan, thanh pho" />
+            <Input placeholder="Số nhà, đường, quận, thành phố" />
           </Form.Item>
         </FormSection>
-        <FormSection title="Thanh toan">
+        <FormSection title="Thanh toán">
           <Form.Item
             name="paymentMethod"
-            label="Phuong thuc"
+            label="Phương thức"
             initialValue="COD"
             rules={[{ required: true }]}
           >
             <Select
               options={[
-                { value: 'COD', label: 'COD — Tien mat' },
-                { value: 'BANK_TRANSFER', label: 'Chuyen khoan' },
-                { value: 'E_WALLET', label: 'Vi dien tu' },
+                { value: 'COD', label: 'COD — Tiền mặt' },
+                { value: 'BANK_TRANSFER', label: 'Chuyển khoản' },
+                { value: 'E_WALLET', label: 'Ví điện tử' },
               ]}
             />
           </Form.Item>
         </FormSection>
         <ActionBar>
           <Button type="primary" htmlType="submit" loading={loading} disabled={cart.items.length === 0}>
-            Dat hang
+            Đặt hàng
           </Button>
         </ActionBar>
       </Form>

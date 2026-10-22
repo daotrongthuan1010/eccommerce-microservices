@@ -25,28 +25,28 @@ export function PublishingPage() {
 
   return (
     <div>
-      <PageHeader title="Xuat ban san pham" subTitle="Submit → approve / reject (X-Actor-Id + reason)" />
+      <PageHeader title="Xuất bản sản phẩm" subTitle="Submit → approve / reject (X-Actor-Id + reason)" />
       <ApiErrorAlert message={err ?? null} />
       <Card size="small">
-        <FormSection title="1. Gui duyet (POST .../products/{productId}/revisions/{revisionId}/submit-for-approval)">
+        <FormSection title="1. Gửi duyệt (POST .../products/{productId}/revisions/{revisionId}/submit-for-approval)">
           <Form
             layout="inline"
             onFinish={async (v: { productId: string; revisionId: string; actorId: string }) => {
               try {
                 await submit(v).unwrap();
-                message.success('Da gui duyet');
+                message.success('Đã gửi duyệt');
               } catch {
-                message.error('Gui duyet that bai');
+                message.error('Gửi duyệt thất bại');
               }
             }}
           >
-            <Form.Item name="productId" rules={[{ required: true, message: 'Nhap productId' }]}>
+            <Form.Item name="productId" rules={[{ required: true, message: 'Nhập productId' }]}>
               <Input placeholder="productId" style={{ width: 200 }} />
             </Form.Item>
-            <Form.Item name="revisionId" rules={[{ required: true, message: 'Nhap revisionId' }]}>
+            <Form.Item name="revisionId" rules={[{ required: true, message: 'Nhập revisionId' }]}>
               <Input placeholder="revisionId" style={{ width: 200 }} />
             </Form.Item>
-            <Form.Item name="actorId" rules={[{ required: true, message: 'Nhap X-Actor-Id' }]}>
+            <Form.Item name="actorId" rules={[{ required: true, message: 'Nhập X-Actor-Id' }]}>
               <Input placeholder="X-Actor-Id" style={{ width: 200 }} />
             </Form.Item>
             <Form.Item>
@@ -56,7 +56,7 @@ export function PublishingPage() {
             </Form.Item>
           </Form>
         </FormSection>
-        <FormSection title="2. Duyet / tu choi (POST .../publication-approvals/{approvalId}/approve|reject)">
+        <FormSection title="2. Duyệt / từ chối (POST .../publication-approvals/{approvalId}/approve|reject)">
           <Space direction="vertical" style={{ width: '100%' }}>
             <Space wrap>
               <Input
@@ -75,14 +75,14 @@ export function PublishingPage() {
                 onClick={async () => {
                   const actor = (document.getElementById('publishing-actor') as HTMLInputElement | null)?.value ?? '';
                   if (!actor) {
-                    message.warning('Nhap X-Actor-Id');
+                    message.warning('Nhập X-Actor-Id');
                     return;
                   }
                   try {
                     await approve({ approvalId, actorId: actor }).unwrap();
-                    message.success('Da duyet xuat ban');
+                    message.success('Đã duyệt xuất bản');
                   } catch {
-                    message.error('Duyet that bai');
+                    message.error('Duyệt thất bại');
                   }
                 }}
               >
@@ -96,14 +96,14 @@ export function PublishingPage() {
                   const actor = (document.getElementById('publishing-actor') as HTMLInputElement | null)?.value ?? '';
                   const reason = (document.getElementById('publishing-reason') as HTMLInputElement | null)?.value ?? '';
                   if (!actor || !reason) {
-                    message.warning('Nhap X-Actor-Id va ly do reject');
+                    message.warning('Nhập X-Actor-Id và lý do reject');
                     return;
                   }
                   try {
                     await reject({ approvalId, actorId: actor, reason }).unwrap();
-                    message.success('Da tu choi xuat ban');
+                    message.success('Đã từ chối xuất bản');
                   } catch {
-                    message.error('Tu choi that bai');
+                    message.error('Từ chối thất bại');
                   }
                 }}
               >
@@ -111,7 +111,7 @@ export function PublishingPage() {
               </Button>
               <Input
                 id="publishing-reason"
-                placeholder="Ly do reject (body {reason})"
+                placeholder="Lý do reject (body {reason})"
                 style={{ width: 320 }}
               />
             </ActionBar>

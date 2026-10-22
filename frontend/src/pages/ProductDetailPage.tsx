@@ -32,27 +32,27 @@ export function ProductDetailPage() {
 
   return (
     <div>
-      <PageHeader title="Chi tiet san pham" subTitle={productId} />
+      <PageHeader title="Chi tiết sản phẩm" subTitle={productId} />
       <ApiErrorAlert message={err ?? null} />
       {detailQ.isLoading ? (
         <ListSkeleton />
       ) : (
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <Card size="small" title="Thong tin (GET /api/product/products/{productId})">
+          <Card size="small" title="Thông tin (GET /api/product/products/{productId})">
             <Descriptions size="small" column={2}>
               <Descriptions.Item label="ID">{String(product?.id ?? productId)}</Descriptions.Item>
-              <Descriptions.Item label="Ten">{String(product?.name ?? '-')}</Descriptions.Item>
-              <Descriptions.Item label="Trang thai">
+              <Descriptions.Item label="Tên">{String(product?.name ?? '-')}</Descriptions.Item>
+              <Descriptions.Item label="Trạng thái">
                 {product?.status ? <StatusTag status={String(product.status)} /> : '-'}
               </Descriptions.Item>
             </Descriptions>
           </Card>
-          <Card size="small" title="Bien the (GET .../products-variant/products/{productId}/variants)">
+          <Card size="small" title="Biến thể (GET .../products-variant/products/{productId}/variants)">
             <DataTable
               columns={[
                 { title: 'ID', dataIndex: 'id', key: 'id', width: 160 },
                 {
-                  title: 'SKU lien ket',
+                  title: 'SKU liên kết',
                   dataIndex: 'skuId',
                   key: 'skuId',
                   render: (v: unknown) => String(v ?? '-'),
@@ -63,12 +63,12 @@ export function ProductDetailPage() {
               rowKey="id"
             />
           </Card>
-          <Card size="small" title="Lich su xuat ban (GET .../api/v1/products/{productId}/publishing-history)">
+          <Card size="small" title="Lịch sử xuất bản (GET .../api/v1/products/{productId}/publishing-history)">
             <DataTable
               columns={[
                 { title: 'ID', dataIndex: 'id', key: 'id', width: 160 },
                 {
-                  title: 'Trang thai',
+                  title: 'Trạng thái',
                   dataIndex: 'status',
                   key: 'status',
                   width: 160,

@@ -38,33 +38,33 @@ export function ReviewsPage() {
   const onModerate = async (id: string, action: 'APPROVE' | 'REJECT' | 'HIDE') => {
     try {
       await moderate({ id, body: { action } }).unwrap();
-      message.success(`Da ${action} review ${id}`);
+      message.success(`Đã ${action} review ${id}`);
     } catch {
-      message.error('Moderation that bai');
+      message.error('Moderation thất bại');
     }
   };
 
   return (
     <div>
-      <PageHeader title="Danh gia" subTitle="Moderation (MODERATOR/ADMIN) — list la mock" />
+      <PageHeader title="Đánh giá" subTitle="Moderation (MODERATOR/ADMIN) — list là mock" />
       <ApiErrorAlert message={err ?? null} />
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
-        <Card size="small" title="Danh sach review (MOCK — src/mocks/reviewListMock.ts)">
+        <Card size="small" title="Danh sách review (MOCK — src/mocks/reviewListMock.ts)">
           <DataTable<ReviewListItem>
             columns={[
               { title: 'ID', dataIndex: 'id', key: 'id', width: 110 },
-              { title: 'San pham', dataIndex: 'productName', key: 'productName' },
-              { title: 'Tac gia', dataIndex: 'author', key: 'author', width: 140 },
+              { title: 'Sản phẩm', dataIndex: 'productName', key: 'productName' },
+              { title: 'Tác giả', dataIndex: 'author', key: 'author', width: 140 },
               { title: 'Sao', dataIndex: 'rating', key: 'rating', width: 70 },
               {
-                title: 'Trang thai',
+                title: 'Trạng thái',
                 dataIndex: 'status',
                 key: 'status',
                 width: 130,
                 render: (v: string) => <StatusTag status={v} />,
               },
               {
-                title: 'Thao tac',
+                title: 'Thao tác',
                 key: 'action',
                 width: 260,
                 render: (_: unknown, r: ReviewListItem) =>
@@ -83,9 +83,9 @@ export function ReviewsPage() {
                         onClick={async () => {
                           try {
                             await remove(r.id).unwrap();
-                            message.success('Da xoa review');
+                            message.success('Đã xóa review');
                           } catch {
-                            message.error('Xoa that bai');
+                            message.error('Xóa thất bại');
                           }
                         }}
                       >
@@ -109,34 +109,34 @@ export function ReviewsPage() {
               onFinish={async (v: { productId: string; rating: number; title?: string; content?: string }) => {
                 try {
                   await createReview({ body: v, idempotencyKey: idemKey }).unwrap();
-                  message.success('Da tao review — tao key moi cho submit tiep theo');
+                  message.success('Đã tạo review — tạo key mới cho submit tiếp theo');
                   setIdemKey(crypto.randomUUID());
                   form.resetFields();
                 } catch {
-                  message.error('Tao review that bai — retry GIỮ NGUYÊN key ben duoi de tranh tao trung');
+                  message.error('Tạo review thất bại — retry GIỮ NGUYÊN key bên dưới để tránh tạo trùng');
                 }
               }}
             >
-              <Form.Item name="productId" rules={[{ required: true, message: 'Nhap productId' }]}>
+              <Form.Item name="productId" rules={[{ required: true, message: 'Nhập productId' }]}>
                 <Input placeholder="productId" style={{ width: 180 }} />
               </Form.Item>
-              <Form.Item name="rating" rules={[{ required: true, message: 'Nhap rating' }]}>
+              <Form.Item name="rating" rules={[{ required: true, message: 'Nhập rating' }]}>
                 <InputNumber min={1} max={5} placeholder="1-5" />
               </Form.Item>
               <Form.Item name="title">
-                <Input placeholder="Tieu de" style={{ width: 200 }} />
+                <Input placeholder="Tiêu đề" style={{ width: 200 }} />
               </Form.Item>
               <Form.Item name="content">
-                <Input placeholder="Noi dung" style={{ width: 240 }} />
+                <Input placeholder="Nội dung" style={{ width: 240 }} />
               </Form.Item>
               <Form.Item>
                 <Button type="primary" htmlType="submit" loading={createState.isLoading}>
-                  Gui review
+                  Gửi review
                 </Button>
               </Form.Item>
             </Form>
             <p style={{ marginTop: 8 }}>
-              Idempotency-Key hien tai: <code>{idemKey}</code> (retry giữ nguyên key này)
+              Idempotency-Key hiện tại: <code>{idemKey}</code> (retry giữ nguyên key này)
             </p>
           </FormSection>
         </Card>

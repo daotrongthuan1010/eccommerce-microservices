@@ -30,17 +30,17 @@ export default function InventoryPage() {
   const stockColumns: ColumnsType<InventoryRecord> = [
     { title: 'SKU', dataIndex: 'sku' },
     { title: 'Kho', dataIndex: 'warehouseId' },
-    { title: 'Vi tri', dataIndex: 'locationId' },
-    { title: 'Kha dung', dataIndex: 'availableQuantity' },
-    { title: 'Da giu', dataIndex: 'reservedQuantity' },
+    { title: 'Vị trí', dataIndex: 'locationId' },
+    { title: 'Khả dụng', dataIndex: 'availableQuantity' },
+    { title: 'Đã giữ', dataIndex: 'reservedQuantity' },
   ];
 
   const moveColumns: ColumnsType<InventoryMovement> = [
     { title: 'ID', dataIndex: 'id' },
     { title: 'SKU', dataIndex: 'sku' },
-    { title: 'Loai', dataIndex: 'type' },
-    { title: 'So luong', dataIndex: 'quantity' },
-    { title: 'Thoi gian', dataIndex: 'createdAt' },
+    { title: 'Loại', dataIndex: 'type' },
+    { title: 'Số lượng', dataIndex: 'quantity' },
+    { title: 'Thời gian', dataIndex: 'createdAt' },
   ];
 
   const rows: InventoryRecord[] = available.data?.data ?? [];
@@ -48,7 +48,7 @@ export default function InventoryPage() {
 
   return (
     <div>
-      <PageHeader title="Ton kho" subTitle="Tra cuu kha dung + lich su dich chuyen" />
+      <PageHeader title="Tồn kho" subTitle="Tra cứu khả dụng + lịch sử dịch chuyển" />
       <FilterBar>
         <Input
           placeholder="SKU"
@@ -71,7 +71,7 @@ export default function InventoryPage() {
             })
           }
         >
-          Tra cuu
+          Tra cứu
         </Button>
       </FilterBar>
       <ApiErrorAlert
@@ -85,7 +85,7 @@ export default function InventoryPage() {
       ) : (
         <DataTable<InventoryRecord> columns={stockColumns} data={rows} rowKey="id" />
       )}
-      <PageHeader title="Lich su dich chuyen" />
+      <PageHeader title="Lịch sử dịch chuyển" />
       {movements.isLoading ? (
         <ListSkeleton />
       ) : (

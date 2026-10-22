@@ -51,13 +51,13 @@ export function CatalogPage() {
   return (
     <div>
       <PageHeader
-        title="Danh muc & Thuong hieu"
-        subTitle="Cay danh muc + brands (server pagination)"
+        title="Danh mục & Thương hiệu"
+        subTitle="Cây danh mục + brands (server pagination)"
         extra={
           isAdmin ? (
             <Space>
               <Button type="primary" href="#">
-                Tao danh muc
+                Tạo danh mục
               </Button>
               {selectedCat && (
                 <Button
@@ -66,14 +66,14 @@ export function CatalogPage() {
                   onClick={async () => {
                     try {
                       await deleteCategory(selectedCat).unwrap();
-                      message.success('Da xoa danh muc');
+                      message.success('Đã xóa danh mục');
                       setSelectedCat(null);
                     } catch {
-                      message.error('Xoa danh muc that bai');
+                      message.error('Xóa danh mục thất bại');
                     }
                   }}
                 >
-                  Xoa danh muc da chon
+                  Xóa danh mục đã chọn
                 </Button>
               )}
             </Space>
@@ -82,7 +82,7 @@ export function CatalogPage() {
       />
       <ApiErrorAlert message={err ?? null} />
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
-        <Card size="small" title="Cay danh muc (GET /api/catalog/categories/tree)">
+        <Card size="small" title="Cây danh mục (GET /api/catalog/categories/tree)">
           {treeQ.isLoading ? (
             <ListSkeleton />
           ) : (
@@ -93,20 +93,20 @@ export function CatalogPage() {
             />
           )}
         </Card>
-        <Card size="small" title="Thuong hieu (GET /api/catalog/brands)">
+        <Card size="small" title="Thương hiệu (GET /api/catalog/brands)">
           <DataTable
             columns={[
               { title: 'ID', dataIndex: 'id', key: 'id', width: 120 },
-              { title: 'Ten', dataIndex: 'name', key: 'name' },
+              { title: 'Tên', dataIndex: 'name', key: 'name' },
               {
-                title: 'Trang thai',
+                title: 'Trạng thái',
                 dataIndex: 'status',
                 key: 'status',
                 width: 140,
                 render: (v: string) => (v ? <StatusTag status={v} /> : '-'),
               },
               {
-                title: 'Thao tac',
+                title: 'Thao tác',
                 key: 'action',
                 width: 120,
                 render: (_: unknown, r: { id: string }) =>
@@ -118,13 +118,13 @@ export function CatalogPage() {
                       onClick={async () => {
                         try {
                           await deleteBrand(r.id).unwrap();
-                          message.success('Da xoa brand');
+                          message.success('Đã xóa brand');
                         } catch {
-                          message.error('Xoa brand that bai');
+                          message.error('Xóa brand thất bại');
                         }
                       }}
                     >
-                      Xoa
+                      Xóa
                     </Button>
                   ) : null,
               },

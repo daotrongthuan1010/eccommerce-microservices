@@ -6,10 +6,10 @@ export function ForbiddenPage() {
     <Result
       status="403"
       title="403"
-      subTitle="Ban khong co quyen truy cap trang nay."
+      subTitle="Bạn không có quyền truy cập trang này."
       extra={
         <Link to="/">
-          <Button type="primary">Ve trang chu</Button>
+          <Button type="primary">Về trang chủ</Button>
         </Link>
       }
     />
@@ -21,10 +21,10 @@ export function NotFoundPage() {
     <Result
       status="404"
       title="404"
-      subTitle="Trang khong ton tai."
+      subTitle="Trang không tồn tại."
       extra={
         <Link to="/">
-          <Button type="primary">Ve trang chu</Button>
+          <Button type="primary">Về trang chủ</Button>
         </Link>
       }
     />

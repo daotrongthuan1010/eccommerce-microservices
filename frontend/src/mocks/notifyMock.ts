@@ -17,8 +17,8 @@ export interface AppNotification {
 let localNotifications: AppNotification[] = [
   {
     id: 'notif-seed-1',
-    title: 'Don hang ORD-0001 da xac nhan',
-    body: 'Don hang cua ban dang duoc chuan bi.',
+    title: 'Đơn hàng ORD-0001 đã xác nhận',
+    body: 'Đơn hàng của bạn đang được chuẩn bị.',
     read: false,
     createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
   },

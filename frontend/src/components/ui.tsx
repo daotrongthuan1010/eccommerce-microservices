@@ -64,7 +64,7 @@ export function StatusTag({ status }: { status: string }) {
   return <Tag bordered={false} color={colorMap[status] ?? 'default'}>{status}</Tag>;
 }
 
-export function TableEmpty({ description = 'Khong co du lieu' }: { description?: string }) {
+export function TableEmpty({ description = 'Không có dữ liệu' }: { description?: string }) {
   return <Empty description={description} />;
 }
 
@@ -141,9 +141,9 @@ export class ErrorBoundary extends React.Component<
       return (
         <Result
           status="500"
-          title="Co loi xay ra"
-          subTitle="Vui long tai lai trang."
-          extra={<Button type="primary" onClick={() => window.location.reload()}>Tai lai</Button>}
+          title="Có lỗi xảy ra"
+          subTitle="Vui lòng tải lại trang."
+          extra={<Button type="primary" onClick={() => window.location.reload()}>Tải lại</Button>}
         />
       );
     }

@@ -16,17 +16,17 @@ export default function AppLayout() {
   const isAdmin = roles.includes('ADMIN');
 
   const items = [
-    { key: '/', label: <Link to="/">Trang chu</Link> },
-    { key: '/products', label: <Link to="/products">San pham</Link> },
-    { key: '/catalog', label: <Link to="/catalog">Danh muc</Link> },
-    { key: '/inventory', label: <Link to="/inventory">Ton kho</Link> },
+    { key: '/', label: <Link to="/">Trang chủ</Link> },
+    { key: '/products', label: <Link to="/products">Sản phẩm</Link> },
+    { key: '/catalog', label: <Link to="/catalog">Danh mục</Link> },
+    { key: '/inventory', label: <Link to="/inventory">Tồn kho</Link> },
     { key: '/files', label: <Link to="/files">File</Link> },
-    { key: '/cart', label: <Link to="/cart">Gio hang (mock)</Link> },
-    { key: '/account', label: <Link to="/account">Tai khoan</Link> },
+    { key: '/cart', label: <Link to="/cart">Giỏ hàng (mock)</Link> },
+    { key: '/account', label: <Link to="/account">Tài khoản</Link> },
     ...(isAdmin
       ? [
-          { key: '/admin', label: <Link to="/admin">Quan tri</Link> },
-          { key: '/admin/reviews', label: <Link to="/admin/reviews">Duyet review</Link> },
+          { key: '/admin', label: <Link to="/admin">Quản trị</Link> },
+          { key: '/admin/reviews', label: <Link to="/admin/reviews">Duyệt review</Link> },
         ]
       : []),
   ];
@@ -50,11 +50,11 @@ export default function AppLayout() {
                   void dispatch(logout()).finally(() => navigate('/login'));
                 }}
               >
-                Dang xuat
+                Đăng xuất
               </a>
             </>
           ) : (
-            <Link to="/login">Dang nhap</Link>
+            <Link to="/login">Đăng nhập</Link>
           )}
         </Header>
         <Content style={{ margin: 16 }}>

@@ -22,7 +22,7 @@ export default function CartPage() {
     try {
       setCart(await getCart());
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Khong tai duoc gio hang');
+      setError(e instanceof Error ? e.message : 'Không tải được giỏ hàng');
     }
   };
 
@@ -41,19 +41,19 @@ export default function CartPage() {
       quantity: 1,
     };
     setCart(await addToCart(item));
-    message.success(`Da them ${p.name}`);
+    message.success(`Đã thêm ${p.name}`);
   };
 
   const columns: ColumnsType<CartItem> = [
-    { title: 'San pham', dataIndex: 'productName' },
+    { title: 'Sản phẩm', dataIndex: 'productName' },
     { title: 'SKU', dataIndex: 'sku' },
     {
-      title: 'Gia',
+      title: 'Giá',
       dataIndex: 'price',
       render: (v: number) => v.toLocaleString('vi-VN'),
     },
     {
-      title: 'So luong',
+      title: 'Số lượng',
       dataIndex: 'quantity',
       render: (q: number, r) => (
         <InputNumber
@@ -68,7 +68,7 @@ export default function CartPage() {
       ),
     },
     {
-      title: 'Thao tac',
+      title: 'Thao tác',
       key: 'actions',
       render: (_, r) => (
         <Button
@@ -76,7 +76,7 @@ export default function CartPage() {
           danger
           onClick={async () => setCart(await removeFromCart(r.skuId))}
         >
-          Xoa
+          Xóa
         </Button>
       ),
     },
@@ -85,11 +85,11 @@ export default function CartPage() {
   return (
     <div>
       <PageHeader
-        title="Gio hang (mock)"
-        subTitle="Hoan toan offline — khong goi API that"
+        title="Giỏ hàng (mock)"
+        subTitle="Hoàn toàn offline — không gọi API thật"
         extra={
           <Space>
-            <Button onClick={() => void clearCart().then(setCart)}>Xoa het</Button>
+            <Button onClick={() => void clearCart().then(setCart)}>Xóa hết</Button>
             <Link to="/checkout">
               <Button type="primary" disabled={!cart || cart.items.length === 0}>
                 Checkout
@@ -99,7 +99,7 @@ export default function CartPage() {
         }
       />
       <ApiErrorAlert message={error} />
-      <h4>Them nhanh tu mock catalog</h4>
+      <h4>Thêm nhanh từ mock catalog</h4>
       <Space wrap style={{ marginBottom: 16 }}>
         {mockCatalog.map((p) => (
           <Button key={p.id} onClick={() => void add(p.id)}>
@@ -109,8 +109,8 @@ export default function CartPage() {
       </Space>
       <DataTable<CartItem> columns={columns} data={cart?.items ?? []} rowKey="skuId" />
       <p>
-        Tong: <strong>{(cart?.totalAmount ?? 0).toLocaleString('vi-VN')} ₫</strong> (
-        {cart?.totalQuantity ?? 0} mon)
+        Tổng: <strong>{(cart?.totalAmount ?? 0).toLocaleString('vi-VN')} ₫</strong> (
+        {cart?.totalQuantity ?? 0} món)
       </p>
     </div>
   );

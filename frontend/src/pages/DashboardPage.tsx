@@ -36,7 +36,7 @@ function Donut({ slices }: { slices: OrderStatusSlice[] }) {
   const c = 2 * Math.PI * r;
   let acc = 0;
   return (
-    <svg width={120} height={120} role="img" aria-label="Ti le trang thai don">
+    <svg width={120} height={120} role="img" aria-label="Tỉ lệ trạng thái đơn">
       <circle cx={60} cy={60} r={r} fill="none" stroke="#f0f0f0" strokeWidth={16} />
       {slices.map((s, i) => {
         const frac = s.count / total;
@@ -74,7 +74,7 @@ export default function DashboardPage() {
         setSeries(s);
         setBreakdown(b);
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Khong tai duoc dashboard'));
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Không tải được dashboard'));
   }, []);
 
   if (!kpi) return (
@@ -86,32 +86,32 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <PageHeader title="Dashboard (mock)" subTitle="So lieu gia — thay bang analytics-service khi co BE" />
+      <PageHeader title="Dashboard (mock)" subTitle="Số liệu giả — thay bằng analytics-service khi có BE" />
       <ApiErrorAlert message={error} />
       <SummaryRow
         items={[
           {
-            label: 'Doanh thu 7 ngay',
+            label: 'Doanh thu 7 ngày',
             value: `${kpi.totalRevenue7d.toLocaleString('vi-VN')} ₫`,
             link: '/orders',
           },
-          { label: 'Don hang 7 ngay', value: kpi.totalOrders7d, link: '/orders' },
-          { label: 'Phieu nhap cho duyet', value: kpi.pendingReceipts, link: '/receipts' },
-          { label: 'SKU sap het hang', value: kpi.lowStockSkus, link: '/inventory' },
+          { label: 'Đơn hàng 7 ngày', value: kpi.totalOrders7d, link: '/orders' },
+          { label: 'Phiếu nhập chờ duyệt', value: kpi.pendingReceipts, link: '/receipts' },
+          { label: 'SKU sắp hết hàng', value: kpi.lowStockSkus, link: '/inventory' },
         ]}
       />
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <Card size="small" title="Doanh thu 7 ngay (mock sparkline)">
+        <Card size="small" title="Doanh thu 7 ngày (mock sparkline)">
           <Sparkline points={series} />
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Tong 7 ngay:{' '}
+            Tổng 7 ngày:{' '}
             <span style={{ fontVariantNumeric: 'tabular-nums' }}>
               {kpi.totalRevenue7d.toLocaleString('vi-VN')} ₫
             </span>
-            {' · '}Bam KPI de drill-down
+            {' · '}Bấm KPI để drill-down
           </Typography.Text>
         </Card>
-        <Card size="small" title="Trang thai don (mock donut)">
+        <Card size="small" title="Trạng thái đơn (mock donut)">
           <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
             <Donut slices={breakdown} />
             <div>

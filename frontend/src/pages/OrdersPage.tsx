@@ -17,28 +17,28 @@ export default function OrdersPage() {
         setOrders(p.content);
         setTotal(p.totalElements);
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Khong tai duoc don hang'))
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Không tải được đơn hàng'))
       .finally(() => setLoading(false));
   }, [page]);
 
   const columns: ColumnsType<Order> = [
-    { title: 'Ma don', dataIndex: 'code' },
+    { title: 'Mã đơn', dataIndex: 'code' },
     {
-      title: 'Trang thai',
+      title: 'Trạng thái',
       dataIndex: 'status',
       render: (s: string) => <StatusTag status={s} />,
     },
     {
-      title: 'Tong tien',
+      title: 'Tổng tiền',
       dataIndex: 'totalAmount',
       render: (v: number) => v.toLocaleString('vi-VN'),
     },
-    { title: 'Ngay tao', dataIndex: 'createdAt' },
+    { title: 'Ngày tạo', dataIndex: 'createdAt' },
   ];
 
   return (
     <div>
-      <PageHeader title="Don hang (mock)" subTitle="Du lieu local — khong goi API that" />
+      <PageHeader title="Đơn hàng (mock)" subTitle="Dữ liệu local — không gọi API thật" />
       <ApiErrorAlert message={error} />
       {loading ? (
         <ListSkeleton />

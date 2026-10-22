@@ -42,7 +42,7 @@ export default function ReceiptsPage() {
       await fn();
       message.success(ok);
     } catch {
-      message.error('Thao tac that bai');
+      message.error('Thao tác thất bại');
     }
   };
 
@@ -50,30 +50,30 @@ export default function ReceiptsPage() {
     { title: 'ID', dataIndex: 'id' },
     { title: 'Kho', dataIndex: 'warehouseId' },
     {
-      title: 'Trang thai',
+      title: 'Trạng thái',
       dataIndex: 'status',
       render: (s: string) => <StatusTag status={s ?? 'DRAFT'} />,
     },
     {
-      title: 'Thao tac',
+      title: 'Thao tác',
       key: 'actions',
       render: (_, r) => (
         <Space>
           <Button
             size="small"
-            onClick={() => run(() => submitReceipt(r.id).unwrap(), 'Da submit')}
+            onClick={() => run(() => submitReceipt(r.id).unwrap(), 'Đã submit')}
           >
             Submit
           </Button>
           <Button
             size="small"
-            onClick={() => run(() => approveReceipt(r.id).unwrap(), 'Da approve')}
+            onClick={() => run(() => approveReceipt(r.id).unwrap(), 'Đã approve')}
           >
             Approve
           </Button>
           <Button
             size="small"
-            onClick={() => run(() => postReceipt(r.id).unwrap(), 'Da post')}
+            onClick={() => run(() => postReceipt(r.id).unwrap(), 'Đã post')}
           >
             Post
           </Button>
@@ -82,7 +82,7 @@ export default function ReceiptsPage() {
             onClick={() =>
               run(
                 () => updateActuals({ receiptId: r.id, body: {} }).unwrap(),
-                'Da cap nhat thuc nhan',
+                'Đã cập nhật thực nhận',
               )
             }
           >
@@ -95,7 +95,7 @@ export default function ReceiptsPage() {
 
   return (
     <div>
-      <PageHeader title="Phieu nhap" subTitle="Tao + duyet + post phieu nhap kho" />
+      <PageHeader title="Phiếu nhập" subTitle="Tạo + duyệt + post phiếu nhập kho" />
       <FilterBar>
         <Input
           placeholder="Warehouse ID"
@@ -104,10 +104,10 @@ export default function ReceiptsPage() {
           style={{ width: 240 }}
         />
         <Button type="primary" onClick={() => setAppliedWarehouseId(warehouseId.trim())}>
-          Xem phieu
+          Xem phiếu
         </Button>
         <Input
-          placeholder='JSON tao phieu, VD {"supplier":"NCC-A"}'
+          placeholder='JSON tạo phiếu, VD {"supplier":"NCC-A"}'
           value={newReceipt}
           onChange={(e) => setNewReceipt(e.target.value)}
           style={{ width: 320 }}
@@ -121,21 +121,21 @@ export default function ReceiptsPage() {
               try {
                 body = newReceipt.trim() ? JSON.parse(newReceipt) : {};
               } catch {
-                throw new Error('JSON khong hop le');
+                throw new Error('JSON không hợp lệ');
               }
               await createReceipt({ warehouseId: appliedWarehouseId, body }).unwrap();
               setNewReceipt('');
-            }, 'Da tao phieu nhap')
+            }, 'Đã tạo phiếu nhập')
           }
         >
-          Tao phieu
+          Tạo phiếu
         </Button>
       </FilterBar>
       <ApiErrorAlert
         message={(list.error as { message?: string } | undefined)?.message}
       />
       {!appliedWarehouseId ? (
-        <p>Nhap Warehouse ID de xem danh sach phieu nhap.</p>
+        <p>Nhập Warehouse ID để xem danh sách phiếu nhập.</p>
       ) : list.isLoading ? (
         <ListSkeleton />
       ) : (

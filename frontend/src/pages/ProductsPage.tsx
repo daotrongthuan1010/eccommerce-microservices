@@ -48,9 +48,9 @@ export function ProductsPage() {
       const res = await createDraft({ name: values.name, status: 'DRAFT' }).unwrap();
       upsert(res.data);
       form.resetFields();
-      message.success(`Da tao draft (201 ${res.code ?? 'CREATED'})`);
+      message.success(`Đã tạo draft (201 ${res.code ?? 'CREATED'})`);
     } catch {
-      message.error('Tao draft that bai');
+      message.error('Tạo draft thất bại');
     }
   };
 
@@ -58,28 +58,28 @@ export function ProductsPage() {
 
   return (
     <div>
-      <PageHeader title="San pham" subTitle="Tra cuu theo ID + tao draft (chua co API list)" />
+      <PageHeader title="Sản phẩm" subTitle="Tra cứu theo ID + tạo draft (chưa có API list)" />
       <ApiErrorAlert message={err ?? null} />
       <FilterBar>
         <Input
-          placeholder="Nhap productId de tra cuu"
+          placeholder="Nhập productId để tra cứu"
           value={lookupId}
           onChange={(e) => setLookupId(e.target.value)}
           onPressEnter={onLookup}
           style={{ width: 320 }}
         />
         <Button type="primary" onClick={onLookup} loading={fetchState.isFetching}>
-          Tra cuu detail
+          Tra cứu detail
         </Button>
       </FilterBar>
-      <Card size="small" title="Tao draft (POST /api/product/products → 201 CREATED)" style={{ marginBottom: 16 }}>
+      <Card size="small" title="Tạo draft (POST /api/product/products → 201 CREATED)" style={{ marginBottom: 16 }}>
         <Form form={form} layout="inline" onFinish={onCreateDraft}>
-          <Form.Item name="name" rules={[{ required: true, message: 'Nhap ten san pham' }]}>
-            <Input placeholder="Ten san pham" style={{ width: 280 }} />
+          <Form.Item name="name" rules={[{ required: true, message: 'Nhập tên sản phẩm' }]}>
+            <Input placeholder="Tên sản phẩm" style={{ width: 280 }} />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={createState.isLoading}>
-              Tao draft
+              Tạo draft
             </Button>
           </Form.Item>
         </Form>
@@ -88,25 +88,25 @@ export function ProductsPage() {
         columns={[
           { title: 'ID', dataIndex: 'id', key: 'id', width: 160 },
           {
-            title: 'Ten',
+            title: 'Tên',
             dataIndex: 'name',
             key: 'name',
             render: (v: unknown, r: Product) => <Link to={`/products/${String(r.id)}`}>{String(v ?? r.id)}</Link>,
           },
           {
-            title: 'Trang thai',
+            title: 'Trạng thái',
             dataIndex: 'status',
             key: 'status',
             width: 140,
             render: (v: string) => (v ? <StatusTag status={v} /> : '-'),
           },
           {
-            title: 'Thao tac',
+            title: 'Thao tác',
             key: 'action',
             width: 140,
             render: (_: unknown, r: Product) => (
               <Space>
-                <Link to={`/products/${String(r.id)}`}>Chi tiet</Link>
+                <Link to={`/products/${String(r.id)}`}>Chi tiết</Link>
               </Space>
             ),
           },

@@ -41,7 +41,7 @@ const seedOrders: Order[] = [
     code: 'ORD-0001',
     status: 'CONFIRMED',
     items: [
-      { skuId: 'sku-1', sku: 'SKU-001', productName: 'Ao thun cotton', price: 199000, quantity: 2 },
+      { skuId: 'sku-1', sku: 'SKU-001', productName: 'Áo thun cotton', price: 199000, quantity: 2 },
     ],
     totalAmount: 398000,
     createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
@@ -51,7 +51,7 @@ const seedOrders: Order[] = [
     code: 'ORD-0002',
     status: 'PENDING',
     items: [
-      { skuId: 'sku-2', sku: 'SKU-002', productName: 'Giay sneaker', price: 899000, quantity: 1 },
+      { skuId: 'sku-2', sku: 'SKU-002', productName: 'Giày sneaker', price: 899000, quantity: 1 },
     ],
     totalAmount: 899000,
     createdAt: new Date(Date.now() - 86400000).toISOString(),
