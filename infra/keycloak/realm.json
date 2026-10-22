@@ -1,6 +1,6 @@
 {
   "realm": "ecommerce",
-  "displayName": "Ecommerce Local",
+  "displayName": "HTAD Ecommerce",
   "enabled": true,
   "sslRequired": "none",
   "registrationAllowed": false,
@@ -8,6 +8,13 @@
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
   "verifyEmail": false,
+  "loginTheme": "htad",
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "vi",
+    "en"
+  ],
+  "defaultLocale": "vi",
   "roles": {
     "realm": [
       { "name": "ADMIN", "description": "Quan tri vien" },

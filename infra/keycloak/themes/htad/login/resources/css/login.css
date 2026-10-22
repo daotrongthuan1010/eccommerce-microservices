@@ -1,0 +1,186 @@
+/* HTAD login theme (Keycloak) — phong cach MISA: split screen,
+   trai panel xanh brand + slogan, phai card trang form dang nhap. */
+
+:root {
+  --htad-brand: #0f4c81;
+  --htad-brand-dark: #0a3559;
+  --htad-bg: #f4f6f9;
+  --htad-text: #1f2d3d;
+  --htad-muted: #6b7a8d;
+  --htad-danger-bg: #fdecea;
+  --htad-danger-text: #b3261e;
+  --htad-warn-bg: #fff7e6;
+  --htad-warn-text: #8a5a00;
+  --htad-ok-bg: #e7f6ec;
+  --htad-ok-text: #1c6b32;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  color: var(--htad-text);
+  background: var(--htad-bg);
+}
+
+.htad-page { display: flex; min-height: 100vh; }
+
+/* ---- Trai: panel brand ---- */
+.htad-side {
+  flex: 1 1 52%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  color: #fff;
+  background:
+    radial-gradient(1100px 500px at 85% -10%, rgba(255, 255, 255, 0.14), transparent 60%),
+    radial-gradient(800px 600px at -10% 110%, rgba(255, 255, 255, 0.08), transparent 55%),
+    linear-gradient(135deg, var(--htad-brand-dark) 0%, var(--htad-brand) 60%, #14619f 100%);
+}
+.htad-side-inner { max-width: 460px; }
+.htad-side-logo {
+  height: 76px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px 14px;
+  margin-bottom: 28px;
+}
+.htad-side-inner h1 {
+  font-size: 34px;
+  line-height: 1.25;
+  margin: 0 0 12px;
+  font-weight: 700;
+}
+.htad-tagline { font-size: 16px; line-height: 1.6; opacity: 0.92; margin: 0 0 26px; }
+.htad-points { list-style: none; margin: 0; padding: 0; }
+.htad-points li {
+  position: relative;
+  padding-left: 30px;
+  margin-bottom: 14px;
+  font-size: 15px;
+  opacity: 0.95;
+}
+.htad-points li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.4'%3E%3Cpath d='M3 8.5l3.2 3.2L13 5'/%3E%3C/svg%3E")
+    center / 11px no-repeat;
+}
+
+/* ---- Phai: card form ---- */
+.htad-main {
+  flex: 1 1 48%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+}
+.htad-card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(15, 76, 129, 0.12);
+  padding: 36px 36px 28px;
+  text-align: center;
+}
+.htad-logo { height: 64px; margin-bottom: 14px; }
+.htad-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--htad-brand-dark);
+  margin: 0 0 20px;
+}
+.htad-card form { text-align: left; }
+
+/* Alert */
+.htad-alert {
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  text-align: left;
+}
+.htad-alert-error { background: var(--htad-danger-bg); color: var(--htad-danger-text); }
+.htad-alert-warning { background: var(--htad-warn-bg); color: var(--htad-warn-text); }
+.htad-alert-success { background: var(--htad-ok-bg); color: var(--htad-ok-text); }
+.htad-alert-info { background: #e8f1fa; color: var(--htad-brand-dark); }
+
+/* PatternFly v5 + v3 overrides: input / label / button kieu MISA */
+.htad-card .pf-v5-c-form__label,
+.htad-card .pf-c-form__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--htad-text);
+}
+.htad-card .pf-v5-c-form__label-text::after,
+.htad-card .pf-c-form__label-text::after {
+  color: #d32f2f;
+}
+.htad-card .pf-v5-c-form-control,
+.htad-card .pf-c-form-control,
+.htad-card input[type="text"],
+.htad-card input[type="password"],
+.htad-card input[type="email"] {
+  height: 44px;
+  border-radius: 8px;
+  border: 1px solid #cfd8e3;
+  font-size: 15px;
+}
+.htad-card .pf-v5-c-form-control:focus,
+.htad-card .pf-c-form-control:focus,
+.htad-card input:focus {
+  border-color: var(--htad-brand);
+  box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.15);
+  outline: none;
+}
+.htad-card .pf-v5-c-form__group,
+.htad-card .pf-c-form__group {
+  margin-bottom: 16px;
+}
+.htad-card .pf-v5-c-button.pf-m-primary,
+.htad-card .pf-c-button.pf-m-primary,
+.htad-card input[type="submit"],
+.htad-card button[type="submit"] {
+  width: 100%;
+  height: 44px;
+  border-radius: 8px;
+  border: none;
+  background: var(--htad-brand);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.htad-card .pf-v5-c-button.pf-m-primary:hover,
+.htad-card .pf-c-button.pf-m-primary:hover,
+.htad-card input[type="submit"]:hover {
+  background: var(--htad-brand-dark);
+}
+.htad-card .pf-v5-c-button.pf-m-primary::after,
+.htad-card .pf-c-button.pf-m-primary::after {
+  border: none;
+}
+.htad-card a { color: var(--htad-brand); text-decoration: none; }
+.htad-card a:hover { text-decoration: underline; }
+
+/* Vung info / social / locale / remember */
+.htad-info, .htad-social { margin-top: 16px; font-size: 14px; color: var(--htad-muted); }
+.htad-username:empty, .htad-social:empty { display: none; }
+.htad-locale { margin-top: 18px; font-size: 13px; color: var(--htad-muted); }
+.htad-foot { margin-top: 22px; font-size: 12px; color: var(--htad-muted); }
+
+/* Mobile: an panel trai */
+@media (max-width: 900px) {
+  .htad-side { display: none; }
+  .htad-main { flex-basis: 100%; }
+  .htad-card { box-shadow: none; border: 1px solid #e3e9f0; }
+}

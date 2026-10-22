@@ -1,6 +1,6 @@
 import React, { Suspense } from 'react';
 import { Skeleton } from 'antd';
-import { createBrowserRouter } from 'react-router-dom';
+import { Navigate, createBrowserRouter } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
 import { RequireAuth, RequireRole } from '../components/ProtectedRoute';
 import { ForbiddenPage, NotFoundPage } from '../components/ErrorPages';
@@ -8,8 +8,6 @@ import { ForbiddenPage, NotFoundPage } from '../components/ErrorPages';
 // FE_AUTH_GATEWAY §6 — ma tran trang × quyen. Lazy + Suspense, SPA fallback
 // do nginx try_files.
 const LoginPage = React.lazy(() => import('../pages/LoginPage'));
-const RegisterPage = React.lazy(() => import('../pages/RegisterPage'));
-const ForgotPage = React.lazy(() => import('../pages/ForgotPage'));
 const HomePage = React.lazy(() => import('../pages/HomePage'));
 const ProductsPage = React.lazy(() => import('../pages/ProductsPage'));
 const ProductDetailPage = React.lazy(() => import('../pages/ProductDetailPage'));
@@ -30,8 +28,9 @@ const fallback = <Skeleton active paragraph={{ rows: 8 }} style={{ padding: 24 }
 
 export const router = createBrowserRouter([
   { path: '/login', element: <Suspense fallback={fallback}><LoginPage /></Suspense> },
-  { path: '/register', element: <Suspense fallback={fallback}><RegisterPage /></Suspense> },
-  { path: '/forgot-password', element: <Suspense fallback={fallback}><ForgotPage /></Suspense> },
+  // Chi dang nhap qua Keycloak: /register + /forgot-password redirect ve /login.
+  { path: '/register', element: <Navigate to="/login" replace /> },
+  { path: '/forgot-password', element: <Navigate to="/login" replace /> },
   { path: '/403', element: <ForbiddenPage /> },
   {
     path: '/',
