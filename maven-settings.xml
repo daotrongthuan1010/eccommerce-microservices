@@ -1,0 +1,13 @@
+<settings>
+  <!-- Cho phep Maven (3.8.1+) dung Nexus HTTP cua VPS DEV (khong co HTTPS).
+       Copy 1 lan: mkdir -p ~/.m2 && cp maven-settings.xml ~/.m2/settings.xml
+       (neu ~/.m2/settings.xml da ton tai, gop phan <mirrors> nay vao). -->
+  <mirrors>
+    <mirror>
+      <id>maven-default-http-blocker</id>
+      <mirrorOf>external:http:*</mirrorOf>
+      <url>http://0.0.0.0/</url>
+      <blocked>false</blocked>
+    </mirror>
+  </mirrors>
+</settings>

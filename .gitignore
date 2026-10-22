@@ -25,3 +25,8 @@ scripts/
 docs/
 postman/
 **/docs/
+
+# Frontend build output (W1 housekeeping)
+frontend/dist/
+frontend/node_modules/
+**/node_modules/

@@ -18,8 +18,7 @@ Phase 1 runbook: `k8s/README.md`. This doc covers CI/CD + phase-2 services.
 | `REDIS_PASSWORD` | Shared Redis password |
 | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | MinIO creds (catalog, product, file) |
 
-Values must match the passwords already seeded in compose infra (`docker-compose.yml`
-`${...}` vars) — CD only transports them, it does not rotate.
+Values must match the passwords already seeded in k8s infra secrets (`infra-postgres-secrets`, `infra-mysql-secrets`, ... created from `/opt/eccommerce/.env` per `k8s/infra/README.md` step 1; compose removed 22/10/2026) — CD only transports them, it does not rotate.
 
 ## 2. imagePullSecret creation (one-time, on VPS)
 
@@ -74,11 +73,11 @@ kubectl rollout status deployment/<svc> -n ecommerce
 kubectl rollout history deployment/<svc> -n ecommerce   # pick revision if needed
 ```
 
-Fallback (park K8s workloads, restore compose apps):
+Emergency fallback (compose stopped 22/10/2026, volumes kept until 29/10/2026, compose file still at /opt/eccommerce on VPS):
 
 ```bash
 kubectl scale deploy --all --replicas=0 -n ecommerce
-docker compose --profile apps up -d
+cd /opt/eccommerce && docker compose up -d   # infra profile
 ```
 
 ## 6. Pipelines
@@ -148,12 +147,9 @@ Other services are not touched in either path.
 grep -rEi 'password\s*[:=]\s*[^C]' k8s/   # must only hit CHANGEME placeholders
 ```
 
-## 8. Phase 3 infra migration plan (optional, OFF by default)
+## 8. Phase 3 infra migration — DONE 22/10/2026
 
-Keep compose infra outside the cluster until a second node exists (single-node +
-local-path PVC = disk failure loses data, no better than compose volumes).
-Cutover order: redis → minio → pg/mysql → kafka → keycloak → ES.
-Each cutover: 1 StatefulSet + PVC (local-path) + tested backup before traffic switch
-(`pg_dump`/`mysqldump`/`mc mirror`/ES snapshot/kafka --describe + keycloak realm export).
-Flip service ConfigMaps from `162.4.177.91` to in-cluster DNS only after backup restore
-is verified. Do NOT expose ES via Ingress (keep firewall-restricted NodePort).
+Compose stopped on VPS, infra runs in-cluster (single-node + local-path PVC =
+disk failure loses data; backup via Phase 4 cron pg_dump/mysqldump +
+`mc mirror` to MinIO). Service ConfigMaps use in-cluster DNS; external DEV access
+kept via LoadBalancer ports (memory vps-infra). Do NOT expose ES via Ingress.
