@@ -88,6 +88,28 @@ java -jar services/order-service/target/order-service-0.0.1-SNAPSHOT.jar
 
 Build chỉ module `order-service` với `-am` cũng build parent. Không chạy `spring-boot:run` với `-am` ở root vì parent là project `pom`.
 
+## Maven + Nexus
+
+Parent `pom.xml` khai báo repository `nexus-public` qua HTTP
+(`http://162.4.177.91:18081/repository/maven-public/`). Maven 3.8.1+ chặn mặc định
+mọi repo HTTP ngoài nên build hiện cảnh báo `Blocked mirror for repositories`
+rồi fallback sang Maven Central (build vẫn SUCCESS nhưng chậm hơn và không dùng
+Nexus cache). Nexus DEV không có HTTPS nên không đổi sang HTTPS được.
+
+Copy template 1 lần cho dev local (KHÔNG dùng `.mvn/maven.config` vì CI tự tạo
+`~/.m2/settings.xml` riêng):
+
+```bash
+mkdir -p ~/.m2 && cp maven-settings.xml ~/.m2/settings.xml
+# neu ~/.m2/settings.xml da ton tai, gop phan <mirrors> nay vao
+```
+
+Verify (không còn dòng `Blocked mirror`):
+
+```bash
+mvn -q -DskipTests -pl services/product-service -am compile
+```
+
 ## Gateway
 
 Route ví dụ `/api/catalog/**` → catalog-service, `/api/order/**` → order-service. `StripPrefix=2` loại `/api/catalog`, `/api/order` trước khi chuyển tiếp. Chưa có API đích nên 404 là bình thường; gateway chưa có cơ chế xác thực/phân quyền. `auth-service` cũng chỉ là project rỗng, chưa có đăng nhập/JWT.
