@@ -23,12 +23,29 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationConverter jwtAuthenticationConverter)
+    SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            JwtAuthenticationConverter jwtAuthenticationConverter,
+            com.dtthuan3.ecommerce.authservice.iam.web.InternalServiceAuthFilter internalServiceAuthFilter)
             throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth.requestMatchers(HttpMethod.POST, "/auth/login", "/auth/refresh")
-                        .permitAll()
+                .addFilterBefore(
+                        internalServiceAuthFilter,
+                        org.springframework.security.web.access.intercept.AuthorizationFilter.class)
+                .authorizeHttpRequests(auth -> auth
+                        // P0 (giu o P2): /internal/** chi dung noi bo giua cac service.
+                        // P2 mo them ROLE_INTERNAL: gateway goi kem X-Internal-Token (shared secret
+                        // trong cluster). Public van bi chan vi gateway denyAll /api/*/internal/**.
+                        .requestMatchers("/internal/**")
+                        .hasAnyRole("ADMIN", "INTERNAL")
+                        .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/refresh", "/auth/logout",
+                                        "/auth/register", "/auth/forgot-password")
+                                .permitAll()
+                                .requestMatchers(HttpMethod.GET, "/auth/me")
+                                .authenticated()
+                                .requestMatchers(HttpMethod.POST, "/auth/change-password", "/auth/send-verify-email")
+                                .authenticated()
                         .requestMatchers("/actuator/**")
                         .permitAll()
                         .requestMatchers("/auth/admin/**")

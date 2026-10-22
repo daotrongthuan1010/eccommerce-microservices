@@ -99,14 +99,23 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs}
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://162.4.177.91:7080/realms/ecommerce}
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://162.4.177.91:8761/eureka/}
+iam:
+  enrichment:
+    # P2: enrich X-User-Id / X-Tenant-Id / X-Permissions tu IAM (best-effort, khong chan request).
+    enabled: ${IAM_ENRICHMENT_ENABLED:true}
+    auth-service-url: ${AUTH_SERVICE_URL:lb://auth-service}
+    # Phai trung IAM_INTERNAL_TOKEN cua auth-service. De trong = enrich that bai nhe nhang (403 -> skip).
+    internal-token: ${IAM_INTERNAL_TOKEN:}
+    timeout-ms: ${IAM_ENRICHMENT_TIMEOUT_MS:800}
     registry-fetch-interval-seconds: 15
   instance:
     hostname: ${EUREKA_HOSTNAME:api-gateway}
-    prefer-ip-address: false
+    prefer-ip-address: ${EUREKA_INSTANCE_PREFER_IP_ADDRESS:false}
 management:
   endpoints:
     web:

@@ -1,30 +1,22 @@
+
 package com.dtthuan3.ecommerce.productservice.service;
 
-import com.dtthuan3.ecommerce.productservice.dto.request.AttributeOptionRequest;
-import com.dtthuan3.ecommerce.productservice.dto.request.AttributeRequest;
-import com.dtthuan3.ecommerce.productservice.dto.response.AttributeOptionResponse;
+import com.dtthuan3.ecommerce.productservice.dto.request.AttributeCreateRequest;
+import com.dtthuan3.ecommerce.productservice.dto.request.AttributeUpdateRequest;
 import com.dtthuan3.ecommerce.productservice.dto.response.AttributeResponse;
+
+import java.util.UUID;
 
 public interface AttributeService {
 
-    AttributeResponse create(AttributeRequest request);
+    AttributeResponse create(AttributeCreateRequest request);
 
-    AttributeResponse getById(Long id);
+    AttributeResponse getById(UUID attributeId);
 
-    AttributeResponse update(Long id, AttributeRequest request);
-
-    void delete(Long id);
-
-    AttributeOptionResponse createOption(
-            AttributeOptionRequest request
+    AttributeResponse update(
+            UUID attributeId,
+            AttributeUpdateRequest request
     );
 
-    AttributeOptionResponse getOptionById(Long id);
-
-    AttributeOptionResponse updateOption(
-            Long id,
-            AttributeOptionRequest request
-    );
-
-    void deleteOption(Long id);
+    void deactivate(UUID attributeId);
 }

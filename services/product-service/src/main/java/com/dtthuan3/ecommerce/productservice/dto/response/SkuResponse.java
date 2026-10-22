@@ -2,6 +2,8 @@ package com.dtthuan3.ecommerce.productservice.dto.response;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -9,9 +11,9 @@ import java.time.LocalDateTime;
 @Builder
 public class SkuResponse {
 
-    private Long id;
+    private UUID id;
 
-    private Long variantId;
+    private UUID variantId;
 
     private String skuCode;
 

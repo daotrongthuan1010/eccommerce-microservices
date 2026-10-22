@@ -4,19 +4,20 @@ import com.dtthuan3.ecommerce.productservice.domain.ProductVariant;
 import com.dtthuan3.ecommerce.productservice.dto.request.ProductVariantRequest;
 import com.dtthuan3.ecommerce.productservice.dto.response.ProductVariantResponse;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 
 @Mapper(componentModel = "spring")
 public interface ProductVariantMapper {
 
-    ProductVariant toEntity(
-            ProductVariantRequest request
-    );
+    @Mapping(target = "id", ignore = true)
+    ProductVariant toEntity(ProductVariantRequest request);
 
-    ProductVariantResponse toResponse(
-            ProductVariant entity
-    );
+    ProductVariantResponse toResponse(ProductVariant entity);
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
     void updateEntity(
             ProductVariantRequest request,
             @MappingTarget ProductVariant entity

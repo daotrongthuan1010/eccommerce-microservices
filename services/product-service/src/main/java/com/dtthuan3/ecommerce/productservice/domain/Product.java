@@ -1,8 +1,11 @@
 package com.dtthuan3.ecommerce.productservice.domain;
 
 import com.dtthuan3.ecommerce.productservice.constant.ProductStatus;
+import com.dtthuan3.ecommerce.productservice.mapper.GeneratedUuidV7;
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.util.UUID;
 
 @Entity
 @Table(
@@ -14,10 +17,6 @@ import lombok.*;
                 )
         },
         indexes = {
-                @Index(
-                        name = "idx_product_name",
-                        columnList = "name"
-                ),
                 @Index(
                         name = "idx_product_status",
                         columnList = "status"
@@ -35,7 +34,7 @@ import lombok.*;
                         columnList = "manufacturer_id"
                 ),
                 @Index(
-                        name = "idx_product_attribute_template",
+                        name = "idx_product_template",
                         columnList = "attribute_template_id"
                 )
         }
@@ -46,11 +45,16 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class Product extends BaseEntity {
+
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    private Long id;
+    @GeneratedUuidV7
+    @Column(nullable = false, updatable = false)
+    private UUID id;
 
-
+    /**
+     * Mã nghiệp vụ của Product.
+     * Ví dụ: IPHONE-17.
+     */
     @Column(
             name = "product_code",
             nullable = false,
@@ -58,56 +62,48 @@ public class Product extends BaseEntity {
     )
     private String productCode;
 
-    @Column(
-            nullable = false,
-            length = 255
-    )
-    private String name;
-
-    @Column(
-            name = "short_description",
-            length = 1000
-    )
-    private String shortDescription;
-
-    @Column(columnDefinition = "TEXT")
-    private String description;
-
-    @Column(
-            name = "origin_country",
-            length = 100
-    )
-    private String originCountry;
-
     /**
-     * ID từ catalog-service.
+     * ID Category từ catalog-service.
      */
     @Column(
             name = "category_id",
             nullable = false
     )
-    private Long categoryId;
+    private UUID categoryId;
 
     /**
-     * ID từ catalog-service.
+     * ID Brand từ catalog-service.
      */
     @Column(name = "brand_id")
-    private Long brandId;
+    private UUID brandId;
 
     /**
-     * ID từ catalog-service.
+     * ID Manufacturer từ catalog-service.
      */
     @Column(name = "manufacturer_id")
-    private Long manufacturerId;
+    private UUID manufacturerId;
 
     /**
-     * ID của AttributeTemplate trong product-service.
+     * AttributeTemplate sử dụng cho Product.
      */
     @Column(name = "attribute_template_id")
-    private Long attributeTemplateId;
+    private UUID attributeTemplateId;
+
+    /**
+     * Revision hiện tại đang được chỉnh sửa.
+     */
+    @Column(name = "current_revision_id")
+    private UUID currentRevisionId;
+
+    /**
+     * Revision hiện đang được khách hàng nhìn thấy/bán.
+     */
+    @Column(name = "published_revision_id")
+    private UUID publishedRevisionId;
 
     @Enumerated(EnumType.STRING)
     @Column(
+            name = "status",
             nullable = false,
             length = 30
     )

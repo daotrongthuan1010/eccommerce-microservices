@@ -1,21 +1,26 @@
+
 package com.dtthuan3.ecommerce.productservice.service.impl;
 
-import com.dtthuan3.ecommerce.productservice.dto.request.AttributeOptionRequest;
-import com.dtthuan3.ecommerce.productservice.dto.request.AttributeRequest;
-import com.dtthuan3.ecommerce.productservice.dto.response.AttributeOptionResponse;
-import com.dtthuan3.ecommerce.productservice.dto.response.AttributeResponse;
+import com.dtthuan3.ecommerce.common.exception.BusinessException;
+import com.dtthuan3.ecommerce.common.exception.ErrorCode;
+import com.dtthuan3.ecommerce.common.exception.ResourceNotFoundException;
+import com.dtthuan3.ecommerce.productservice.constant.AttributeDataType;
 import com.dtthuan3.ecommerce.productservice.domain.Attribute;
-import com.dtthuan3.ecommerce.productservice.domain.AttributeOption;
-import com.dtthuan3.ecommerce.productservice.exception.DuplicateResourceException;
-import com.dtthuan3.ecommerce.productservice.exception.ResourceNotFoundException;
+import com.dtthuan3.ecommerce.productservice.dto.request.AttributeCreateRequest;
+import com.dtthuan3.ecommerce.productservice.dto.request.AttributeUpdateRequest;
+import com.dtthuan3.ecommerce.productservice.dto.response.AttributeResponse;
 import com.dtthuan3.ecommerce.productservice.mapper.AttributeMapper;
-import com.dtthuan3.ecommerce.productservice.mapper.AttributeOptionMapper;
 import com.dtthuan3.ecommerce.productservice.repository.AttributeOptionRepository;
 import com.dtthuan3.ecommerce.productservice.repository.AttributeRepository;
+import com.dtthuan3.ecommerce.productservice.repository.ProductAttributeValueRepository;
+import com.dtthuan3.ecommerce.productservice.repository.VariantAttributeValueRepository;
 import com.dtthuan3.ecommerce.productservice.service.AttributeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Locale;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -23,194 +28,130 @@ public class AttributeServiceImpl implements AttributeService {
 
     private final AttributeRepository attributeRepository;
     private final AttributeOptionRepository attributeOptionRepository;
-
+    private final ProductAttributeValueRepository productAttributeValueRepository;
+    private final VariantAttributeValueRepository variantAttributeValueRepository;
     private final AttributeMapper attributeMapper;
-    private final AttributeOptionMapper attributeOptionMapper;
 
     @Override
     @Transactional
-    public AttributeResponse create(AttributeRequest request) {
+    public AttributeResponse create(AttributeCreateRequest request) {
+        String code = normalizeCode(request.code());
 
-        if (attributeRepository.existsByCode(request.getCode())) {
-            throw new DuplicateResourceException(
-                    "Attribute code đã tồn tại: " + request.getCode()
+        if (attributeRepository.existsByCodeIgnoreCase(code)) {
+            throw new BusinessException(
+                    ErrorCode.CONFLICT,
+                    "Mã thuộc tính đã tồn tại"
             );
         }
 
-        Attribute attribute = attributeMapper.toEntity(request);
+        Attribute attribute = Attribute.builder()
+                .name(request.name().trim())
+                .code(code)
+                .dataType(request.dataType())
+                .unit(normalizeUnit(request.unit()))
+                .required(Boolean.TRUE.equals(request.required()))
+                .active(true)
+                .build();
 
-        Attribute saved = attributeRepository.save(attribute);
-
-        return attributeMapper.toResponse(saved);
+        return attributeMapper.toResponse(
+                attributeRepository.save(attribute)
+        );
     }
 
     @Override
     @Transactional(readOnly = true)
-    public AttributeResponse getById(Long id) {
-
-        Attribute attribute = attributeRepository.findById(id)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "Không tìm thấy attribute với id: " + id
-                        )
-                );
-
-        return attributeMapper.toResponse(attribute);
+    public AttributeResponse getById(UUID attributeId) {
+        return attributeMapper.toResponse(getActiveAttribute(attributeId));
     }
 
     @Override
     @Transactional
     public AttributeResponse update(
-            Long id,
-            AttributeRequest request
+            UUID attributeId,
+            AttributeUpdateRequest request
     ) {
+        Attribute attribute = getActiveAttribute(attributeId);
+        String code = normalizeCode(request.code());
 
-        Attribute attribute = attributeRepository.findById(id)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "Không tìm thấy attribute với id: " + id
-                        )
-                );
-
-        if (attributeRepository.existsByCodeAndIdNot(
-                request.getCode(),
-                id
+        if (attributeRepository.existsByCodeIgnoreCaseAndIdNot(
+                code,
+                attributeId
         )) {
-            throw new DuplicateResourceException(
-                    "Attribute code đã tồn tại: " + request.getCode()
+            throw new BusinessException(
+                    ErrorCode.CONFLICT,
+                    "Mã thuộc tính đã được sử dụng"
             );
         }
 
-        attributeMapper.updateEntity(request, attribute);
+        if (attribute.getDataType() != request.dataType()
+                && hasStoredValues(attributeId)) {
+            throw new BusinessException(
+                    ErrorCode.CONFLICT,
+                    "Không thể đổi kiểu dữ liệu vì thuộc tính đã được sử dụng. "
+                            + "Hãy tạo thuộc tính mới và chuyển đổi dữ liệu có kiểm soát."
+            );
+        }
 
-        Attribute updated = attributeRepository.save(attribute);
+        if (attribute.getDataType() != request.dataType()
+                && request.dataType() != AttributeDataType.SELECT
+                && attributeOptionRepository
+                .findByAttributeIdAndActiveTrueOrderByDisplayOrderAscValueAsc(
+                        attributeId
+                ).size() > 0) {
+            throw new BusinessException(
+                    ErrorCode.CONFLICT,
+                    "Không thể chuyển thuộc tính có danh sách lựa chọn "
+                            + "sang kiểu dữ liệu khác khi option còn hoạt động"
+            );
+        }
 
-        return attributeMapper.toResponse(updated);
+        attribute.setName(request.name().trim());
+        attribute.setCode(code);
+        attribute.setDataType(request.dataType());
+        attribute.setUnit(normalizeUnit(request.unit()));
+        attribute.setRequired(Boolean.TRUE.equals(request.required()));
+
+        return attributeMapper.toResponse(
+                attributeRepository.save(attribute)
+        );
     }
 
     @Override
     @Transactional
-    public void delete(Long id) {
+    public void deactivate(UUID attributeId) {
+        Attribute attribute = getActiveAttribute(attributeId);
 
-        Attribute attribute = attributeRepository.findById(id)
+        attribute.setActive(false);
+        attributeRepository.save(attribute);
+    }
+
+    private Attribute getActiveAttribute(UUID attributeId) {
+        return attributeRepository.findByIdAndActiveTrue(attributeId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
-                                "Không tìm thấy attribute với id: " + id
+                                "Attribute",
+                                attributeId
                         )
                 );
-
-        attributeRepository.delete(attribute);
     }
 
-    // =========================
-    // Attribute Option
-    // =========================
+    private boolean hasStoredValues(UUID attributeId) {
+        return productAttributeValueRepository.existsByAttributeId(attributeId)
+                || variantAttributeValueRepository.existsByAttributeId(attributeId);
+    }
 
-    @Override
-    @Transactional
-    public AttributeOptionResponse createOption(
-            AttributeOptionRequest request
-    ) {
-
-        if (!attributeRepository.existsById(request.getAttributeId())) {
-            throw new ResourceNotFoundException(
-                    "Không tìm thấy attribute với id: "
-                            + request.getAttributeId()
+    private String normalizeCode(String code) {
+        if (code == null || code.isBlank()) {
+            throw new BusinessException(
+                    ErrorCode.VALIDATION_ERROR,
+                    "Mã thuộc tính không được để trống"
             );
         }
 
-        if (attributeOptionRepository
-                .existsByAttributeIdAndValue(
-                        request.getAttributeId(),
-                        request.getValue()
-                )) {
-
-            throw new DuplicateResourceException(
-                    "Option đã tồn tại trong attribute"
-            );
-        }
-
-        AttributeOption option =
-                attributeOptionMapper.toEntity(request);
-
-        AttributeOption saved =
-                attributeOptionRepository.save(option);
-
-        return attributeOptionMapper.toResponse(saved);
+        return code.trim().toLowerCase(Locale.ROOT);
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public AttributeOptionResponse getOptionById(Long id) {
-
-        AttributeOption option =
-                attributeOptionRepository.findById(id)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Không tìm thấy attribute option với id: "
-                                                + id
-                                )
-                        );
-
-        return attributeOptionMapper.toResponse(option);
-    }
-
-    @Override
-    @Transactional
-    public AttributeOptionResponse updateOption(
-            Long id,
-            AttributeOptionRequest request
-    ) {
-
-        AttributeOption option =
-                attributeOptionRepository.findById(id)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Không tìm thấy attribute option với id: "
-                                                + id
-                                )
-                        );
-
-        if (!attributeRepository.existsById(request.getAttributeId())) {
-            throw new ResourceNotFoundException(
-                    "Không tìm thấy attribute với id: "
-                            + request.getAttributeId()
-            );
-        }
-
-        if (attributeOptionRepository
-                .existsByAttributeIdAndValueAndIdNot(
-                        request.getAttributeId(),
-                        request.getValue(),
-                        id
-                )) {
-
-            throw new DuplicateResourceException(
-                    "Option đã tồn tại trong attribute"
-            );
-        }
-
-        attributeOptionMapper.updateEntity(request, option);
-
-        AttributeOption updated =
-                attributeOptionRepository.save(option);
-
-        return attributeOptionMapper.toResponse(updated);
-    }
-
-    @Override
-    @Transactional
-    public void deleteOption(Long id) {
-
-        AttributeOption option =
-                attributeOptionRepository.findById(id)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Không tìm thấy attribute option với id: "
-                                                + id
-                                )
-                        );
-
-        attributeOptionRepository.delete(option);
+    private String normalizeUnit(String unit) {
+        return unit == null || unit.isBlank() ? null : unit.trim();
     }
 }

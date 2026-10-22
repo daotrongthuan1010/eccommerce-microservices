@@ -8,6 +8,8 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 
+import java.util.UUID;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -17,7 +19,7 @@ public class SkuMediaRequest {
 
     @NotNull(message = "ID SKU không được để trống")
     @Positive(message = "ID SKU phải lớn hơn 0")
-    private Long skuId;
+    private UUID skuId;
 
     @NotNull(message = "Loại media không được để trống")
     private MediaType mediaType;

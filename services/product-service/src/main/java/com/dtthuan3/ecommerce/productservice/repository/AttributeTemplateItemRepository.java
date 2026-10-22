@@ -1,3 +1,4 @@
+
 package com.dtthuan3.ecommerce.productservice.repository;
 
 import com.dtthuan3.ecommerce.productservice.domain.AttributeTemplateItem;
@@ -5,31 +6,35 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface AttributeTemplateItemRepository
-        extends JpaRepository<AttributeTemplateItem, Long> {
+        extends JpaRepository<AttributeTemplateItem, UUID> {
 
-    List<AttributeTemplateItem> findByTemplateId(Long templateId);
+    List<AttributeTemplateItem>
+    findAllByTemplateIdAndActiveTrueOrderByDisplayOrderAsc(UUID templateId);
 
-    List<AttributeTemplateItem> findByTemplateIdAndActiveTrue(
-            Long templateId
+    Optional<AttributeTemplateItem> findByIdAndTemplateId(
+            UUID id,
+            UUID templateId
     );
 
     Optional<AttributeTemplateItem> findByTemplateIdAndAttributeId(
-            Long templateId,
-            Long attributeId
+            UUID templateId,
+            UUID attributeId
     );
 
+
     boolean existsByTemplateIdAndAttributeId(
-            Long templateId,
-            Long attributeId
+            UUID templateId,
+            UUID attributeId
     );
 
     boolean existsByTemplateIdAndAttributeIdAndIdNot(
-            Long templateId,
-            Long attributeId,
-            Long id
+            UUID templateId,
+            UUID attributeId,
+            UUID id
     );
 
-    void deleteByTemplateId(Long templateId);
+    boolean existsByAttributeId(UUID attributeId);
 }

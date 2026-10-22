@@ -1,40 +1,32 @@
 package com.dtthuan3.ecommerce.productservice.dto.response;
 
 import com.dtthuan3.ecommerce.productservice.constant.ProductStatus;
-import lombok.*;
+import lombok.Builder;
+import lombok.Getter;
 
-import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class ProductResponse {
 
-    private Long id;
+    private UUID id;
 
     private String productCode;
 
-    private String name;
+    private UUID categoryId;
 
-    private String shortDescription;
+    private UUID brandId;
 
-    private String description;
+    private UUID manufacturerId;
 
-    private String originCountry;
+    private UUID attributeTemplateId;
 
-    private Long categoryId;
+    private UUID currentRevisionId;
 
-    private Long brandId;
-
-    private Long manufacturerId;
-
-    private Long attributeTemplateId;
+    private UUID publishedRevisionId;
 
     private ProductStatus status;
 
-    private LocalDateTime createdAt;
-
-    private LocalDateTime updatedAt;
+    private ProductRevisionResponse currentRevision;
 }

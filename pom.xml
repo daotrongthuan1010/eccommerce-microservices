@@ -14,6 +14,38 @@
     <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
     <nexus.url>http://162.4.177.91:18081</nexus.url>
   </properties>
+  <repositories>
+    <repository>
+      <id>nexus-public</id>
+      <name>Nexus Public (central proxy + snapshots/releases)</name>
+      <url>${nexus.url}/repository/maven-public/</url>
+      <releases><enabled>true</enabled></releases>
+      <snapshots><enabled>true</enabled></snapshots>
+    </repository>
+    <repository>
+      <id>maven-central-fallback</id>
+      <name>Maven Central (fallback khi Nexus proxy thieu artifact)</name>
+      <url>https://repo.maven.apache.org/maven2</url>
+      <releases><enabled>true</enabled></releases>
+      <snapshots><enabled>false</enabled></snapshots>
+    </repository>
+  </repositories>
+  <pluginRepositories>
+    <pluginRepository>
+      <id>nexus-public</id>
+      <name>Nexus Public</name>
+      <url>${nexus.url}/repository/maven-public/</url>
+      <releases><enabled>true</enabled></releases>
+      <snapshots><enabled>true</enabled></snapshots>
+    </pluginRepository>
+    <pluginRepository>
+      <id>maven-central-fallback</id>
+      <name>Maven Central (fallback khi Nexus proxy thieu artifact)</name>
+      <url>https://repo.maven.apache.org/maven2</url>
+      <releases><enabled>true</enabled></releases>
+      <snapshots><enabled>false</enabled></snapshots>
+    </pluginRepository>
+  </pluginRepositories>
   <distributionManagement>
     <repository>
       <id>nexus-releases</id>

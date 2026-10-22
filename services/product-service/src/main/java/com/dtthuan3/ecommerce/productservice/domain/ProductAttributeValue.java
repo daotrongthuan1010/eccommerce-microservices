@@ -1,27 +1,29 @@
 package com.dtthuan3.ecommerce.productservice.domain;
 
+import com.dtthuan3.ecommerce.productservice.mapper.GeneratedUuidV7;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.UUID;
 
 @Entity
 @Table(
         name = "product_attribute_values",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_product_attribute",
+                        name = "uk_revision_attribute",
                         columnNames = {
-                                "product_id",
+                                "revision_id",
                                 "attribute_id"
                         }
                 )
         },
         indexes = {
                 @Index(
-                        name = "idx_product_attribute_product",
-                        columnList = "product_id"
+                        name = "idx_product_attribute_revision",
+                        columnList = "revision_id"
                 ),
                 @Index(
                         name = "idx_product_attribute_attribute",
@@ -39,35 +41,33 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @Builder
 public class ProductAttributeValue extends BaseEntity {
+//Giá trị thuộc tính sản phẩm
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    private Long id;
+    @GeneratedUuidV7
+    @Column(nullable = false, updatable = false)
+    private UUID id;
 
-
+    /**
+     * Revision chứa giá trị attribute này.
+     */
     @Column(
-            name = "product_id",
+            name = "revision_id",
             nullable = false
     )
-    private Long productId;
+    private UUID revisionId;
 
     @Column(
             name = "attribute_id",
             nullable = false
     )
-    private Long attributeId;
+    private UUID attributeId;
 
-    /**
-     * TEXT
-     */
     @Column(
             name = "value_text",
             columnDefinition = "TEXT"
     )
     private String valueText;
 
-    /**
-     * NUMBER
-     */
     @Column(
             name = "value_number",
             precision = 20,
@@ -75,23 +75,15 @@ public class ProductAttributeValue extends BaseEntity {
     )
     private BigDecimal valueNumber;
 
-    /**
-     * DATE
-     */
     @Column(name = "value_date")
     private LocalDate valueDate;
 
-    /**
-     * BOOLEAN
-     */
     @Column(name = "value_boolean")
     private Boolean valueBoolean;
 
     /**
-     * SELECT
-     *
-     * ID của AttributeOption.
+     * Dùng khi AttributeDataType = SELECT.
      */
     @Column(name = "option_id")
-    private Long optionId;
+    private UUID optionId;
 }

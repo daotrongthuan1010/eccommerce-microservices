@@ -31,7 +31,8 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/me")
                         .authenticated()
-                        .requestMatchers("/users/admin/**")
+                        // Gateway strip /api/user -> /admin/... (StripPrefix=2), khong phai /users/admin/**.
+                        .requestMatchers("/admin/**")
                         .hasRole("ADMIN")
                         .anyRequest()
                         .authenticated())

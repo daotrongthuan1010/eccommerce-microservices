@@ -123,7 +123,7 @@ inventory:
     outbox-retention: ${INVENTORY_EVENT_OUTBOX_RETENTION:PT720H}
     outbox-cleanup-delay-ms: ${INVENTORY_EVENT_OUTBOX_CLEANUP_DELAY_MS:86400000}
     outbox-metrics-refresh-ms: ${INVENTORY_EVENT_OUTBOX_METRICS_REFRESH_MS:10000}
-    inbox-retention: ${INVENTORY_EVENT_INBOX_RETENTION:PT90D}
+    inbox-retention: ${INVENTORY_EVENT_INBOX_RETENTION:P90D}
     inbox-cleanup-delay-ms: ${INVENTORY_EVENT_INBOX_CLEANUP_DELAY_MS:86400000}
 
 eureka:

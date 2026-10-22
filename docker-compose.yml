@@ -187,6 +187,10 @@ services:
     command:
     - kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ecommerce.auth.events --partitions 3 --replication-factor 1;
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ecommerce.user.events --partitions 3 --replication-factor 1;
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic product-events --partitions 3 --replication-factor 1;
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic product-events.DLT --partitions 3 --replication-factor 1;
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic inventory-stock-movement-events --partitions 3 --replication-factor 1;
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic inventory-transfer-events --partitions 3 --replication-factor 1;
       kafka-topics --bootstrap-server kafka:29092 --list
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
@@ -577,7 +581,7 @@ services:
       INVENTORY_EVENT_OUTBOX_BATCH_SIZE: ${INVENTORY_EVENT_OUTBOX_BATCH_SIZE:-100}
       INVENTORY_EVENT_OUTBOX_LEASE: ${INVENTORY_EVENT_OUTBOX_LEASE:-PT3M}
       INVENTORY_EVENT_OUTBOX_RETENTION: ${INVENTORY_EVENT_OUTBOX_RETENTION:-PT720H}
-      INVENTORY_EVENT_INBOX_RETENTION: ${INVENTORY_EVENT_INBOX_RETENTION:-PT90D}
+      INVENTORY_EVENT_INBOX_RETENTION: ${INVENTORY_EVENT_INBOX_RETENTION:-P90D}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-0.1}
       DEPLOYMENT_ENV: ${DEPLOYMENT_ENV:-production}
       DB_URL: jdbc:postgresql://162.4.177.91:5432/inventory_db
@@ -973,7 +977,7 @@ services:
       EUREKA_SERVER_URL: http://discovery-service:8761/eureka/
       EUREKA_HOSTNAME: file-service
       ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
-      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/ecommerce/protocol/openid-connect/certs
+      KEYCLOAK_JWK_SET_URI: http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs
     mem_limit: 512m
     healthcheck:
       test:

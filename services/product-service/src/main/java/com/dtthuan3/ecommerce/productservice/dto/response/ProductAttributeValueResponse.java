@@ -5,6 +5,8 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.UUID;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -12,11 +14,11 @@ import java.time.LocalDateTime;
 @Builder
 public class ProductAttributeValueResponse {
 
-    private Long id;
+    private UUID id;
 
-    private Long productId;
+    private UUID productId;
 
-    private Long attributeId;
+    private UUID attributeId;
 
     private String valueText;
 
@@ -26,7 +28,7 @@ public class ProductAttributeValueResponse {
 
     private Boolean valueBoolean;
 
-    private Long optionId;
+    private UUID optionId;
 
     private LocalDateTime createdAt;
 

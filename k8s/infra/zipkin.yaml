@@ -1,0 +1,60 @@
+# Port of docker-compose.yml `zipkin` (openzipkin/zipkin:3.4.1, stateless).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zipkin
+  namespace: ecommerce
+  labels:
+    app: zipkin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zipkin
+  template:
+    metadata:
+      labels:
+        app: zipkin
+    spec:
+      containers:
+        - name: zipkin
+          image: openzipkin/zipkin:3.4.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 9411
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+# LoadBalancer (k3s Klipper lb) exposes the compose port 9411 on the node IP,
+# preserving the DEV 0.0.0.0 public-access behavior from vps-infra memory.
+apiVersion: v1
+kind: Service
+metadata:
+  name: zipkin
+  namespace: ecommerce
+  labels:
+    app: zipkin
+spec:
+  type: LoadBalancer
+  selector:
+    app: zipkin
+  ports:
+    - name: http
+      port: 9411
+      targetPort: http

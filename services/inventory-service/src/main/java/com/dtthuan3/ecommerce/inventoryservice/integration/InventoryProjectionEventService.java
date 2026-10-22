@@ -34,7 +34,7 @@ public class InventoryProjectionEventService {
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
 
-    @Value("${inventory.kafka.inbox-retention:PT90D}")
+    @Value("${inventory.kafka.inbox-retention:P90D}")
     private Duration inboxRetention;
 
     /** Đăng ký event trước trong transaction; projection lỗi sẽ rollback cả dấu inbox. */

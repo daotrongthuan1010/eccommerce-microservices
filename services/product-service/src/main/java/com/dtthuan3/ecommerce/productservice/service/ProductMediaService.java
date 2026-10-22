@@ -1,35 +1,46 @@
 package com.dtthuan3.ecommerce.productservice.service;
 
-import com.dtthuan3.ecommerce.productservice.dto.request.ProductMediaRequest;
-import com.dtthuan3.ecommerce.productservice.dto.request.SkuMediaRequest;
 import com.dtthuan3.ecommerce.productservice.dto.response.ProductMediaResponse;
 import com.dtthuan3.ecommerce.productservice.dto.response.SkuMediaResponse;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.UUID;
 
 public interface ProductMediaService {
 
-    ProductMediaResponse createProductMedia(
-            ProductMediaRequest request
+    ProductMediaResponse uploadProductMedia(
+            UUID productId,
+            UUID revisionId,
+            MultipartFile file,
+            Integer displayOrder,
+            Boolean primary
     );
 
-    ProductMediaResponse getProductMediaById(Long id);
+    ProductMediaResponse getProductMediaById(UUID id);
 
     ProductMediaResponse updateProductMedia(
-            Long id,
-            ProductMediaRequest request
+            UUID id,
+            Integer displayOrder,
+            Boolean primary
     );
 
-    void deleteProductMedia(Long id);
+    void deleteProductMedia(UUID id);
 
-    SkuMediaResponse createSkuMedia(
-            SkuMediaRequest request
+    SkuMediaResponse uploadSkuMedia(
+            UUID skuId,
+            UUID revisionId,
+            MultipartFile file,
+            Integer displayOrder,
+            Boolean primary
     );
 
-    SkuMediaResponse getSkuMediaById(Long id);
+    SkuMediaResponse getSkuMediaById(UUID id);
 
     SkuMediaResponse updateSkuMedia(
-            Long id,
-            SkuMediaRequest request
+            UUID id,
+            Integer displayOrder,
+            Boolean primary
     );
 
-    void deleteSkuMedia(Long id);
+    void deleteSkuMedia(UUID id);
 }

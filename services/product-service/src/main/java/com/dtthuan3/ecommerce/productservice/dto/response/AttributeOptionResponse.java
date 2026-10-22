@@ -1,25 +1,13 @@
+
 package com.dtthuan3.ecommerce.productservice.dto.response;
-import lombok.*;
 
-import java.time.LocalDateTime;
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class AttributeOptionResponse {
+import java.util.UUID;
 
-    private Long id;
-
-    private Long attributeId;
-
-    private String value;
-
-    private Integer displayOrder;
-
-    private Boolean active;
-
-    private LocalDateTime createdAt;
-
-    private LocalDateTime updatedAt;
+public record AttributeOptionResponse(
+        UUID id,
+        UUID attributeId,
+        String value,
+        Integer displayOrder,
+        Boolean active
+) {
 }
