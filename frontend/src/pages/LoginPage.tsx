@@ -36,7 +36,9 @@ export default function LoginPage() {
           }
         }
         await keycloak.login();
-      } catch {
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('[login] keycloak init failed:', e);
         if (!cancelled) setFailed(true);
       }
     })();
