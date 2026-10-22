@@ -1,6 +1,8 @@
 import { Layout, Menu } from 'antd';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
+import { logout } from '../features/auth/authSlice';
+import logoUrl from '../assets/logo.png';
 
 const { Header, Sider, Content } = Layout;
 
@@ -32,7 +34,10 @@ export default function AppLayout() {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider breakpoint="lg" collapsedWidth="0">
-        <div style={{ color: '#fff', padding: 16, fontWeight: 600 }}>Ecommerce</div>
+        <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <img src={logoUrl} alt="Ecommerce logo" style={{ height: 32 }} />
+          <span style={{ color: '#fff', fontWeight: 600 }}>Ecommerce</span>
+        </div>
         <Menu theme="dark" mode="inline" selectedKeys={[location.pathname]} items={items} />
       </Sider>
       <Layout>
@@ -42,8 +47,7 @@ export default function AppLayout() {
               <span>{username}</span>
               <a
                 onClick={() => {
-                  dispatch({ type: 'auth/loggedOut' });
-                  navigate('/login');
+                  void dispatch(logout()).finally(() => navigate('/login'));
                 }}
               >
                 Dang xuat

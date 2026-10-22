@@ -1,6 +1,7 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { api } from '../../app/api';
+import keycloak from './keycloak';
 
 // FE_API_CONTRACT §1 + FE_AUTH_GATEWAY §2-§3: memory-only tokens, login
 // proxy password-grant sang Keycloak (Map tho, KHONG envelope).
@@ -196,6 +197,7 @@ export const changePassword = createAsyncThunk<
 });
 
 // real 2026-10-22: POST /api/auth/logout (best-effort, luon xoa token local)
+// + keycloak.logout() de thoat SSO Keycloak.
 export const logout = createAsyncThunk<void, void, { state: { auth: AuthState } }>(
   'auth/logout',
   async (_, { getState }) => {
@@ -204,6 +206,13 @@ export const logout = createAsyncThunk<void, void, { state: { auth: AuthState } 
       await api.post('/auth/logout', { refreshToken: rt });
     } catch {
       // best-effort: van clear token local
+    }
+    try {
+      if (keycloak.authenticated) {
+        await keycloak.logout({ redirectUri: `${window.location.origin}/login` });
+      }
+    } catch {
+      // best-effort: Keycloak logout that bai van clear token local
     }
   },
 );
@@ -218,6 +227,14 @@ const authSlice = createSlice({
       state.roles = [];
       state.username = null;
       state.status = 'idle';
+      state.error = null;
+    },
+    // Keycloak SSO login thanh cong: dua tokens vao memory, me se lay sau
+    // qua fetchMe (GET /api/auth/me Bearer, giu normalizeRoles).
+    keycloakAuthenticated(state, action: PayloadAction<TokenMap>) {
+      state.accessToken = action.payload.access_token;
+      state.refreshToken = action.payload.refresh_token;
+      state.status = 'loading';
       state.error = null;
     },
     refreshed(state, action: PayloadAction<TokenMap>) {
@@ -280,5 +297,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { loggedOut, refreshed } = authSlice.actions;
+export const { loggedOut, refreshed, keycloakAuthenticated } = authSlice.actions;
 export default authSlice.reducer;

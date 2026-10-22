@@ -26,7 +26,10 @@
       "serviceAccountsEnabled": false,
       "redirectUris": [
         "http://localhost:8080/*",
-        "http://localhost:3000/*"
+        "http://localhost:3000/*",
+        "http://localhost:5173/*",
+        "http://162.4.177.91/*",
+        "http://162.4.177.91:80/*"
       ],
       "webOrigins": ["*"],
       "fullScopeAllowed": true

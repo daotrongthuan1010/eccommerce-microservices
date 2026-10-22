@@ -241,6 +241,7 @@ jobs:
         working-directory: frontend
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'http://162.4.177.91/api' }}
+          VITE_KEYCLOAK_URL: ${{ vars.VITE_KEYCLOAK_URL || 'http://162.4.177.91:7080' }}
         run: npm run build
 
       - name: Set up Docker Buildx
@@ -257,6 +258,8 @@ jobs:
         with:
           context: .
           file: frontend/Dockerfile
-          build-args: VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL || 'http://162.4.177.91/api' }}
+          build-args: |
+            VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL || 'http://162.4.177.91/api' }}
+            VITE_KEYCLOAK_URL=${{ vars.VITE_KEYCLOAK_URL || 'http://162.4.177.91:7080' }}
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/frontend:${{ github.sha }}

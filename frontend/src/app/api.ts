@@ -1,5 +1,6 @@
 import axios, { type AxiosRequestConfig } from 'axios';
 import { store } from './store';
+import keycloak from '../features/auth/keycloak';
 
 // FE_AUTH_GATEWAY §4 — axios instance duy nhat, memory tokens, single-flight refresh.
 export const apiBaseUrl: string =
@@ -22,6 +23,23 @@ api.interceptors.response.use(
     if (err.response?.status === 401 && !orig._retried) {
       orig._retried = true;
       refreshing ??= (async () => {
+        // SSO Keycloak: silent refresh qua keycloak.updateToken truoc,
+        // fallback sang POST /auth/refresh (password-grant cu).
+        if (keycloak.authenticated) {
+          try {
+            await keycloak.updateToken(30);
+            if (keycloak.token && keycloak.refreshToken) {
+              const tokens = {
+                access_token: keycloak.token,
+                refresh_token: keycloak.refreshToken,
+              };
+              store.dispatch({ type: 'auth/refreshed', payload: tokens });
+              return tokens.access_token as string;
+            }
+          } catch {
+            // roi xuong fallback /auth/refresh
+          }
+        }
         const rt = (store.getState() as { auth?: { refreshToken?: string | null } }).auth
           ?.refreshToken;
         const { data } = await axios.post(`${apiBaseUrl}/auth/refresh`, { refreshToken: rt });
