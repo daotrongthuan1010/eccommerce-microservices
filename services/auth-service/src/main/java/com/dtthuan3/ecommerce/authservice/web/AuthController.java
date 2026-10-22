@@ -174,6 +174,8 @@ public class AuthController {
     /**
      * Profile hien tai (thong nhat qua gateway: GET /api/auth/me).
      * Cung shape voi user-service /me de client dung 1 cach doc.
+     * Gateway route auth-service StripPrefix=1 nen giu prefix /auth o day
+     * (FE SSO bat buoc can endpoint nay sau khi doi token).
      */
     @GetMapping(value = "/me", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("isAuthenticated()")
