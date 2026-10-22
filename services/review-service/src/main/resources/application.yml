@@ -82,7 +82,7 @@ spring:
 eureka:
   client:
     service-url:
-      defaultZone: ${EUREKA_SERVER_URL:http://162.4.177.91:8761/eureka/}
+      defaultZone: http://discovery-service:8761/eureka/
 
     registry-fetch-interval-seconds: 15
 

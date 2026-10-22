@@ -15,32 +15,43 @@ import java.util.List;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL) // Tự động loại bỏ các trường null khi parse ra JSON
 public class ReviewResponse {
-
-    // --- Thông tin định danh ---
     private String id;
     private String productId;
+    /** Chỉ trả cho chủ review / kiểm duyệt viên. */
+    private String lineId;
+    /** Revision đang xem (kiểm duyệt viên dùng để ra quyết định). */
+    private String revisionId;
 
-    // --- Nội dung đánh giá (Lấy từ Revision & Image) ---
     private Integer rating;
     private String content;
-    private List<String> images; // Danh sách các fileId hoặc URL ảnh
+    private List<ReviewMediaResponse> media;
 
-    // --- Thông tin hiển thị ---
     private String reviewerDisplayName;
-    private Boolean verifiedPurchase; // Cờ đánh dấu "Đã mua hàng"
+    private Boolean anonymous;
+    /** Nhãn "đã mua". */
+    private Boolean verifiedPurchase;
 
-    // --- Trạng thái & Tương tác ---
     private String status;
+    /** Trạng thái của revision đang xem (PENDING_MODERATION/APPROVED/REJECTED/SUPERSEDED). */
+    private String revisionStatus;
     private Integer revisionNo;
     private Integer helpfulCount;
-    private ReviewReplyDto reply; // Phản hồi của doanh nghiệp
+    private List<ReviewReplyDto> replies;
 
-    // --- Thời gian ---
+    /** Lý do bị từ chối - chỉ chủ review và kiểm duyệt viên thấy. */
+    private String rejectionReasonCode;
+    private String rejectionReasonNote;
+
+    /** Còn sửa được không (còn hạn, chưa quá số lần). Chỉ trả cho chủ review. */
+    private Boolean canEdit;
+    /** Có bản sửa đang chờ duyệt không. Chỉ trả cho chủ review. */
+    private Boolean pendingRevision;
+
     private LocalDateTime submittedAt;
     private LocalDateTime publishedAt;
     private LocalDateTime editableUntil;
 
-    // --- Version để kiểm soát Update ---
+    /** Version để gửi lại khi cập nhật (optimistic locking). */
     private Long version;
 
     @Data
@@ -48,6 +59,7 @@ public class ReviewResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ReviewReplyDto {
+        private String id;
         private String content;
         private LocalDateTime publishedAt;
     }
