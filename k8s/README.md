@@ -100,11 +100,12 @@ kubectl rollout undo deployment/<svc> -n ecommerce
 kubectl rollout status deployment/<svc> -n ecommerce
 ```
 
-Fallback (park K8s workloads, restore compose apps):
+Emergency fallback (compose stopped 22/10/2026, volumes kept until 29/10/2026,
+compose file still at /opt/eccommerce on VPS):
 
 ```bash
 kubectl scale deploy --all --replicas=0 -n ecommerce
-docker compose --profile apps up -d
+cd /opt/eccommerce && docker compose up -d   # infra profile
 ```
 
 ## 6. Secret inventory (names only, no values)
@@ -121,10 +122,17 @@ docker compose --profile apps up -d
 
 ## 7. Monitoring + TLS (P1/P2 note)
 
-- Monitoring toi thieu hien tai = compose: Prometheus (infra/prometheus/prometheus.yml
-  + rules/) + Grafana. Chua port sang k8s vi RAM VPS 13/15GB — neu port, dung
-  manifests gon (retention 7d, resource requests nho) hoac giu compose hien co.
+- Monitoring: Prometheus/Grafana compose đã dừng cùng Phase 3 cutover; port lên
+  k8s theo Phase 4 (Loki + Promtail ~500Mi, Tempo thay Zipkin ~300Mi, giữ
+  Prometheus/Grafana; xem `k8s/infra/` + nguồn config `infra/prometheus/`,
+  `infra/grafana/`, `infra/loki/`, `infra/promtail/`).
 - Traefik smoke di qua port 80 (entryPoint web), KHONG phai 8080.
+- Kafka fix notes (đã áp trong `k8s/infra/kafka.yaml`, đừng revert):
+  `enableServiceLinks: false` (tránh env `KAFKA_PORT` do Service cùng tên inject
+  làm confluent entrypoint exit 1), Service `kafka` headless (`clusterIP: None` +
+  `publishNotReadyAddresses: true`) — ClusterIP thường deadlock KRaft single-node
+  vì readiness probe đi qua advertised listener `kafka:29092`. Controller voter
+  `1@localhost:29093` — localhost cố ý (quorum nội pod, không qua DNS).
 - TLS/issuer sau DEV: hien tai issuer-uri = http://162.4.177.91:7080/... (plain HTTP,
-  DEV public). Khi siet TLS, doi KEYCLOAK_*_URI sang https + cap nhat ConfigMap
-  auth/gateway, rollout restart ca hai.
+  DEV public). Khi siet TLS (Phase 4 cert-manager + Let's Encrypt), doi KEYCLOAK_*_URI
+  sang https + cap nhat ConfigMap auth/gateway, rollout restart ca hai.

@@ -1,6 +1,10 @@
-# Ecommerce microservices — infrastructure & project scaffold
+# Ecommerce microservices — k8s fullstack (VPS 162.4.177.91)
 
-Khung dự án cho với công nghệ Java 21, Maven multi-module, Spring Boot 3.5.6, Spring Cloud 2025.0.0. Không có controller nghiệp vụ, entity, repository, migration bảng, Kafka producer/consumer hay xử lý giao dịch. Mỗi service chỉ có lớp `Application` để chạy Spring Boot và file cấu hình. Gateway có route cấu hình; các URL nghiệp vụ trả 404 cho đến khi bạn triển khai API.
+Khung dự án Java 21, Maven multi-module, Spring Boot 3.5.6, Spring Cloud 2025.0.0.
+Runtime duy nhất: **k3s** namespace `ecommerce` trên VPS `162.4.177.91`
+(SSH `ssh -p 24700 -i C:/Users/ADMIN/.ssh/vps_eccommerce root@162.4.177.91`).
+Docker Compose đã cắt hoàn toàn (Phase 3, 22/10/2026) — volumes compose cũ được
+giữ 7 ngày trên VPS rồi xóa. Không còn `docker-compose.yml` trong repo.
 
 ## Phân chia service và dữ liệu
 
@@ -15,68 +19,78 @@ Khung dự án cho với công nghệ Java 21, Maven multi-module, Spring Boot 3
 | payment-service | 8086 | MySQL | payment_db / payment_user |
 | notification-service | 8087 | PostgreSQL | notification_db / notification_user |
 | search-service | 8088 | Elasticsearch | Chưa tạo index/mapping |
+| product-service | 8092 | PostgreSQL, MinIO | product_db / product_user |
+| review-service | 8093 | PostgreSQL | review_db / review_user |
+| analytics-service | 8094 | PostgreSQL | analytics_db / analytics_user |
+| file-service | 8095 | MinIO, ClamAV | — |
+| discovery-service | 8761 | Eureka server | — |
 
-Tất cả service backend đã có dependency và cấu hình Kafka/Redis. Không dùng DB chung giữa các service; các DB riêng dùng chung instance MySQL/PostgreSQL để tiện phát triển. Search dùng Elasticsearch làm kho tìm kiếm, không thay thế dữ liệu giao dịch của catalog/order. Chưa có đồng bộ catalog → Elasticsearch.
+Tất cả service backend đã có dependency và cấu hình Kafka/Redis. Không dùng DB chung
+giữa các service; các DB riêng dùng chung instance MySQL/PostgreSQL. Search dùng
+Elasticsearch làm kho tìm kiếm, không thay thế dữ liệu giao dịch của catalog/order.
 
-## Chạy với Docker Compose
+## Deploy (luồng duy nhất)
 
-Cài Docker Engine/Docker Desktop với **Compose v2** và BuildKit. Docker build cung cấp Java 21/Maven nên không cần cài Java trên máy nếu chạy toàn bộ bằng Docker. Khuyến nghị dành 8–12 GB RAM cho Docker khi chạy đủ stack.
-
-Linux/macOS/Git Bash:
-
-```bash
-cp .env.example .env
-docker compose config --quiet
-# Chỉ chạy hạ tầng; minio-init tự tạo bucket product-assets
-docker compose up -d --wait
-# Chạy cả 9 project (lần đầu cần tải dependency và build)
-docker compose --profile apps up -d --build --wait --wait-timeout 600
-docker compose --profile apps ps
-```
-
-PowerShell trên Windows:
-
-```powershell
-Copy-Item .env.example .env
-docker compose config --quiet
-docker compose --profile apps up -d --build --wait --wait-timeout 600
-docker compose --profile apps ps
-```
-
-`.env.example` có mật khẩu **mẫu dành riêng cho local**. Có thể đổi trước lần chạy đầu; `.env` không được commit. Nếu mật khẩu chứa `$`, dùng giá trị được đặt trong dấu nháy đơn theo cú pháp dotenv của Compose. Các cổng publish chỉ bind `127.0.0.1`.
-
-Kiểm tra:
+GitHub Actions CI (build image per-service, tag SHA + alias develop/latest, push
+Docker Hub `daotrongthuan`) → CD per-service (scp `k8s/<dir>/` lên VPS,
+`kubectl apply`, rollout status, smoke). Chi tiết: `k8s/README.md`, `k8s/CI-CD.md`.
 
 ```bash
-curl --fail http://localhost:8080/actuator/health
-curl --fail http://localhost:8083/actuator/health
-bash scripts/smoke.sh
-docker compose logs --tail=100 catalog-service
+# Trên VPS — kiểm tra nhanh
+kubectl -n ecommerce get pods            # kỳ vọng 14/14 Running + infra Running
+curl -fsS http://162.4.177.91/actuator/health
 ```
 
-PowerShell: `Invoke-RestMethod http://localhost:8083/actuator/health`. JDBC health của các service SQL kiểm tra kết nối DB; search health kiểm tra Elasticsearch và Redis. Không có Kafka/MinIO health indicator ở mức ứng dụng vì chưa viết client; dùng các lệnh hạ tầng trong `docs/OPERATIONS.md`. MinIO hiện chỉ có cấu hình `storage.minio.*`, chưa có SDK/bean upload/download.
+Cửa ngõ duy nhất từ ngoài: **Traefik port 80 → api-gateway**. Không mở từng port
+8081-8088 ra public.
 
-## Địa chỉ kết nối
+## Frontend (`frontend/` — Vite + React + RTK Query + AntD)
 
-| Hạ tầng | Từ máy host/IDE | Từ container |
+SPA duy nhất gọi **1 origin**: `VITE_API_BASE_URL=http://162.4.177.91/api`
+(Traefik :80 → api-gateway). `VITE_*` là **build-time** — đổi URL phải build
+lại image với `--build-arg VITE_API_BASE_URL=...` (ConfigMap runtime không có
+tác dụng). Docs hợp đồng: `docs/FE_API_CONTRACT.md` (path gateway, envelope
+`ApiResponse`, doubled-prefix inventory/product/review), `docs/FE_AUTH_GATEWAY.md`
+(login/refresh/guards), `docs/FE_SCAFFOLD.md` (cây thư mục, Dockerfile, k8s).
+
+```bash
+cd frontend && npm ci && npm run typecheck && npm run build
+VITE_API_BASE_URL=http://162.4.177.91/api npm run dev   # http://localhost:5173
+```
+
+5 service rỗng (order/payment/notification/search/analytics) FE dùng mock
+`src/mocks/` — không gọi API thật (BE trả 404). Deploy: CI job `frontend`
+→ CD wave leaf `frontend-leaf` (sau review/analytics), image
+`daotrongthuan/frontend:<sha>`, manifests `k8s/frontend/`.
+
+## Địa chỉ kết nối (in-cluster DNS)
+
+| Hạ tầng | Từ pod trong cluster | Từ ngoài (DEV public) |
 |---|---|---|
-| PostgreSQL | localhost:5432 | postgres:5432 |
-| MySQL | localhost:3306 | mysql:3306 |
-| Redis | localhost:6379 | redis:6379 |
-| Kafka | localhost:9092 | kafka:29092 |
-| Elasticsearch | http://localhost:9200 | http://elasticsearch:9200 |
-| MinIO API | http://localhost:9000 | http://minio:9000 |
-| MinIO Console | http://localhost:9001 | minio:9001 |
+| PostgreSQL | postgres:5432 | 162.4.177.91:5432 |
+| MySQL | mysql:3306 | 162.4.177.91:3306 |
+| Redis | redis:6379 | 162.4.177.91:6379 |
+| Kafka | kafka:29092 | 162.4.177.91:9092 |
+| Elasticsearch | elasticsearch:9200 | http://162.4.177.91:9200 |
+| MinIO API | minio:9000 | http://162.4.177.91:9000 |
+| MinIO Console | minio:9001 | http://162.4.177.91:9001 |
+| Keycloak | keycloak:8080 | http://162.4.177.91:7080 |
+| Zipkin | zipkin:9411 | http://162.4.177.91:9411 |
 
-Hai listener Kafka giúp kết nối từ host và container đều đúng. Không dùng `localhost:9092` trong container. Với cấu hình hiện tại các cổng host chỉ dùng local; `KAFKA_EXTERNAL_HOST` mặc định là `localhost`.
+App services nối hạ tầng qua DNS nội bộ (`postgres:5432`, `kafka:29092`, ...).
+Debug từ ngoài dùng LoadBalancer ports (cột phải) hoặc `kubectl port-forward`.
+Kafka-UI (provectus) và redis-commander đã bỏ — dùng port-forward khi cần xem.
 
-## Chạy project trong IntelliJ
+## Chạy project trong IntelliJ (dev local)
 
 1. Mở `pom.xml` ở root dưới dạng Maven project, chọn JDK 21.
-2. Chạy hạ tầng: `docker compose up -d --wait`.
-3. Chạy lớp `*Application` của service cần làm. `application.yml` mặc định trỏ tới localhost và mật khẩu mẫu tương ứng `.env.example`.
-4. Nếu đổi `.env`, truyền các biến `DB_PASSWORD`, `REDIS_PASSWORD` và, với catalog, `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` vào Run Configuration. Spring Boot **không tự đọc** file `.env` của Compose.
-5. Không chạy cùng service cả trong Docker lẫn IDE trên cùng cổng. Có thể dùng `SERVER_PORT` để đổi cổng và cập nhật URL route ở gateway.
+2. Hạ tầng dev local: trỏ tới VPS qua port-forward (ví dụ
+   `kubectl port-forward svc/postgres 5432:5432 -n ecommerce`), hoặc dựng
+   postgres/mysql/redis cục bộ riêng.
+3. Chạy lớp `*Application` của service cần làm. `application.yml` mặc định trỏ
+   tới localhost và mật khẩu mẫu tương ứng `.env.example`.
+4. Spring Boot **không tự đọc** file `.env` — truyền biến môi trường vào Run
+   Configuration khi cần.
 
 Build ngoài Docker cần Java 21 và Maven 3.9+:
 
@@ -86,7 +100,8 @@ mvn -pl services/order-service -am package -DskipTests
 java -jar services/order-service/target/order-service-0.0.1-SNAPSHOT.jar
 ```
 
-Build chỉ module `order-service` với `-am` cũng build parent. Không chạy `spring-boot:run` với `-am` ở root vì parent là project `pom`.
+Build chỉ module `order-service` với `-am` cũng build parent. Không chạy
+`spring-boot:run` với `-am` ở root vì parent là project `pom`.
 
 ## Maven + Nexus
 
@@ -112,28 +127,28 @@ mvn -q -DskipTests -pl services/product-service -am compile
 
 ## Gateway
 
-Route ví dụ `/api/catalog/**` → catalog-service, `/api/order/**` → order-service. `StripPrefix=2` loại `/api/catalog`, `/api/order` trước khi chuyển tiếp. Chưa có API đích nên 404 là bình thường; gateway chưa có cơ chế xác thực/phân quyền. `auth-service` cũng chỉ là project rỗng, chưa có đăng nhập/JWT.
+Route ví dụ `/api/catalog/**` → catalog-service, `/api/order/**` → order-service.
+`StripPrefix=2` loại `/api/catalog`, `/api/order` trước khi chuyển tiếp.
 
 ## Cấu trúc
 
-- `docker-compose.yml`: sáu nền tảng hạ tầng + job MinIO init + chín project.
+- `k8s/`: manifests app (14 services) + `k8s/infra/` (postgres, mysql, redis,
+  kafka, elasticsearch, minio, keycloak, zipkin, clamav, nexus).
 - `Dockerfile`: build một Maven module bằng `SERVICE`, chạy JRE 21 bằng user không root.
 - `services/*/pom.xml`: dependency theo nhu cầu từng project.
-- `services/*/src/main/resources/application.yml`: kết nối host mặc định, Docker override bằng biến môi trường.
-- `infra/postgres`, `infra/mysql`: tạo database/user tự động khi volume còn trống.
-- `scripts/smoke.sh`: kiểm tra hạ tầng và health các project sau khi chạy stack đầy đủ.
-- `docs/OPERATIONS.md`: vận hành, xử lý lỗi và giới hạn.
-- `docs/VALIDATION.md`: kết quả kiểm tra trong môi trường dựng scaffold.
-- `services/inventory-service/docs/inventory-reliability-operations.md`: metrics, Kafka outbox/inbox, backup/restore và lịch load test Inventory.
-- `performance/inventory/available-inventory.js`: k6 read-only load baseline; workflow chạy theo tuần.
+- `services/*/src/main/resources/application.yml`: kết nối host mặc định, k8s
+  override bằng biến môi trường trong `k8s/*/configmap.yaml`.
+- `infra/postgres`, `infra/mysql`, `infra/keycloak/realm.json`: single source of
+  truth cho init ConfigMaps (`postgres-init`, `mysql-init`, `keycloak-realm`) —
+  KHÔNG xóa, KHÔNG duplicate nội dung vào manifests.
+- `infra/prometheus/`, `infra/grafana/`, `infra/loki/`, `infra/promtail/`:
+  nguồn config observability để port lên k8s (Phase 4).
+- `docs/OPERATIONS.md`: vận hành k8s, xử lý lỗi và giới hạn.
+- `docs/VALIDATION.md`: checklist kiểm tra sau cắt compose.
+- `services/inventory-service/docs/inventory-reliability-operations.md`: metrics,
+  Kafka outbox/inbox, backup/restore và lịch load test Inventory.
+- `performance/inventory/available-inventory.js`: k6 read-only load baseline;
+  workflow chạy theo tuần.
 
-Hạ tầng dùng volume riêng để lưu dữ liệu. Không tự tạo bảng nghiệp vụ. Kafka tắt tự tạo topic; chưa có topic/message để tránh đặt trước contract nghiệp vụ.
-
-## Dừng
-
-```bash
-# Dừng và giữ dữ liệu
-docker compose --profile apps down
-```
-
-Không thêm `-v` trừ khi bạn chủ động muốn xoá dữ liệu của stack. Hướng dẫn tái khởi tạo DB sau khi đổi mật khẩu nằm trong `docs/OPERATIONS.md`.
+Hạ tầng k8s dùng PVC `local-path` riêng để lưu dữ liệu. Kafka tắt tự tạo topic;
+các topic sự kiện do job `kafka-init-topics` tạo.

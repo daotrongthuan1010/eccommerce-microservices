@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: ecommerce
+  labels:
+    app: frontend
+data:
+  # Metadata-only: VITE_* da bake vao image luc docker build
+  # (xem frontend/Dockerfile) — ConfigMap runtime khong doi duoc URL.
+  NOTE: "VITE_API_BASE_URL is baked at build time; see frontend/Dockerfile"
