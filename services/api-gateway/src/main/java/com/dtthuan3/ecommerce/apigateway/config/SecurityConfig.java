@@ -2,6 +2,7 @@ package com.dtthuan3.ecommerce.apigateway.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverterAdapter;
@@ -16,6 +17,10 @@ public class SecurityConfig {
         jwtConverter.setJwtGrantedAuthoritiesConverter(new JwtRoleConverter());
         http.csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .authorizeExchange(exchange -> exchange
+                        // Preflight CORS (OPTIONS) luon cho qua: CorsWebFilter xu ly
+                        // truoc, rule nay la luoi an toan neu thu tu filter doi.
+                        .pathMatchers(HttpMethod.OPTIONS, "/**")
+                        .permitAll()
                         // P0: /internal/** la API noi bo giua cac service, KHONG expose public qua gateway.
                         // Chan truoc moi rule permitAll de /api/auth/internal/** khong lot qua rule /api/auth/**.
                         .pathMatchers("/api/*/internal/**")

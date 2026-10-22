@@ -5,6 +5,17 @@ spring:
     name: api-gateway
   cloud:
     gateway:
+      # CORS cho FE chay origin khac (http://162.4.177.91:8096, localhost DEV):
+      # CorsWebFilter xu ly preflight (OPTIONS) truoc security chain -> tra 200
+      # + header, khong forward xuong service (service tra 403 neu tu xu ly).
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: ${GATEWAY_CORS_ALLOWED_ORIGINS:http://162.4.177.91:8096,http://localhost:5173,http://localhost:3000}
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
       server:
         webflux:
           routes:
