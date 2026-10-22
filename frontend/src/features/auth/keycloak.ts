@@ -18,13 +18,13 @@ let initPromise: Promise<boolean> | null = null;
 // Init mot lan duy nhat khi vao /login: onLoad login-required + PKCE,
 // khong checkLoginIframe (tranh 3rd-party cookie issue).
 // DEV note: FE chay HTTP (http://162.4.177.91:8096) nen WebCrypto `subtle`
-// khong co (chi localhost/HTTPS moi la secure context) -> keycloak-js KHONG
-// tao duoc PKCE S256 (can subtle.digest). Dung 'plain' cho DEV; khi FE len
-// HTTPS thi doi lai 'S256'.
+// khong co (chi localhost/HTTPS moi la secure context) -> keycloak-js 26
+// KHONG tao duoc PKCE S256 (can subtle.digest, adapter 26 chi co S256/false).
+// Tat PKCE cho DEV (pkceMethod: false); khi FE len HTTPS thi bat lai 'S256'.
 export function initKeycloak(): Promise<boolean> {
   initPromise ??= keycloak.init({
     onLoad: 'login-required',
-    pkceMethod: 'plain',
+    pkceMethod: false,
     checkLoginIframe: false,
   });
   return initPromise;
