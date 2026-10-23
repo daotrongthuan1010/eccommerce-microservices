@@ -16,8 +16,10 @@ data:
   KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
   DB_URL: "jdbc:mysql://mysql:3306/auth_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC"
   DB_USERNAME: "auth_user"
-  # auth_db đã có bảng từ trước khi bật Flyway -> baseline schema hiện có rồi mới migrate tiếp.
+  # auth_db live thieu bang IAM (chi co demo_accounts + BASELINE v1) -> dat
+  # baseline-version=0 de V1__iam_tenant_group.sql duoc ap dung that.
   SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
+  SPRING_FLYWAY_BASELINE_VERSION: "0"
   KEYCLOAK_JWK_SET_URI: "http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs"
   KEYCLOAK_ISSUER_URI: "http://162.4.177.91:7080/realms/ecommerce"
   KEYCLOAK_TOKEN_URI: "http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/token"
