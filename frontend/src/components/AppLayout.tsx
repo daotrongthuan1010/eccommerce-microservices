@@ -4,6 +4,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { logout } from '../features/auth/authSlice';
 import { useGetMeQuery } from '../features/user/userApi';
+import { useGetMyMenusQuery, type MyMenuItem } from '../features/admin/iamApi';
 import { useLazyFileUrlQuery } from '../features/file/fileApi';
 import { RoleTags, UserAvatar } from './ui';
 import logoUrl from '../assets/logo.png';
@@ -51,7 +52,24 @@ export default function AppLayout() {
     void dispatch(logout()).finally(() => navigate('/login'));
   };
 
-  const items = [
+  const myMenusQuery = useGetMyMenusQuery(undefined, { skip: !username });
+  // getMyMenus da unwrap {menus,total} + map actions ve string[] trong
+  // transformResponse; guard Array.isArray de khong crash neu BE doi shape.
+  const myMenus: MyMenuItem[] = Array.isArray(myMenusQuery.data) ? myMenusQuery.data : [];
+  const dynamicItems = myMenus
+    .filter((m: MyMenuItem) => !!m.path)
+    .map((m: MyMenuItem) => ({
+      key: m.path as string,
+      label: <Link to={m.path as string}>{m.name}</Link>,
+    }));
+  // Sider dong theo GET /auth/me/menus (merge quyen tu group). Chi thay THE
+  // admin section bang menu dong; link nguoi dung (Cart/Account/Orders...)
+  // luon giu — khong thay toan bo nav. Khi BE chua co/tra rong thi fallback
+  // menu tinh cu (loading/error degradation chu khong phai steady-state).
+  const useDynamicSider =
+    !!username && !myMenusQuery.isLoading && !myMenusQuery.isError && dynamicItems.length > 0;
+
+  const userLinks = [
     { key: '/', label: <Link to="/">Trang chủ</Link> },
     { key: '/products', label: <Link to="/products">Sản phẩm</Link> },
     { key: '/catalog', label: <Link to="/catalog">Danh mục</Link> },
@@ -59,15 +77,20 @@ export default function AppLayout() {
     { key: '/files', label: <Link to="/files">File</Link> },
     { key: '/cart', label: <Link to="/cart">Giỏ hàng</Link> },
     { key: '/account', label: <Link to="/account">Tài khoản</Link> },
-    ...(isAdmin
-      ? [
-          { key: '/admin', label: <Link to="/admin">Quản trị</Link> },
-          { key: '/admin/users', label: <Link to="/admin/users">Người dùng</Link> },
-          { key: '/admin/roles', label: <Link to="/admin/roles">Vai trò</Link> },
-          { key: '/admin/reviews', label: <Link to="/admin/reviews">Duyệt review</Link> },
-        ]
-      : []),
   ];
+  const adminFallback = isAdmin
+    ? [
+        { key: '/admin', label: <Link to="/admin">Quản trị</Link> },
+        { key: '/admin/users', label: <Link to="/admin/users">Người dùng (staff)</Link> },
+        { key: '/admin/roles', label: <Link to="/admin/roles">Vai trò (Keycloak)</Link> },
+        { key: '/admin/reviews', label: <Link to="/admin/reviews">Duyệt review</Link> },
+        { key: '/admin/menus', label: <Link to="/admin/menus">Menus & Actions</Link> },
+        { key: '/admin/permissions', label: <Link to="/admin/permissions">Phân quyền</Link> },
+        { key: '/admin/iam-roles', label: <Link to="/admin/iam-roles">Vai trò (DB)</Link> },
+        { key: '/admin/groups', label: <Link to="/admin/groups">Nhóm người dùng</Link> },
+      ]
+    : [];
+  const items = [...userLinks, ...(useDynamicSider ? dynamicItems : adminFallback)];
 
   return (
     <Layout style={{ minHeight: '100vh' }}>

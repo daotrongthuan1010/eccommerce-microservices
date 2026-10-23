@@ -7,6 +7,7 @@ import { reviewApi } from '../features/review/reviewApi';
 import { fileApi } from '../features/file/fileApi';
 import { userApi } from '../features/user/userApi';
 import { adminApi } from '../features/admin/adminApi';
+import { iamApi } from '../features/admin/iamApi';
 
 // Store: auth (memory tokens) + RTK Query data slices. Mock slices
 // (order/payment/search/notification/analytics) la du lieu local trong
@@ -21,6 +22,7 @@ export const store = configureStore({
     [fileApi.reducerPath]: fileApi.reducer,
     [userApi.reducerPath]: userApi.reducer,
     [adminApi.reducerPath]: adminApi.reducer,
+    [iamApi.reducerPath]: iamApi.reducer,
   },
   middleware: (getDefault) =>
     getDefault().concat(
@@ -31,6 +33,7 @@ export const store = configureStore({
       fileApi.middleware,
       userApi.middleware,
       adminApi.middleware,
+      iamApi.middleware,
     ),
 });
 

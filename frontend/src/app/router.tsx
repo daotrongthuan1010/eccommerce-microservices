@@ -23,6 +23,11 @@ const OrdersPage = React.lazy(() => import('../pages/OrdersPage'));
 const DashboardPage = React.lazy(() => import('../pages/DashboardPage'));
 const AdminUsersPage = React.lazy(() => import('../pages/AdminUsersPage'));
 const AdminRolesPage = React.lazy(() => import('../pages/AdminRolesPage'));
+const AdminMenusPage = React.lazy(() => import('../pages/AdminMenusPage'));
+const AdminPermissionsPage = React.lazy(() => import('../pages/AdminPermissionsPage'));
+const AdminIamRolesPage = React.lazy(() => import('../pages/AdminIamRolesPage'));
+const AdminGroupsPage = React.lazy(() => import('../pages/AdminGroupsPage'));
+const RegisterPage = React.lazy(() => import('../pages/RegisterPage'));
 const PublishingPage = React.lazy(() => import('../pages/PublishingPage'));
 const ReviewsPage = React.lazy(() => import('../pages/ReviewsPage'));
 
@@ -30,8 +35,9 @@ const fallback = <Skeleton active paragraph={{ rows: 8 }} style={{ padding: 24 }
 
 export const router = createBrowserRouter([
   { path: '/login', element: <Suspense fallback={fallback}><LoginPage /></Suspense> },
-  // Chi dang nhap qua Keycloak: /register + /forgot-password redirect ve /login.
-  { path: '/register', element: <Navigate to="/login" replace /> },
+  // Marketplace (buyer/seller kieu Shopee/Tiki) tu dang ky + verify mail
+  // qua POST /api/auth/register; staff do cap tren tao o /admin/users.
+  { path: '/register', element: <Suspense fallback={fallback}><RegisterPage /></Suspense> },
   { path: '/forgot-password', element: <Navigate to="/login" replace /> },
   { path: '/403', element: <ForbiddenPage /> },
   {
@@ -96,6 +102,38 @@ export const router = createBrowserRouter([
         element: (
           <RequireRole roles={['ADMIN']}>
             <Suspense fallback={fallback}><AdminRolesPage /></Suspense>
+          </RequireRole>
+        ),
+      },
+      {
+        path: 'admin/menus',
+        element: (
+          <RequireRole roles={['ADMIN']}>
+            <Suspense fallback={fallback}><AdminMenusPage /></Suspense>
+          </RequireRole>
+        ),
+      },
+      {
+        path: 'admin/permissions',
+        element: (
+          <RequireRole roles={['ADMIN']}>
+            <Suspense fallback={fallback}><AdminPermissionsPage /></Suspense>
+          </RequireRole>
+        ),
+      },
+      {
+        path: 'admin/iam-roles',
+        element: (
+          <RequireRole roles={['ADMIN']}>
+            <Suspense fallback={fallback}><AdminIamRolesPage /></Suspense>
+          </RequireRole>
+        ),
+      },
+      {
+        path: 'admin/groups',
+        element: (
+          <RequireRole roles={['ADMIN']}>
+            <Suspense fallback={fallback}><AdminGroupsPage /></Suspense>
           </RequireRole>
         ),
       },

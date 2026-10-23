@@ -95,9 +95,14 @@ public class AuthController {
     }
 
     /**
-     * Dang ky tai khoan moi qua Keycloak Admin API (realm DEV co registrationAllowed=false
-     * nen khong self-register bang API cong khai). Can cau hinh service account
-     * (auth.keycloak.admin.*); chua cau hinh -> 501 kem huong dan thu cong.
+     * Tu dang ky marketplace (buyer/seller kieu Shopee/Tiki): tao user Keycloak, gan realm role
+     * USER mac dinh (+ SELLER khi {@code seller=true} - role only, chua co bang
+     * seller_profiles/CCCD), tu dong gui email xac thuc VERIFY_EMAIL. Tra 201 kem
+     * {@code verificationRequired:true}.
+     *
+     * <p>Dieu kien tien quyet: Keycloak realm phai cau hinh SMTP (Realm Settings &gt; Email).
+     * Neu SMTP chua cau hinh, dang ky van thanh cong 201 nhung tra
+     * {@code verificationPending:true} + log warn (khong chan dang ky).
      */
     @PostMapping(value = "/register", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest request) {
@@ -106,9 +111,29 @@ public class AuthController {
                 request.username(), request.email(), request.firstName(), request.lastName(), request.password());
         // Gan role USER mac dinh cho tai khoan moi tu dang ky (best-effort: khong chan dang ky).
         keycloakAdmin.assignRealmRoleBestEffort(userId, "USER");
-        log.info("Registered new Keycloak user {} ({})", request.username(), userId);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(Map.of("userId", userId, "username", request.username(), "email", request.email()));
+        if (Boolean.TRUE.equals(request.seller())) {
+            keycloakAdmin.assignRealmRoleBestEffort(userId, "SELLER");
+        }
+        boolean verificationPending = false;
+        try {
+            keycloakAdmin.sendRequiredActionEmail(userId, "VERIFY_EMAIL");
+        } catch (Exception ex) {
+            // Keycloak nem 500 khi realm chua cau hinh SMTP - van tra 201, danh dau pending.
+            log.warn("Send VERIFY_EMAIL failed for new user {} (SMTP likely unconfigured): {}",
+                    request.username(), ex.getMessage());
+            verificationPending = true;
+        }
+        log.info("Registered new Keycloak user {} ({}) seller={}", request.username(), userId,
+                Boolean.TRUE.equals(request.seller()));
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("userId", userId);
+        body.put("username", request.username());
+        body.put("email", request.email());
+        body.put("verificationRequired", true);
+        if (verificationPending) {
+            body.put("verificationPending", true);
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(body);
     }
 
     /**
