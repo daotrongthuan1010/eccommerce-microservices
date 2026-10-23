@@ -1,5 +1,24 @@
-import { Avatar, Button, Descriptions, Dropdown, Layout, Menu, Modal, Space, Typography } from 'antd';
+import { Avatar, Button, Descriptions, Dropdown, Layout, Menu, Modal, Skeleton, Space, Typography } from 'antd';
+import type { MenuProps } from 'antd';
+import {
+  AppstoreOutlined,
+  AuditOutlined,
+  DashboardOutlined,
+  FileTextOutlined,
+  HomeOutlined,
+  KeyOutlined,
+  LockOutlined,
+  SafetyOutlined,
+  SettingOutlined,
+  ShoppingCartOutlined,
+  ShoppingOutlined,
+  SolutionOutlined,
+  TeamOutlined,
+  UnorderedListOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { logout } from '../features/auth/authSlice';
@@ -11,6 +30,153 @@ import logoUrl from '../assets/logo.png';
 
 const { Header, Sider, Content } = Layout;
 
+// FE routes co that trong router.tsx — menu BE co path nam ngoai tap nay
+// (VD /users, /admin/actions) se bi AN (gap bao cao, khong render link gay).
+// /login-/register-/403 khong phai sider links nen khong co trong tap nay.
+const KNOWN_SIDER_PATHS = new Set<string>([
+  '/',
+  '/products',
+  '/catalog',
+  '/inventory',
+  '/receipts',
+  '/files',
+  '/publishing',
+  '/reviews',
+  '/cart',
+  '/checkout',
+  '/orders',
+  '/dashboard',
+  '/account',
+  '/change-password',
+  '/admin',
+  '/admin/users',
+  '/admin/roles',
+  '/admin/menus',
+  '/admin/permissions',
+  '/admin/iam-roles',
+  '/admin/groups',
+  '/admin/reviews',
+]);
+
+// Chuoi icon tu DB (Menu.icon) -> @ant-design/icons. Khong map duoc -> null
+// (khong icon) chu khong render sai icon.
+function resolveMenuIcon(icon?: string | null): ReactNode {
+  if (!icon) return null;
+  const key = icon.trim().toLowerCase().replace(/[-_\s]+/g, '');
+  switch (key) {
+    case 'setting':
+    case 'settings':
+    case 'control':
+      return <SettingOutlined />;
+    case 'appstore':
+    case 'app':
+    case 'menu':
+    case 'function':
+      return <AppstoreOutlined />;
+    case 'dashboard':
+      return <DashboardOutlined />;
+    case 'home':
+      return <HomeOutlined />;
+    case 'user':
+    case 'users':
+      return <UserOutlined />;
+    case 'team':
+    case 'group':
+    case 'groups':
+      return <TeamOutlined />;
+    case 'key':
+    case 'action':
+    case 'actions':
+      return <KeyOutlined />;
+    case 'lock':
+    case 'permission':
+    case 'permissions':
+      return <LockOutlined />;
+    case 'safety':
+    case 'shield':
+    case 'role':
+    case 'roles':
+      return <SafetyOutlined />;
+    case 'solution':
+      return <SolutionOutlined />;
+    case 'audit':
+    case 'review':
+    case 'reviews':
+      return <AuditOutlined />;
+    case 'file':
+    case 'files':
+      return <FileTextOutlined />;
+    case 'shopping':
+    case 'order':
+    case 'orders':
+    case 'product':
+    case 'products':
+      return <ShoppingOutlined />;
+    case 'cart':
+      return <ShoppingCartOutlined />;
+    case 'list':
+    case 'unorderedlist':
+      return <UnorderedListOutlined />;
+    default:
+      return null;
+  }
+}
+
+function sortMenus(menus: MyMenuItem[]): MyMenuItem[] {
+  return [...menus].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+}
+
+// Cay DB -> AntD Menu items: node co children hien thi -> SubMenu (label van
+// la Link neu path hop le); leaf chi render khi path thuoc KNOWN_SIDER_PATHS,
+// con lai AN han (khong fake link).
+function buildDynamicItems(menus: MyMenuItem[]): NonNullable<MenuProps['items']> {
+  const out: NonNullable<MenuProps['items']> = [];
+  for (const m of sortMenus(menus)) {
+    const kids = buildDynamicItems(m.children ?? []);
+    const known = !!m.path && KNOWN_SIDER_PATHS.has(m.path);
+    if (kids.length > 0) {
+      out.push({
+        key: `menu:${m.code}`,
+        icon: resolveMenuIcon(m.icon),
+        label: known && m.path ? <Link to={m.path}>{m.name}</Link> : <span>{m.name}</span>,
+        children: kids,
+      });
+    } else if (known && m.path) {
+      out.push({
+        key: `menu:${m.code}`,
+        icon: resolveMenuIcon(m.icon),
+        label: <Link to={m.path}>{m.name}</Link>,
+      });
+    }
+  }
+  return out;
+}
+
+// Tim menu key tuong ung pathname hien tai de highlight + mo SubMenu cha.
+function findMenuKey(menus: MyMenuItem[], pathname: string): string | null {
+  for (const m of menus) {
+    if (m.path && pathname === m.path) return `menu:${m.code}`;
+    const kid = findMenuKey(m.children ?? [], pathname);
+    if (kid) return kid;
+  }
+  return null;
+}
+
+function collectOpenKeys(menus: MyMenuItem[], pathname: string): string[] {
+  const acc: string[] = [];
+  for (const m of menus) {
+    const kids = m.children ?? [];
+    if (kids.length === 0) continue;
+    const sub = collectOpenKeys(kids, pathname);
+    const selfHit = !!m.path && (pathname === m.path || pathname.startsWith(`${m.path}/`));
+    const kidHit = kids.some(
+      (k) => !!k.path && (pathname === k.path || pathname.startsWith(`${k.path}/`)),
+    );
+    if (selfHit || kidHit || sub.length > 0) acc.push(`menu:${m.code}`, ...sub);
+  }
+  return acc;
+}
+
 // AppLayout: AntD Layout + menu loc theo role (FE_AUTH_GATEWAY §6).
 // Header phai: avatar that (picture tu GET /api/auth/me) + dropdown tai khoan
 // (Ho so / Doi mat khau / Dang xuat) + modal xem nhanh thong tin tai khoan.
@@ -18,9 +184,7 @@ export default function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const roles = useAppSelector((s) => s.auth.roles);
   const username = useAppSelector((s) => s.auth.username);
-  const isAdmin = roles.includes('ADMIN');
   const [accountOpen, setAccountOpen] = useState(false);
 
   // Header hien avatar that ngay khi login (khong doi mo modal);
@@ -53,23 +217,17 @@ export default function AppLayout() {
   };
 
   const myMenusQuery = useGetMyMenusQuery(undefined, { skip: !username });
-  // getMyMenus da unwrap {menus,total} + map actions ve string[] trong
-  // transformResponse; guard Array.isArray de khong crash neu BE doi shape.
+  // getMyMenus da unwrap {menus,total} + map de quy children/actions ve
+  // MyMenuItem[] trong transformResponse; guard Array.isArray de khong crash
+  // neu BE doi shape.
   const myMenus: MyMenuItem[] = Array.isArray(myMenusQuery.data) ? myMenusQuery.data : [];
-  const dynamicItems = myMenus
-    .filter((m: MyMenuItem) => !!m.path)
-    .map((m: MyMenuItem) => ({
-      key: m.path as string,
-      label: <Link to={m.path as string}>{m.name}</Link>,
-    }));
-  // Sider dong theo GET /auth/me/menus (merge quyen tu group). Chi thay THE
-  // admin section bang menu dong; link nguoi dung (Cart/Account/Orders...)
-  // luon giu — khong thay toan bo nav. Khi BE chua co/tra rong thi fallback
-  // menu tinh cu (loading/error degradation chu khong phai steady-state).
-  const useDynamicSider =
-    !!username && !myMenusQuery.isLoading && !myMenusQuery.isError && dynamicItems.length > 0;
 
-  const userLinks = [
+  // Sider dong hoan toan tu GET /auth/me/menus (DB menu tree + loc quyen VIEW
+  // tu group; sysadmin thay tat ca — ref MeMenuController). Link shop co dinh
+  // (Cart/Account/...) luon giu vi DB menus chi chua admin tree; rieng admin
+  // section KHONG con fallback menu tinh — loading hien skeleton, loi hien
+  // message, rong thi an han (khong fake menus).
+  const userLinks: NonNullable<MenuProps['items']> = [
     { key: '/', label: <Link to="/">Trang chủ</Link> },
     { key: '/products', label: <Link to="/products">Sản phẩm</Link> },
     { key: '/catalog', label: <Link to="/catalog">Danh mục</Link> },
@@ -78,19 +236,32 @@ export default function AppLayout() {
     { key: '/cart', label: <Link to="/cart">Giỏ hàng</Link> },
     { key: '/account', label: <Link to="/account">Tài khoản</Link> },
   ];
-  const adminFallback = isAdmin
+
+  const adminSection: NonNullable<MenuProps['items']> = myMenusQuery.isLoading
     ? [
-        { key: '/admin', label: <Link to="/admin">Quản trị</Link> },
-        { key: '/admin/users', label: <Link to="/admin/users">Người dùng (staff)</Link> },
-        { key: '/admin/roles', label: <Link to="/admin/roles">Vai trò (Keycloak)</Link> },
-        { key: '/admin/reviews', label: <Link to="/admin/reviews">Duyệt review</Link> },
-        { key: '/admin/menus', label: <Link to="/admin/menus">Menus & Actions</Link> },
-        { key: '/admin/permissions', label: <Link to="/admin/permissions">Phân quyền</Link> },
-        { key: '/admin/iam-roles', label: <Link to="/admin/iam-roles">Vai trò (DB)</Link> },
-        { key: '/admin/groups', label: <Link to="/admin/groups">Nhóm người dùng</Link> },
+        {
+          key: '__menus-loading',
+          disabled: true,
+          label: <Skeleton active paragraph={{ rows: 4 }} title={false} />,
+        },
       ]
-    : [];
-  const items = [...userLinks, ...(useDynamicSider ? dynamicItems : adminFallback)];
+    : myMenusQuery.isError
+      ? [
+          {
+            key: '__menus-error',
+            disabled: true,
+            danger: true,
+            label: (
+              <Typography.Text type="danger">
+                Không tải được menu phân quyền. Kiểm tra lại kết nối rồi tải lại trang.
+              </Typography.Text>
+            ),
+          },
+        ]
+      : buildDynamicItems(myMenus);
+
+  const items: MenuProps['items'] = [...userLinks, ...adminSection];
+  const activeMenuKey = findMenuKey(myMenus, location.pathname) ?? location.pathname;
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -99,7 +270,13 @@ export default function AppLayout() {
           <img src={logoUrl} alt="Ecommerce logo" style={{ height: 32 }} />
           <span style={{ color: '#fff', fontWeight: 600 }}>Ecommerce</span>
         </div>
-        <Menu theme="dark" mode="inline" selectedKeys={[location.pathname]} items={items} />
+        <Menu
+          theme="dark"
+          mode="inline"
+          selectedKeys={[activeMenuKey]}
+          defaultOpenKeys={collectOpenKeys(myMenus, location.pathname)}
+          items={items}
+        />
       </Sider>
       <Layout>
         <Header

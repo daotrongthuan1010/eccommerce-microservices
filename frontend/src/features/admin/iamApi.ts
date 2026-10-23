@@ -74,7 +74,9 @@ export interface MyMenuItem {
   name: string;
   path?: string | null;
   icon?: string | null;
+  sortOrder?: number | null;
   actions: string[];
+  children?: MyMenuItem[];
 }
 
 export interface ListWrapper<T> {
@@ -120,23 +122,32 @@ interface RawMyMenu {
   name: string;
   path?: string | null;
   icon?: string | null;
+  sortOrder?: number | null;
   actions?: Array<string | { code: string; name?: string }> | null;
+  children?: RawMyMenu[] | null;
 }
 
-/** Unwrap {menus,total} (hoac raw array) + map actions [{code,name}] -> string[]. */
+/** Map 1 raw node BE (MeMenuController/IamQueryService.menusForUser) ve MyMenuItem. */
+function toMyMenu(m: RawMyMenu): MyMenuItem {
+  return {
+    code: m.code,
+    name: m.name,
+    path: m.path ?? null,
+    icon: m.icon ?? null,
+    sortOrder: m.sortOrder ?? null,
+    actions: (m.actions ?? []).map((a) => (typeof a === 'string' ? a : a.code)),
+    children: Array.isArray(m.children) ? m.children.map(toMyMenu) : [],
+  };
+}
+
+/** Unwrap {menus,total} (hoac raw array) + map de quy children/actions. */
 function unwrapMyMenus(data: unknown): MyMenuItem[] {
   const raw: unknown = (() => {
     if (Array.isArray(data)) return data;
     const env = data as { menus?: unknown } | null | undefined;
     return env && Array.isArray(env.menus) ? env.menus : [];
   })();
-  return (raw as RawMyMenu[]).map((m) => ({
-    code: m.code,
-    name: m.name,
-    path: m.path ?? null,
-    icon: m.icon ?? null,
-    actions: (m.actions ?? []).map((a) => (typeof a === 'string' ? a : a.code)),
-  }));
+  return (raw as RawMyMenu[]).map(toMyMenu);
 }
 
 export const iamApi = createApi({
