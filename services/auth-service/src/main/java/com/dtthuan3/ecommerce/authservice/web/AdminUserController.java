@@ -98,6 +98,10 @@ public class AdminUserController {
     @PostMapping("/{id}/roles")
     public Map<String, Object> assignRole(
             @PathVariable String id, @Valid @RequestBody RoleAssignRequest request) {
+        String selfId = SecurityUtils.requireUser().subject();
+        if (id.equals(selfId) && "ADMIN".equalsIgnoreCase(request.role())) {
+            throw new SelfLockoutException("Cannot assign ADMIN role to your own account");
+        }
         keycloakAdmin.getRealmRole(request.role());
         keycloakAdmin.assignRealmRole(id, request.role());
         return Map.of("userId", id, "role", request.role(), "assigned", true);
@@ -122,6 +126,32 @@ public class AdminUserController {
         }
         keycloakAdmin.setEnabled(id, request.enabled());
         return Map.of("userId", id, "enabled", request.enabled());
+    }
+
+    /**
+     * Admin sua ho so bat ky user nao (firstName/lastName/email).
+     * Ghi qua {@link KeycloakAdminClient#updateUserProfile} (GET-merge-PUT
+     * full representation). Email trung -> 409 {@code email_exists}.
+     */
+    @PatchMapping("/{id}/profile")
+    public KeycloakAdminClient.AdminUser updateProfile(
+            @PathVariable String id, @Valid @RequestBody UpdateProfileRequest request) {
+        KeycloakAdminClient.AdminUser updated = keycloakAdmin.updateUserProfile(
+                id, request.firstName(), request.lastName(), request.email());
+        log.info("Admin updated profile of Keycloak user {}", id);
+        return updated;
+    }
+
+    /**
+     * Admin dat/xoa avatar bat ky user nao (luu file key vao attribute
+     * {@code picture}; fileKey null/blank = xoa avatar).
+     */
+    @PatchMapping("/{id}/avatar")
+    public KeycloakAdminClient.AdminUser updateAvatar(
+            @PathVariable String id, @Valid @RequestBody UpdateAvatarRequest request) {
+        KeycloakAdminClient.AdminUser updated = keycloakAdmin.setUserPicture(id, request.fileKey());
+        log.info("Admin updated avatar of Keycloak user {}", id);
+        return updated;
     }
 
     @PostMapping("/{id}/reset-password")
@@ -162,6 +192,17 @@ public class AdminUserController {
     public record RoleAssignRequest(@NotBlank(message = "role is required") String role) {}
 
     public record EnabledRequest(@NotNull(message = "enabled is required") Boolean enabled) {}
+
+    public record UpdateProfileRequest(
+            @Size(max = 64, message = "firstName must be at most 64 chars") String firstName,
+            @Size(max = 64, message = "lastName must be at most 64 chars") String lastName,
+            @Email(message = "email is invalid") @Size(max = 254) String email) {}
+
+    public record UpdateAvatarRequest(
+            @Size(max = 512, message = "fileKey must be at most 512 chars")
+                    @Pattern(regexp = "^[A-Za-z0-9._/\\-]*$",
+                            message = "fileKey has invalid characters")
+                    String fileKey) {}
 
     public record ResetPasswordRequest(
             @NotBlank(message = "newPassword is required")

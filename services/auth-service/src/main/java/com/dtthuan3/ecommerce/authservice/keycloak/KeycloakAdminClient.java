@@ -4,6 +4,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -248,10 +249,23 @@ public class KeycloakAdminClient {
             boolean enabled,
             boolean emailVerified,
             List<String> roles,
-            List<String> requiredActions) {}
+            List<String> requiredActions,
+            String picture) {}
 
     /** Realm role kem so member, tra ve cho Admin Roles API. */
     public record RealmRole(String name, String description, long memberCount) {}
+
+    public static class EmailAlreadyExistsException extends RuntimeException {
+        public EmailAlreadyExistsException(String email) {
+            super("Email already exists: " + email);
+        }
+    }
+
+    public static class RoleAlreadyExistsException extends RuntimeException {
+        public RoleAlreadyExistsException(String roleName) {
+            super("Realm role already exists: " + roleName);
+        }
+    }
 
     /**
      * Goi Keycloak, tu refresh service-account token 1 lan khi gap 401
@@ -265,6 +279,10 @@ public class KeycloakAdminClient {
             cachedToken = null;
             return call.get();
         }
+    }
+
+    private static String encodeRole(String roleName) {
+        return URLEncoder.encode(roleName, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     private String buildUsersUri(String search, Integer first, Integer max) {
@@ -309,7 +327,23 @@ public class KeycloakAdminClient {
                 Boolean.TRUE.equals(user.get("enabled")),
                 Boolean.TRUE.equals(user.get("emailVerified")),
                 roles == null ? List.of() : List.copyOf(roles),
-                strList(user.get("requiredActions")));
+                strList(user.get("requiredActions")),
+                firstAttribute(user.get("attributes"), "picture"));
+    }
+
+    /** Lay gia tri dau tien cua attribute Keycloak (VD attributes.picture=[file-key]). */
+    @SuppressWarnings("unchecked")
+    private static String firstAttribute(Object attributes, String key) {
+        if (!(attributes instanceof Map<?, ?> map)) {
+            return null;
+        }
+        Object value = map.get(key);
+        if (value instanceof List<?> list) {
+            return list.isEmpty() || list.get(0) == null
+                    ? null
+                    : String.valueOf(list.get(0));
+        }
+        return value == null ? null : String.valueOf(value);
     }
 
     /** Realm roles cua user (chi lay name). Khong retry rieng - chay trong withRetry ngoai. */
@@ -432,7 +466,7 @@ public class KeycloakAdminClient {
         try {
             List<?> members = restClient
                     .get()
-                    .uri(adminBase() + "/roles/" + roleName + "/users?max=1000")
+                    .uri(adminBase() + "/roles/" + encodeRole(roleName) + "/users?max=1000")
                     .headers(h -> h.addAll(bearerHeaders()))
                     .retrieve()
                     .body(List.class);
@@ -450,7 +484,7 @@ public class KeycloakAdminClient {
         return withRetry(() -> {
             List<Map<String, Object>> users = restClient
                     .get()
-                    .uri(adminBase() + "/roles/" + roleName + "/users?max=1000")
+                    .uri(adminBase() + "/roles/" + encodeRole(roleName) + "/users?max=1000")
                     .headers(h -> h.addAll(bearerHeaders()))
                     .retrieve()
                     .body(new ParameterizedTypeReference<>() {});
@@ -471,7 +505,7 @@ public class KeycloakAdminClient {
         try {
             return withRetry(() -> restClient
                     .get()
-                    .uri(adminBase() + "/roles/" + roleName)
+                    .uri(adminBase() + "/roles/" + encodeRole(roleName))
                     .headers(h -> h.addAll(bearerHeaders()))
                     .retrieve()
                     .body(new ParameterizedTypeReference<Map<String, Object>>() {}));
@@ -550,5 +584,173 @@ public class KeycloakAdminClient {
                 .body(Map.of("requiredActions", merged))
                 .retrieve()
                 .toBodilessEntity();
+    }
+
+    /**
+     * Doc full user representation tu Keycloak (GET). Dung lam nen cho PUT
+     * merge - Keycloak PUT users/{id} thay the representation nen gui body
+     * thua (sparse) co the xoa nham field tuy version.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getRawUser(String userId) {
+        try {
+            Map<String, Object> user = restClient
+                    .get()
+                    .uri(adminBase() + "/users/" + userId)
+                    .headers(h -> h.addAll(bearerHeaders()))
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+            if (user == null || user.get("id") == null) {
+                throw new UserNotFoundException(userId);
+            }
+            return new LinkedHashMap<>(user);
+        } catch (HttpClientErrorException.NotFound ex) {
+            throw new UserNotFoundException(userId);
+        }
+    }
+
+    /**
+     * Tu sua profile cua chinh user (firstName/lastName/email). GET full
+     * representation truoc roi PUT merge de khong xoa nham field/attribute
+     * (Keycloak PUT thay the). Email trung -> 409
+     * {@link EmailAlreadyExistsException}. Doi email -> reset
+     * {@code emailVerified=false} (tranh flag stale). Khong co gi doi ->
+     * bo qua PUT, chi GET tra ve.
+     */
+    public AdminUser updateUserProfile(String userId, String firstName, String lastName, String email) {
+        requireEnabled();
+        withRetry(() -> {
+            try {
+                Map<String, Object> raw = getRawUser(userId);
+                boolean changed = false;
+                if (firstName != null && !firstName.isBlank()) {
+                    String next = firstName.trim();
+                    if (!next.equals(str(raw.get("firstName")))) {
+                        raw.put("firstName", next);
+                        changed = true;
+                    }
+                }
+                if (lastName != null && !lastName.isBlank()) {
+                    String next = lastName.trim();
+                    if (!next.equals(str(raw.get("lastName")))) {
+                        raw.put("lastName", next);
+                        changed = true;
+                    }
+                }
+                if (email != null && !email.isBlank()) {
+                    String next = email.trim();
+                    if (!next.equalsIgnoreCase(str(raw.get("email")))) {
+                        raw.put("email", next);
+                        // Email doi -> reset verified de tranh flag stale; user xac thuc lai qua /send-verify-email.
+                        raw.put("emailVerified", false);
+                        changed = true;
+                    }
+                }
+                if (!changed) {
+                    return null;
+                }
+                restClient
+                        .put()
+                        .uri(adminBase() + "/users/" + userId)
+                        .headers(h -> h.addAll(bearerHeaders()))
+                        .body(raw)
+                        .retrieve()
+                        .toBodilessEntity();
+            } catch (HttpClientErrorException.NotFound ex) {
+                throw new UserNotFoundException(userId);
+            } catch (HttpClientErrorException.Conflict ex) {
+                throw new EmailAlreadyExistsException(email);
+            } catch (HttpClientErrorException.BadRequest ex) {
+                // Mot so version Keycloak tra 400 (thay vi 409) khi email da ton tai.
+                String responseBody = ex.getResponseBodyAsString();
+                if (responseBody != null && responseBody.toLowerCase().contains("email")) {
+                    throw new EmailAlreadyExistsException(email);
+                }
+                throw ex;
+            }
+            return null;
+        });
+        return getUserWithRoles(userId);
+    }
+
+    /**
+     * Luu file key anh dai dien vao attribute {@code picture} cua user.
+     * Chi luu key (VD uploads/avatars/xxx.png), KHONG luu presigned URL -
+     * client resolve URL tuoi tho ngan qua file-service {@code GET /files/url}
+     * moi lan hien thi. Xoa avatar: truyen key null/blank.
+     *
+     * <p>GET full representation truoc roi PUT merge (giu nguyen cac
+     * attribute khac) - Keycloak PUT thay the toan bo attributes map.
+     */
+    public AdminUser setUserPicture(String userId, String fileKey) {
+        requireEnabled();
+        withRetry(() -> {
+            try {
+                Map<String, Object> raw = getRawUser(userId);
+                Map<String, Object> attrs = new LinkedHashMap<>();
+                if (raw.get("attributes") instanceof Map<?, ?> existing) {
+                    existing.forEach((k, v) -> attrs.put(String.valueOf(k), v));
+                }
+                if (fileKey == null || fileKey.isBlank()) {
+                    attrs.remove("picture");
+                } else {
+                    attrs.put("picture", List.of(fileKey.trim()));
+                }
+                raw.put("attributes", attrs);
+                restClient
+                        .put()
+                        .uri(adminBase() + "/users/" + userId)
+                        .headers(h -> h.addAll(bearerHeaders()))
+                        .body(raw)
+                        .retrieve()
+                        .toBodilessEntity();
+            } catch (HttpClientErrorException.NotFound ex) {
+                throw new UserNotFoundException(userId);
+            }
+            return null;
+        });
+        return getUserWithRoles(userId);
+    }
+
+    /**
+     * Tao realm role moi (ADMIN only o controller). Ten da ton tai -> 409
+     * {@link RoleAlreadyExistsException}.
+     */
+    public void createRealmRole(String roleName, String description) {
+        requireEnabled();
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("name", roleName);
+        if (description != null && !description.isBlank()) {
+            body.put("description", description.trim());
+        }
+        try {
+            withRetry(() -> restClient
+                    .post()
+                    .uri(adminBase() + "/roles")
+                    .headers(h -> h.addAll(bearerHeaders()))
+                    .body(body)
+                    .retrieve()
+                    .toBodilessEntity());
+        } catch (HttpClientErrorException.Conflict ex) {
+            throw new RoleAlreadyExistsException(roleName);
+        }
+    }
+
+    /** Xoa realm role. Nem {@link RealmRoleNotFoundException} khi ten la. */
+    public void deleteRealmRole(String roleName) {
+        requireEnabled();
+        try {
+            withRetry(() -> {
+                restClient
+                        .method(HttpMethod.DELETE)
+                        .uri(adminBase() + "/roles/" + encodeRole(roleName))
+                        .headers(h -> h.addAll(bearerHeaders()))
+                        .retrieve()
+                        .toBodilessEntity();
+                return null;
+            });
+        } catch (HttpClientErrorException.NotFound ex) {
+            throw new RealmRoleNotFoundException(roleName);
+        }
     }
 }

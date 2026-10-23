@@ -16,6 +16,7 @@ export interface AdminUser {
   emailVerified?: boolean;
   roles: string[];
   requiredActions?: string[];
+  picture?: string | null;
 }
 
 export interface AdminUserPage {
@@ -98,6 +99,16 @@ export const adminApi = createApi({
       query: (data) => ({ url: '/auth/admin/users', method: 'post', data }),
       invalidatesTags: ['AdminUser', 'AdminRole'],
     }),
+    // POST /auth/admin/roles {name, description} → 201 {name, created}
+    createRole: build.mutation<{ name: string; created: boolean }, { name: string; description?: string }>({
+      query: (data) => ({ url: '/auth/admin/roles', method: 'post', data }),
+      invalidatesTags: ['AdminRole'],
+    }),
+    // DELETE /auth/admin/roles/{role} → {role, deleted}
+    deleteRole: build.mutation<{ role: string; deleted: boolean }, string>({
+      query: (role) => ({ url: `/auth/admin/roles/${encodeURIComponent(role)}`, method: 'delete' }),
+      invalidatesTags: ['AdminRole'],
+    }),
     // POST /auth/admin/users/{id}/roles {role}
     assignRole: build.mutation<{ userId: string; role: string }, { id: string; role: string }>({
       query: ({ id, role }) => ({
@@ -123,6 +134,34 @@ export const adminApi = createApi({
         'AdminRole',
         { type: 'AdminUser', id },
         { type: 'AdminRole', id: role },
+      ],
+    }),
+    // PATCH /auth/admin/users/{id}/profile {firstName?,lastName?,email?} → AdminUser raw
+    updateAnyProfile: build.mutation<
+      AdminUser,
+      { id: string; firstName?: string; lastName?: string; email?: string }
+    >({
+      query: ({ id, ...profile }) => ({
+        url: `/auth/admin/users/${id}/profile`,
+        method: 'patch',
+        data: profile,
+      }),
+      invalidatesTags: (_r, _e, { id }) => [
+        'AdminUser',
+        'AdminRole',
+        { type: 'AdminUser', id },
+      ],
+    }),
+    // PATCH /auth/admin/users/{id}/avatar {fileKey?} → AdminUser raw (blank = xoa avatar)
+    updateAnyAvatar: build.mutation<AdminUser, { id: string; fileKey?: string }>({
+      query: ({ id, fileKey }) => ({
+        url: `/auth/admin/users/${id}/avatar`,
+        method: 'patch',
+        data: { fileKey: fileKey ?? '' },
+      }),
+      invalidatesTags: (_r, _e, { id }) => [
+        'AdminUser',
+        { type: 'AdminUser', id },
       ],
     }),
     // PATCH /auth/admin/users/{id}/enabled {enabled}
@@ -158,6 +197,10 @@ export const {
   useCreateUserMutation,
   useAssignRoleMutation,
   useRemoveRoleMutation,
+  useUpdateAnyProfileMutation,
+  useUpdateAnyAvatarMutation,
   useSetEnabledMutation,
   useResetPasswordMutation,
+  useCreateRoleMutation,
+  useDeleteRoleMutation,
 } = adminApi;

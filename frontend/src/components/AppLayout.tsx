@@ -1,12 +1,18 @@
-import { Layout, Menu } from 'antd';
+import { Avatar, Button, Descriptions, Dropdown, Layout, Menu, Modal, Space, Typography } from 'antd';
+import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { logout } from '../features/auth/authSlice';
+import { useGetMeQuery } from '../features/user/userApi';
+import { useLazyFileUrlQuery } from '../features/file/fileApi';
+import { RoleTags, UserAvatar } from './ui';
 import logoUrl from '../assets/logo.png';
 
 const { Header, Sider, Content } = Layout;
 
 // AppLayout: AntD Layout + menu loc theo role (FE_AUTH_GATEWAY §6).
+// Header phai: avatar that (picture tu GET /api/auth/me) + dropdown tai khoan
+// (Ho so / Doi mat khau / Dang xuat) + modal xem nhanh thong tin tai khoan.
 export default function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -14,6 +20,36 @@ export default function AppLayout() {
   const roles = useAppSelector((s) => s.auth.roles);
   const username = useAppSelector((s) => s.auth.username);
   const isAdmin = roles.includes('ADMIN');
+  const [accountOpen, setAccountOpen] = useState(false);
+
+  // Header hien avatar that ngay khi login (khong doi mo modal);
+  // RTK Query cache chung voi ProfilePage nen khong goi thua.
+  const meQuery = useGetMeQuery(undefined, { skip: !username });
+  const me = meQuery.data;
+  const [headerAvatar, setHeaderAvatar] = useState<string | null>(null);
+  const [triggerFileUrl] = useLazyFileUrlQuery();
+
+  // Resolve file-key picture → URL tuoi tho ngan, giong ProfilePage.
+  useEffect(() => {
+    let cancelled = false;
+    setHeaderAvatar(null);
+    if (!me?.picture) return;
+    triggerFileUrl({ key: me.picture })
+      .unwrap()
+      .then((res) => {
+        if (!cancelled) setHeaderAvatar(res.data?.url ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setHeaderAvatar(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [me?.picture, triggerFileUrl]);
+
+  const doLogout = () => {
+    void dispatch(logout()).finally(() => navigate('/login'));
+  };
 
   const items = [
     { key: '/', label: <Link to="/">Trang chủ</Link> },
@@ -21,7 +57,7 @@ export default function AppLayout() {
     { key: '/catalog', label: <Link to="/catalog">Danh mục</Link> },
     { key: '/inventory', label: <Link to="/inventory">Tồn kho</Link> },
     { key: '/files', label: <Link to="/files">File</Link> },
-    { key: '/cart', label: <Link to="/cart">Giỏ hàng (mock)</Link> },
+    { key: '/cart', label: <Link to="/cart">Giỏ hàng</Link> },
     { key: '/account', label: <Link to="/account">Tài khoản</Link> },
     ...(isAdmin
       ? [
@@ -43,18 +79,49 @@ export default function AppLayout() {
         <Menu theme="dark" mode="inline" selectedKeys={[location.pathname]} items={items} />
       </Sider>
       <Layout>
-        <Header style={{ background: '#fff', display: 'flex', justifyContent: 'flex-end', gap: 12, alignItems: 'center' }}>
+        <Header
+          style={{
+            background: '#fff',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            padding: '0 24px',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+          }}
+        >
           {username ? (
-            <>
-              <span>{username}</span>
-              <a
-                onClick={() => {
-                  void dispatch(logout()).finally(() => navigate('/login'));
-                }}
-              >
-                Đăng xuất
-              </a>
-            </>
+            <Dropdown
+              trigger={['click']}
+              menu={{
+                items: [
+                  {
+                    key: 'quickview',
+                    label: 'Thông tin tài khoản',
+                    onClick: () => setAccountOpen(true),
+                  },
+                  {
+                    key: 'account',
+                    label: <Link to="/account">Hồ sơ của tôi</Link>,
+                  },
+                  {
+                    key: 'password',
+                    label: <Link to="/change-password">Đổi mật khẩu</Link>,
+                  },
+                  { type: 'divider' },
+                  {
+                    key: 'logout',
+                    danger: true,
+                    label: 'Đăng xuất',
+                    onClick: doLogout,
+                  },
+                ],
+              }}
+            >
+              <Space style={{ cursor: 'pointer' }} size={10}>
+                <UserAvatar name={username} picture={headerAvatar} />
+                <span style={{ fontWeight: 500 }}>{username}</span>
+              </Space>
+            </Dropdown>
           ) : (
             <Link to="/login">Đăng nhập</Link>
           )}
@@ -63,6 +130,40 @@ export default function AppLayout() {
           <Outlet />
         </Content>
       </Layout>
+
+      <Modal
+        title="Tài khoản của tôi"
+        open={accountOpen}
+        onCancel={() => setAccountOpen(false)}
+        footer={
+          <Space>
+            <Link to="/account" onClick={() => setAccountOpen(false)}>
+              <Button type="primary">Xem hồ sơ đầy đủ</Button>
+            </Link>
+            <Button onClick={() => setAccountOpen(false)}>Đóng</Button>
+          </Space>
+        }
+      >
+        {meQuery.isLoading ? (
+          <Space>
+            <Avatar size={48} />
+            <Typography.Text type="secondary">Đang tải...</Typography.Text>
+          </Space>
+        ) : me ? (
+          <Space align="start" size={16}>
+            <UserAvatar name={me.username} picture={headerAvatar} size={48} />
+            <Descriptions column={1} size="small">
+              <Descriptions.Item label="Tên đăng nhập">{me.username}</Descriptions.Item>
+              <Descriptions.Item label="Email">{me.email ?? '—'}</Descriptions.Item>
+              <Descriptions.Item label="Vai trò">
+                <RoleTags roles={me.roles ?? []} admin={me.admin} />
+              </Descriptions.Item>
+            </Descriptions>
+          </Space>
+        ) : (
+          <Typography.Text type="secondary">Không tải được thông tin tài khoản.</Typography.Text>
+        )}
+      </Modal>
     </Layout>
   );
 }

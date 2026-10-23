@@ -89,6 +89,27 @@ public class AuthExceptionHandler {
                 .body(Map.of("error", "role_not_found", "message", ex.getMessage()));
     }
 
+    @ExceptionHandler(KeycloakAdminClient.EmailAlreadyExistsException.class)
+    public ResponseEntity<Map<String, Object>> handleEmailExists(
+            KeycloakAdminClient.EmailAlreadyExistsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "email_exists", "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(KeycloakAdminClient.RoleAlreadyExistsException.class)
+    public ResponseEntity<Map<String, Object>> handleRoleExists(
+            KeycloakAdminClient.RoleAlreadyExistsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "role_exists", "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(AdminRoleController.ProtectedRoleException.class)
+    public ResponseEntity<Map<String, Object>> handleProtectedRole(
+            AdminRoleController.ProtectedRoleException ex) {
+        return ResponseEntity.badRequest()
+                .body(Map.of("error", "protected_role", "message", ex.getMessage()));
+    }
+
     @ExceptionHandler(AdminUserController.SelfLockoutException.class)
     public ResponseEntity<Map<String, Object>> handleSelfLockout(AdminUserController.SelfLockoutException ex) {
         return ResponseEntity.badRequest()
