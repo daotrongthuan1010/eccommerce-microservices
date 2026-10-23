@@ -54,10 +54,12 @@ export function SummaryRow({ items }: { items: { label: string; value: React.Rea
 export function StatusTag({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
     ACTIVE: 'success',
+    ENABLED: 'success',
     APPROVED: 'success',
     PUBLISHED: 'success',
     PENDING: 'warning',
     DRAFT: 'default',
+    DISABLED: 'error',
     REJECTED: 'error',
     INACTIVE: 'default',
   };
@@ -112,6 +114,7 @@ export function DataTable<T extends object>(props: {
               current: page + 1,
               onChange: (p) => onPageChange?.(p - 1),
               showSizeChanger: false,
+              showTotal: (t) => `Tổng ${t}`,
             }
           : false
       }

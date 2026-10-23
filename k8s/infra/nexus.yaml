@@ -1,0 +1,97 @@
+# Port of docker-compose.yml `nexus` (sonatype/nexus3:3.78.0).
+# Kept per user decision 2B. DEV external access via LoadBalancer on 18081
+# (k3s Klipper lb binds the node IP at the service port, like compose
+# 0.0.0.0:18081). Pom files reference
+# http://162.4.177.91:18081/repository/maven-public/ as mirror.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nexus-data
+  namespace: ecommerce
+  labels:
+    app: nexus
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexus
+  namespace: ecommerce
+  labels:
+    app: nexus
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nexus
+  template:
+    metadata:
+      labels:
+        app: nexus
+    spec:
+      containers:
+        - name: nexus
+          image: sonatype/nexus3:3.78.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: INSTALL4J_ADD_VM_PARAMS
+              value: "-Xms512m -Xmx1024m -XX:MaxDirectMemorySize=512m"
+          ports:
+            - name: http
+              containerPort: 8081
+          volumeMounts:
+            - name: data
+              mountPath: /nexus-data
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          livenessProbe:
+            httpGet:
+              path: /service/rest/v1/status
+              port: http
+            initialDelaySeconds: 300
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 10
+          readinessProbe:
+            httpGet:
+              path: /service/rest/v1/status
+              port: http
+            initialDelaySeconds: 180
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 20
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: nexus-data
+---
+# LoadBalancer preserves compose port 18081 on the node IP (DEV public access).
+# In-cluster clients use nexus:8081.
+apiVersion: v1
+kind: Service
+metadata:
+  name: nexus
+  namespace: ecommerce
+  labels:
+    app: nexus
+spec:
+  type: LoadBalancer
+  selector:
+    app: nexus
+  ports:
+    - name: http
+      port: 18081
+      targetPort: http

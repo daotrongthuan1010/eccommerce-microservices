@@ -151,6 +151,7 @@ spec:
               /opt/bitnami/minio-client/bin/mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
               /opt/bitnami/minio-client/bin/mc mb --ignore-existing local/product-assets
               /opt/bitnami/minio-client/bin/mc mb --ignore-existing local/ecommerce-files
+              /opt/bitnami/minio-client/bin/mc mb --ignore-existing local/backups # Phase 4: backup CronJob target
           env:
             - name: MINIO_ROOT_USER
               valueFrom:

@@ -100,8 +100,8 @@ public class AuthController {
         keycloakAdmin.requireEnabled();
         String userId = keycloakAdmin.createUser(
                 request.username(), request.email(), request.firstName(), request.lastName(), request.password());
-        // Gan role USER mac dinh cho tai khoan moi tu dang ky.
-        keycloakAdmin.assignRealmRole(userId, "USER");
+        // Gan role USER mac dinh cho tai khoan moi tu dang ky (best-effort: khong chan dang ky).
+        keycloakAdmin.assignRealmRoleBestEffort(userId, "USER");
         log.info("Registered new Keycloak user {} ({})", request.username(), userId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(Map.of("userId", userId, "username", request.username(), "email", request.email()));
@@ -174,6 +174,8 @@ public class AuthController {
     /**
      * Profile hien tai (thong nhat qua gateway: GET /api/auth/me).
      * Cung shape voi user-service /me de client dung 1 cach doc.
+     * Gateway route auth-service StripPrefix=1 nen giu prefix /auth o day
+     * (FE SSO bat buoc can endpoint nay sau khi doi token).
      */
     @GetMapping(value = "/me", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("isAuthenticated()")

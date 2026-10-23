@@ -21,6 +21,8 @@ const CartPage = React.lazy(() => import('../pages/CartPage'));
 const CheckoutPage = React.lazy(() => import('../pages/CheckoutPage'));
 const OrdersPage = React.lazy(() => import('../pages/OrdersPage'));
 const DashboardPage = React.lazy(() => import('../pages/DashboardPage'));
+const AdminUsersPage = React.lazy(() => import('../pages/AdminUsersPage'));
+const AdminRolesPage = React.lazy(() => import('../pages/AdminRolesPage'));
 const PublishingPage = React.lazy(() => import('../pages/PublishingPage'));
 const ReviewsPage = React.lazy(() => import('../pages/ReviewsPage'));
 
@@ -78,6 +80,22 @@ export const router = createBrowserRouter([
         element: (
           <RequireRole roles={['ADMIN']}>
             <Suspense fallback={fallback}><DashboardPage /></Suspense>
+          </RequireRole>
+        ),
+      },
+      {
+        path: 'admin/users',
+        element: (
+          <RequireRole roles={['ADMIN']}>
+            <Suspense fallback={fallback}><AdminUsersPage /></Suspense>
+          </RequireRole>
+        ),
+      },
+      {
+        path: 'admin/roles',
+        element: (
+          <RequireRole roles={['ADMIN']}>
+            <Suspense fallback={fallback}><AdminRolesPage /></Suspense>
           </RequireRole>
         ),
       },

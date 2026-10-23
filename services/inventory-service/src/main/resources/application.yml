@@ -183,6 +183,8 @@ info:
     stage: ${DEPLOYMENT_ENV:local}
 
 logging:
+  level:
+    org.hibernate.engine.internal.StatisticalLoggingSessionEventListener: WARN
   pattern:
     # Trace/span ID giúp nối log với Zipkin mà không ghi dữ liệu nhạy cảm vào log.
     correlation: '[${spring.application.name:},%X{traceId:-},%X{spanId:-}]'

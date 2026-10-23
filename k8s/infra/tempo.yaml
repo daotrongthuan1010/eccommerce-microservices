@@ -1,0 +1,185 @@
+# Phase 4 — Tempo (grafana/tempo:2.7.1, single-instance monolithic).
+# Receivers: OTLP gRPC 4317 + OTLP HTTP 4318 AND Zipkin 9411.
+# The Zipkin receiver lets the 14 Spring Boot apps (micrometer-tracing-bridge-brave
+# + zipkin-reporter-brave) switch by ConfigMap hostname only: ZIPKIN_ENDPOINT
+# http://zipkin:9411/api/v2/spans -> http://tempo:9411/api/v2/spans. No rebuild.
+# Sizing ~300Mi.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tempo-data
+  namespace: ecommerce
+  labels:
+    app: tempo
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo-config
+  namespace: ecommerce
+  labels:
+    app: tempo
+data:
+  tempo.yaml: |
+    server:
+      http_listen_port: 3200
+      grpc_listen_port: 9097
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+        zipkin:
+          endpoint: 0.0.0.0:9411
+    ingester_client:
+      grpc_client_config:
+        max_send_msg_size: 4194304
+    compactor:
+      compaction:
+        block_retention: 24h
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /var/tempo/traces
+        wal:
+          path: /var/tempo/wal
+        pool:
+          max_workers: 4
+          queue_depth: 100
+    memberlist:
+      abort_if_cluster_join_fails: false
+      min_join_backoff: 1s
+      max_join_backoff: 1m
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tempo
+  namespace: ecommerce
+  labels:
+    app: tempo
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # single writer on RWO volume; never roll while mounted
+  selector:
+    matchLabels:
+      app: tempo
+  template:
+    metadata:
+      labels:
+        app: tempo
+    spec:
+      securityContext:
+        fsGroup: 10001 # grafana/tempo runs as uid 10001; local-path dirs are root-owned
+      containers:
+        - name: tempo
+          image: grafana/tempo:2.7.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config.file=/etc/tempo/tempo.yaml
+            - -target=all
+          ports:
+            - name: http
+              containerPort: 3200
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+            - name: zipkin
+              containerPort: 9411
+          volumeMounts:
+            - name: config
+              mountPath: /etc/tempo
+              readOnly: true
+            - name: data
+              mountPath: /var/tempo
+          resources:
+            requests:
+              cpu: 200m
+              memory: 192Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 90
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+      volumes:
+        - name: config
+          configMap:
+            name: tempo-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: tempo-data
+---
+# ClusterIP for in-cluster consumers (apps push spans; Grafana datasource reads).
+# The `zipkin` port keeps the 14 app ConfigMaps' ZIPKIN_ENDPOINT path working
+# with only a hostname swap (zipkin -> tempo).
+apiVersion: v1
+kind: Service
+metadata:
+  name: tempo
+  namespace: ecommerce
+  labels:
+    app: tempo
+spec:
+  type: ClusterIP
+  selector:
+    app: tempo
+  ports:
+    - name: http
+      port: 3200
+      targetPort: http
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+    - name: zipkin
+      port: 9411
+      targetPort: zipkin
+---
+# LoadBalancer preserves the DEV 0.0.0.0 public-access behavior (compose parity).
+apiVersion: v1
+kind: Service
+metadata:
+  name: tempo-external
+  namespace: ecommerce
+  labels:
+    app: tempo
+spec:
+  type: LoadBalancer
+  selector:
+    app: tempo
+  ports:
+    - name: http
+      port: 3200
+      targetPort: http
+    - name: zipkin
+      port: 9411
+      targetPort: zipkin

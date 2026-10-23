@@ -98,7 +98,7 @@ eureka:
 grpc:
   client:
     file-service:
-      address: ${FILE_GRPC_ADDRESS:static://162.4.177.91:9090}
+      address: ${FILE_GRPC_ADDRESS:static://file-service-grpc:9090}
       negotiation-type: plaintext
 
 

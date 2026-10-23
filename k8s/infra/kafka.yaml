@@ -38,6 +38,12 @@ spec:
       labels:
         app: kafka
     spec:
+      # K8s injects KAFKA_PORT=tcp://... env vars from the Service named
+      # `kafka`; the confluent entrypoint mistakes it for the deprecated
+      # KAFKA_PORT setting and exits 1. Disable Docker-links-style vars.
+      enableServiceLinks: false
+      securityContext:
+        fsGroup: 1000 # cp-kafka runs as uid 1000 (appuser); local-path dirs are root-owned
       containers:
         - name: kafka
           image: confluentinc/cp-kafka:7.9.2
@@ -47,6 +53,8 @@ spec:
               containerPort: 29092
             - name: external
               containerPort: 9092
+            - name: controller
+              containerPort: 29093
           env:
             - name: CLUSTER_ID
               value: MkU3OEVBNTcwNTJENDM2Qk
@@ -55,7 +63,7 @@ spec:
             - name: KAFKA_PROCESS_ROLES
               value: broker,controller
             - name: KAFKA_CONTROLLER_QUORUM_VOTERS
-              value: 1@kafka:29093
+              value: 1@localhost:29093
             - name: KAFKA_LISTENERS
               value: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
             - name: KAFKA_ADVERTISED_LISTENERS
@@ -114,6 +122,10 @@ spec:
             claimName: kafka-data
 ---
 # Internal listener for pods (auth-service, user-service, ...).
+# Headless (clusterIP: None): `kafka` DNS resolves directly to pod IPs.
+# A regular ClusterIP deadlocks single-node KRaft startup — kube-proxy only
+# routes to Ready endpoints, but the readiness probe redirects through the
+# advertised listener `kafka:29092`, so the pod can never become Ready.
 apiVersion: v1
 kind: Service
 metadata:
@@ -122,13 +134,17 @@ metadata:
   labels:
     app: kafka
 spec:
-  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true # KRaft pod must resolve `kafka` DNS before its own readiness passes
   selector:
     app: kafka
   ports:
     - name: internal
       port: 29092
       targetPort: internal
+    - name: controller
+      port: 29093
+      targetPort: 29093
 ---
 # External listener for DEV tools on the VPS IP (compose parity: 0.0.0.0:9092).
 apiVersion: v1
@@ -164,6 +180,7 @@ spec:
         app: kafka-init-topics
         job-name: kafka-init-topics
     spec:
+      enableServiceLinks: false # same KAFKA_PORT collision avoidance
       restartPolicy: OnFailure
       containers:
         - name: kafka-init

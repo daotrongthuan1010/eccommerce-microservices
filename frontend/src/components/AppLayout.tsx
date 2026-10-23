@@ -26,6 +26,8 @@ export default function AppLayout() {
     ...(isAdmin
       ? [
           { key: '/admin', label: <Link to="/admin">Quản trị</Link> },
+          { key: '/admin/users', label: <Link to="/admin/users">Người dùng</Link> },
+          { key: '/admin/roles', label: <Link to="/admin/roles">Vai trò</Link> },
           { key: '/admin/reviews', label: <Link to="/admin/reviews">Duyệt review</Link> },
         ]
       : []),
