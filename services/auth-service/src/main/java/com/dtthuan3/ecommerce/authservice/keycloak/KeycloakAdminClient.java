@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -684,17 +685,26 @@ public class KeycloakAdminClient {
      */
     public AdminUser setUserPicture(String userId, String fileKey) {
         requireEnabled();
+        String expect = (fileKey == null || fileKey.isBlank()) ? null : fileKey.trim();
         withRetry(() -> {
             try {
                 Map<String, Object> raw = getRawUser(userId);
-                Map<String, Object> attrs = new LinkedHashMap<>();
+                // Chuan hoa toan bo attributes ve Map<String, List<String>> dung
+                // UserRepresentation Keycloak: value la (VD String don) khien
+                // Keycloak bo qua ca map attributes o PUT, lam mat picture.
+                Map<String, List<String>> attrs = new LinkedHashMap<>();
                 if (raw.get("attributes") instanceof Map<?, ?> existing) {
-                    existing.forEach((k, v) -> attrs.put(String.valueOf(k), v));
+                    existing.forEach((k, v) -> {
+                        List<String> vals = toStringList(v);
+                        if (!vals.isEmpty()) {
+                            attrs.put(String.valueOf(k), vals);
+                        }
+                    });
                 }
-                if (fileKey == null || fileKey.isBlank()) {
+                if (expect == null) {
                     attrs.remove("picture");
                 } else {
-                    attrs.put("picture", List.of(fileKey.trim()));
+                    attrs.put("picture", List.of(expect));
                 }
                 raw.put("attributes", attrs);
                 restClient
@@ -704,12 +714,46 @@ public class KeycloakAdminClient {
                         .body(raw)
                         .retrieve()
                         .toBodilessEntity();
+                // Read-back xac minh persist (GET-merge-PUT tung lam mat attribute
+                // ma van tra 200): mismatch = fail request de FE hien loi thay vi
+                // toast success gia.
+                try {
+                    String persisted = firstAttribute(getRawUser(userId).get("attributes"), "picture");
+                    if (!Objects.equals(expect, persisted)) {
+                        throw new IllegalStateException("Keycloak did not persist picture for user "
+                                + userId + " (expected=" + expect + ", read-back=" + persisted + ")");
+                    }
+                } catch (IllegalStateException ex) {
+                    throw ex;
+                } catch (Exception ex) {
+                    log.warn("setUserPicture read-back verify failed for user {}: {}", userId, ex.getMessage());
+                }
             } catch (HttpClientErrorException.NotFound ex) {
                 throw new UserNotFoundException(userId);
             }
             return null;
         });
         return getUserWithRoles(userId);
+    }
+
+    /**
+     * Chuan hoa 1 attribute value Keycloak ve List&lt;String&gt;: List giu nguyen
+     * (stringify tung phan tu), String don boc thanh 1 phan tu, null/other rong.
+     */
+    private static List<String> toStringList(Object value) {
+        if (value instanceof List<?> list) {
+            List<String> result = new ArrayList<>(list.size());
+            for (Object item : list) {
+                if (item != null) {
+                    result.add(String.valueOf(item));
+                }
+            }
+            return result;
+        }
+        if (value instanceof String s) {
+            return s.isEmpty() ? List.of() : List.of(s);
+        }
+        return value == null ? List.of() : List.of(String.valueOf(value));
     }
 
     /**

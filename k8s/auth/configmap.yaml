@@ -26,10 +26,13 @@ data:
   KEYCLOAK_REALM: "ecommerce"
   KEYCLOAK_ADMIN_REALM: "master"
   KEYCLOAK_CLIENT_ID: "ecommerce-app"
-  # Service-account client cho Keycloak Admin API. De CHANGEME + tao secret that o rollout;
-  # de trong = tat register/forgot/change-password (tra 501 kem huong dan thu cong).
-  KEYCLOAK_ADMIN_CLIENT_ID: "CHANGEME"
+  # Service-account client cho Keycloak Admin API. Repo giu gia tri that dang
+  # chay tren cluster ('ecommerce-admin'); secret that cap qua Secret/env ngoai.
+  # De trong = tat register/forgot/change-password (tra 501 kem huong dan thu cong).
+  KEYCLOAK_ADMIN_CLIENT_ID: "ecommerce-admin"
   IAM_PROVISION_ENABLED: "true"
-  # Ma tenant mac dinh (phai co trong seed V1). Doi thanh ma that truoc rollout.
-  IAM_DEFAULT_TENANT: "CHANGEME"
+  # Ma tenant mac dinh (phai co trong seed neu dung). De trong = provision
+  # user muc he thong, khong gan tenant (khop default application.yml).
+  # Dat ma that (VD "DEFAULT") khi da seed tenants.
+  IAM_DEFAULT_TENANT: ""
   ZIPKIN_ENDPOINT: "http://tempo:9411/api/v2/spans"

@@ -30,6 +30,7 @@ import {
   type AdminUser,
 } from '../features/admin/adminApi';
 import { useLazyFileUrlQuery, useUploadMutation } from '../features/file/fileApi';
+import { cropToSquare } from '../utils/cropImage';
 import { useAppSelector } from '../app/hooks';
 import {
   ApiErrorAlert,
@@ -105,6 +106,9 @@ export default function AdminUsersPage() {
   const total = query.data?.total ?? 0;
   const disabledCount = items.filter((u) => !u.enabled).length;
   const adminCount = items.filter((u) => u.roles.includes('ADMIN')).length;
+  // Co loc/search dang ap dung khong — quyet dinh CTA cua empty state
+  // (Xoa loc khi dang loc, Tao nguoi dung khi that su trong).
+  const hasFilter = search.trim().length > 0 || roleFilter !== undefined || statusFilter !== undefined;
 
   const mutationError =
     (createState.error as { message?: string } | undefined)?.message ??
@@ -184,7 +188,9 @@ export default function AdminUsersPage() {
   const onAdminAvatarFile = async (file: File) => {
     if (!detail) return false;
     try {
-      const up = await uploadFile({ file, folder: 'avatars' }).unwrap();
+      // Crop vuong o giua nhu ProfilePage — anh chu nhat se meo trong UserAvatar tron.
+      const square = await cropToSquare(file);
+      const up = await uploadFile({ file: square, folder: 'avatars' }).unwrap();
       const key = up.data?.key;
       if (!key) {
         message.error('Upload ảnh thất bại: không nhận được file key');
@@ -266,7 +272,7 @@ export default function AdminUsersPage() {
         items={[
           { label: 'Tổng số', value: total, icon: <TeamOutlined />, hint: 'tài khoản trong hệ thống' },
           { label: 'Vô hiệu hóa', value: disabledCount, icon: <StopOutlined />, color: '#C13515', hint: 'trang hiện tại' },
-          { label: 'ADMIN', value: adminCount, icon: <UserAddOutlined />, color: '#0F4C81', hint: 'trang hiện tại' },
+          { label: 'ADMIN', value: adminCount, icon: <UserAddOutlined />, color: '#0F4C81', hint: 'trang hiện tại · xem vai trò', link: '/admin/roles' },
         ]}
       />
       <FilterBar>
@@ -325,8 +331,16 @@ export default function AdminUsersPage() {
           <TableEmpty
             illustration="users"
             description={appliedSearch ? `Không tìm thấy "${appliedSearch}"` : 'Chưa có người dùng'}
-            actionText="Tạo người dùng"
-            onAction={() => setCreateOpen(true)}
+            actionText={hasFilter ? 'Xóa lọc' : 'Tạo người dùng'}
+            onAction={
+              hasFilter
+                ? () => {
+                    setSearch('');
+                    setRoleFilter(undefined);
+                    setStatusFilter(undefined);
+                  }
+                : () => setCreateOpen(true)
+            }
           />
         </Card>
       ) : (

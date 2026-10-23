@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, Descriptions, Drawer, Form, Input, Modal, Space, Transfer, Typography, message } from 'antd';
+import { Button, Card, Descriptions, Drawer, Form, Input, Modal, Popconfirm, Space, Transfer, Typography, message } from 'antd';
 import { KeyOutlined, TeamOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -125,33 +125,34 @@ export default function AdminRolesPage() {
           <Button size="small" type="link" onClick={() => setSelectedRole(r.name)}>
             Thành viên
           </Button>
-          <Button
-            size="small"
-            type="link"
-            danger
-            disabled={['ADMIN', 'USER', 'offline_access', 'uma_authorization'].includes(r.name)}
-            onClick={() => {
-              Modal.confirm({
-                title: `Xóa vai trò ${r.name}?`,
-                content: r.memberCount > 0
-                  ? `Vai trò đang có ${r.memberCount} thành viên. Keycloak cho phép xóa role đang gán — hãy chắc chắn.`
-                  : 'Vai trò sẽ bị xóa khỏi realm Keycloak.',
-                okText: 'Xóa',
-                okType: 'danger',
-                cancelText: 'Hủy',
-                onOk: async () => {
-                  try {
-                    await deleteRole(r.name).unwrap();
-                    message.success(`Đã xóa vai trò ${r.name}`);
-                  } catch {
-                    message.error('Xóa vai trò thất bại');
-                  }
-                },
-              });
+          <Popconfirm
+            title={`Xóa vai trò ${r.name}?`}
+            description={
+              r.memberCount > 0
+                ? `Vai trò ${r.name} đang có ${r.memberCount} thành viên. Keycloak cho phép xóa role đang gán — hãy chắc chắn.`
+                : `Vai trò ${r.name} sẽ bị xóa khỏi realm Keycloak.`
+            }
+            okText="Xóa"
+            okType="danger"
+            cancelText="Hủy"
+            onConfirm={async () => {
+              try {
+                await deleteRole(r.name).unwrap();
+                message.success(`Đã xóa vai trò ${r.name}`);
+              } catch {
+                message.error('Xóa vai trò thất bại');
+              }
             }}
           >
-            Xóa
-          </Button>
+            <Button
+              size="small"
+              type="link"
+              danger
+              disabled={['ADMIN', 'USER', 'offline_access', 'uma_authorization'].includes(r.name)}
+            >
+              Xóa
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -170,7 +171,7 @@ export default function AdminRolesPage() {
       <SummaryRow
         items={[
           { label: 'Số vai trò', value: roles.length, icon: <KeyOutlined />, hint: 'realm roles Keycloak' },
-          { label: 'Tổng lượt gán', value: totalAssignments, icon: <TeamOutlined />, color: '#0F4C81', hint: 'người dùng × vai trò' },
+          { label: 'Tổng lượt gán', value: totalAssignments, icon: <TeamOutlined />, color: '#0F4C81', hint: 'người dùng × vai trò · xem người dùng', link: '/admin/users' },
         ]}
       />
 

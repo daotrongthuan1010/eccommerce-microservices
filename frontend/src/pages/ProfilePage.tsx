@@ -6,6 +6,7 @@ import { useAppSelector } from '../app/hooks';
 import { ApiErrorAlert, ListSkeleton, RoleTags, StatusTag, UserAvatar } from '../components/ui';
 import { toProfile, useGetMeQuery, useUpdateAvatarMutation, useUpdateProfileMutation } from '../features/user/userApi';
 import { useLazyFileUrlQuery, useUploadMutation } from '../features/file/fileApi';
+import { cropToSquare } from '../utils/cropImage';
 
 // /account — ho so ca nhan tu GET /auth/me (enriched, map qua toProfile).
 // Banner nhan dien (avatar that tu picture → file-service URL, fallback chu
@@ -72,13 +73,12 @@ export default function ProfilePage() {
   const displayName = profile.fullName !== '—' ? profile.fullName : profile.username;
 
   // Client validation truoc upload: chi nhan anh, toi da 2MB.
-  // Crop vuong (ImgCrop) chua co — file-service nhan anh goc, CSS avatar
-  // tron tu cat hien thi.
   const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
   const onAvatarFile = async (file: File) => {
     try {
-      const up = await uploadFile({ file, folder: 'avatars' }).unwrap();
+      const square = await cropToSquare(file);
+      const up = await uploadFile({ file: square, folder: 'avatars' }).unwrap();
       const key = up.data?.key;
       if (!key) {
         message.error('Upload ảnh thất bại: không nhận được file key');
