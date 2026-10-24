@@ -120,6 +120,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # Gioi han burst pull base image keo dinh Docker Hub 429
+      # (14 job cung HEAD 1 manifest tu IP shared cua GitHub runner).
+      max-parallel: 4
       matrix:
         service: ${{ fromJSON(needs.resolve.outputs.services) }}
     steps:

@@ -1,5 +1,8 @@
 # syntax=docker/dockerfile:1
-FROM maven:3.9.11-eclipse-temurin-21 AS build
+# NOTE: dung mirror nha daotrongthuan/* thay vi library/* public de tranh
+# Docker Hub 429 (14 job CI cung HEAD 1 manifest tu IP shared runner).
+# Mirror 1 lan bang lenh o ghi chu cuoi file; tag giu nguyen version goc.
+FROM daotrongthuan/maven-builder:3.9.11-eclipse-temurin-21 AS build
 ARG SERVICE
 WORKDIR /workspace
 
@@ -44,7 +47,7 @@ COPY services ./services
 RUN --mount=type=cache,target=/root/.m2 mvn -B -T1C -pl services/${SERVICE} -am package -DskipTests && cp services/${SERVICE}/target/${SERVICE}-0.0.1-SNAPSHOT.jar /tmp/app.jar
 RUN java -Djarmode=layertools -jar /tmp/app.jar extract --destination /tmp/layers
 
-FROM eclipse-temurin:21-jre-jammy
+FROM daotrongthuan/eclipse-temurin:21-jre-jammy
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* && groupadd --system app && useradd --system --gid app app
 WORKDIR /app
 COPY --from=build --chown=app:app /tmp/layers/dependencies/ ./
