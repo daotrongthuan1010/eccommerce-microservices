@@ -1,0 +1,81 @@
+name: deploy-frontend
+description: >-
+  Deploy frontend (Vite nginx) to VPS k3s independently: scp k8s/frontend/,
+  substitute __IMAGE_TAG__ in a temp copy, kubectl apply + rollout status +
+  auto undo scoped to its own Deployment, then smoke `/` 200 + SPA fallback
+  /products/123 serving index.html. Skips quietly if frontend:SHA was never
+  built/pushed. Same pattern as cd-all.yml frontend-leaf.
+
+inputs:
+  sha:
+    description: 'Image tag (commit SHA) to deploy'
+    required: true
+  host:
+    required: true
+  port:
+    required: true
+  username:
+    required: true
+  key:
+    required: true
+  dockerhub_username:
+    required: true
+  dockerhub_token:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Copy frontend manifests to VPS
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ inputs.host }}
+        port: ${{ inputs.port }}
+        username: ${{ inputs.username }}
+        key: ${{ inputs.key }}
+        source: 'k8s/frontend/'
+        target: /tmp/k8s-deploy-src
+
+    - name: Deploy frontend to VPS k3s via SSH
+      uses: appleboy/ssh-action@v1.2.0
+      env:
+        IMAGE_TAG: ${{ inputs.sha }}
+        DH_USER: ${{ inputs.dockerhub_username }}
+        DH_TOKEN: ${{ inputs.dockerhub_token }}
+      with:
+        host: ${{ inputs.host }}
+        port: ${{ inputs.port }}
+        username: ${{ inputs.username }}
+        key: ${{ inputs.key }}
+        envs: IMAGE_TAG,DH_USER,DH_TOKEN
+        script: |
+          set -euo pipefail
+          # Login first: manifest inspect on anonymous pulls hits
+          # Docker Hub rate limits; authenticated checks do not.
+          echo "$DH_TOKEN" | docker login -u "$DH_USER" --password-stdin
+          # Skip (not fail) if this tag was never built/pushed (e.g. push
+          # only touched BE code, so CI never built FE for this SHA).
+          if ! docker manifest inspect "$DH_USER/frontend:${IMAGE_TAG}" >/dev/null 2>&1; then
+            echo "SKIP (frontend:${IMAGE_TAG} not on Hub — no FE build for this SHA)"
+            exit 0
+          fi
+          kubectl create namespace ecommerce --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret docker-registry dockerhub-pull -n ecommerce \
+            --docker-username="$DH_USER" --docker-password="$DH_TOKEN" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          WORK="/tmp/k8s-deploy-frontend"
+          rm -rf "$WORK" && cp -r /tmp/k8s-deploy-src/k8s/frontend "$WORK"
+          grep -rl "__IMAGE_TAG__" "$WORK" --include=deployment.yaml \
+            | xargs sed -i "s/__IMAGE_TAG__/${IMAGE_TAG}/g"
+          kubectl apply -f "$WORK/"
+          if ! kubectl rollout status deployment/frontend -n ecommerce --timeout=300s; then
+            kubectl rollout undo deployment/frontend -n ecommerce
+            kubectl rollout status deployment/frontend -n ecommerce --timeout=300s
+            exit 1
+          fi
+          # Smoke: `/` 200 + deep-link /products/123 serve index.html (SPA fallback).
+          kubectl run smoke-frontend -n ecommerce --rm -i --restart=Never \
+            --image=curlimages/curl:8.10.1 -- \
+            sh -c 'curl -fsS --max-time 10 http://frontend/ | grep -q "<div id=\"root\">" && curl -fsS --max-time 10 -o /dev/null -w "%{http_code}" http://frontend/products/123 | grep -q 200' \
+            && echo "FRONTEND SMOKE OK" \
+            || { echo "FRONTEND SMOKE FAILED"; exit 1; }

@@ -263,3 +263,11 @@ jobs:
             VITE_KEYCLOAK_URL=${{ vars.VITE_KEYCLOAK_URL || 'http://162.4.177.91:7080' }}
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/frontend:${{ github.sha }}
+
+      - name: Promote SHA tag to env alias (no rebuild)
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then ALIAS="latest"; else ALIAS="develop"; fi
+          SRC="${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/frontend:${{ github.sha }}"
+          DST="${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/frontend:${ALIAS}"
+          docker buildx imagetools create --tag "$DST" "$SRC"

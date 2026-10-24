@@ -41,20 +41,28 @@ jobs:
   select:
     # Run on workflow completion (success OR partial failure): each service
     # deploys independently if its own image exists. Never gated on full CI green.
+    # On workflow_run the candidate list is filtered by Docker Hub: only
+    # services whose :SHA image was actually pushed get into the matrix, so a
+    # push touching 1 service deploys just that service instead of 14 jobs.
+    # workflow_dispatch keeps its old behaviour (1 service or all, unfiltered).
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion != 'cancelled' }}
     runs-on: ubuntu-latest
     outputs:
       services: ${{ steps.out.outputs.services }}
       sha: ${{ steps.out.outputs.sha }}
+      deploy_frontend: ${{ steps.out.outputs.deploy_frontend }}
     steps:
       - id: out
+        env:
+          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DH_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           ALL='["discovery-service","api-gateway","auth-service","user-service","catalog-service","inventory-service","order-service","payment-service","notification-service","search-service","product-service","review-service","analytics-service","file-service"]'
+          CANDIDATES="$ALL"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.service }}" != "all" ]; then
-            echo 'services=["${{ inputs.service }}"]' >> "$GITHUB_OUTPUT"
+            CANDIDATES='["${{ inputs.service }}"]'
             SHA='${{ inputs.sha }}'
           else
-            echo "services=$ALL" >> "$GITHUB_OUTPUT"
             SHA='${{ inputs.sha }}'
           fi
           # workflow_run event: deploy the HEAD sha that CI just built.
@@ -63,9 +71,37 @@ jobs:
           fi
           if [ -z "$SHA" ]; then SHA="$(git ls-remote https://github.com/${{ github.repository }}.git develop | cut -f1)"; fi
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          # workflow_dispatch: keep old behaviour — candidates + frontend flag
+          # pass through unfiltered (manual FE rollout stays in cd-all.yml).
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "services=$CANDIDATES" >> "$GITHUB_OUTPUT"
+            echo "deploy_frontend=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # workflow_run: login first (anonymous manifest inspect hits Hub
+          # rate limits), then keep only services whose :SHA image exists.
+          echo "$DH_TOKEN" | docker login -u "$DH_USER" --password-stdin
+          KEPT='[]'
+          for SVC in $(echo "$CANDIDATES" | jq -r '.[]'); do
+            if docker manifest inspect "$DH_USER/$SVC:${SHA}" >/dev/null 2>&1; then
+              KEPT=$(echo "$KEPT" | jq -c --arg s "$SVC" '. + [$s]')
+            else
+              echo "SKIP ($SVC:${SHA} not on Hub — nothing built for this SHA)"
+            fi
+          done
+          echo "services=$KEPT" >> "$GITHUB_OUTPUT"
+          if docker manifest inspect "$DH_USER/frontend:${SHA}" >/dev/null 2>&1; then
+            echo "deploy_frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "SKIP (frontend:${SHA} not on Hub — no FE build for this SHA)"
+            echo "deploy_frontend=false" >> "$GITHUB_OUTPUT"
+          fi
 
   deploy:
     needs: select
+    # Empty matrix (no :SHA image on Hub for any BE service) skips quietly —
+    # FE-only pushes land here while deploy-frontend below handles the FE.
+    if: ${{ needs.select.outputs.services != '[]' && needs.select.outputs.services != '' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -89,3 +125,28 @@ jobs:
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
           iam_internal_token: ${{ secrets.IAM_INTERNAL_TOKEN }}
           keycloak_admin_client_secret: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
+
+  # Frontend deploys in its own job (not the BE matrix): deploy-service action
+  # cannot serve it (k8s dir mapping + Spring actuator smoke don't apply to
+  # nginx). Same steps as cd-all.yml frontend-leaf, factored into
+  # ./.github/actions/deploy-frontend. Runs only when frontend:SHA exists on
+  # Hub (i.e. CI just built FE) — BE-only pushes skip quietly.
+  deploy-frontend:
+    needs: select
+    if: ${{ needs.select.outputs.deploy_frontend == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - name: Deploy frontend (independent job)
+        uses: ./.github/actions/deploy-frontend
+        with:
+          sha: ${{ needs.select.outputs.sha }}
+          host: ${{ secrets.VPS_SSH_HOST }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
