@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Col, Descriptions, Empty, Form, Input, Modal, Row, Space, Tag, Typography, Upload, message } from 'antd';
+import { App, Button, Card, Col, Descriptions, Empty, Form, Input, Modal, Row, Space, Tag, Typography, Upload } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { useAppSelector } from '../app/hooks';
@@ -13,6 +13,7 @@ import { cropToSquare } from '../utils/cropImage';
 // cai) + form sua ho so (PUT /auth/me/profile) + upload avatar
 // (file-service POST /file/files → PUT /auth/me/avatar).
 export default function ProfilePage() {
+  const { message } = App.useApp();
   const { data, isLoading, isFetching, isError, error, refetch } = useGetMeQuery();
   const profile = toProfile(data);
   const roles = useAppSelector((s) => s.auth.roles);

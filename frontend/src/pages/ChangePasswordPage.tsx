@@ -1,10 +1,11 @@
-import { Button, Card, Form, Input, message } from 'antd';
+import { App, Button, Card, Form, Input } from 'antd';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { ApiErrorAlert, PageHeader } from '../components/ui';
 import { changePassword, type AuthError } from '../features/auth/authSlice';
 
 // real 2026-10-22: POST /api/auth/change-password (Bearer) — sai pass cu → 400 wrong_password.
 export default function ChangePasswordPage() {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const dispatch = useAppDispatch();
   const status = useAppSelector((s) => s.auth.status);

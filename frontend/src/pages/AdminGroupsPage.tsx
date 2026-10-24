@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, Descriptions, Drawer, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Transfer, Tree, Typography, message } from 'antd';
+import { App, Button, Card, Descriptions, Drawer, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Transfer, Tree, Typography } from 'antd';
 import { ApartmentOutlined, TeamOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { DataNode } from 'antd/es/tree';
@@ -43,6 +43,7 @@ function flatten(groups: IamGroup[], acc: IamGroup[] = []): IamGroup[] {
 }
 
 export default function AdminGroupsPage() {
+  const { message } = App.useApp();
   const groupsQuery = useListGroupsQuery();
   const treeQuery = useListGroupTreeQuery();
   const rolesQuery = useListIamRolesQuery();

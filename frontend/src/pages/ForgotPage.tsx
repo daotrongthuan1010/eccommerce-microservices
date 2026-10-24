@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Form, Input, message } from 'antd';
+import { Alert, App, Button, Card, Form, Input } from 'antd';
 import { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { ApiErrorAlert, PageHeader } from '../components/ui';
@@ -6,6 +6,7 @@ import { forgotPassword, type AuthError } from '../features/auth/authSlice';
 
 // real 2026-10-22: POST /api/auth/forgot-password — luon { sent: true }.
 export default function ForgotPage() {
+  const { message } = App.useApp();
   const dispatch = useAppDispatch();
   const status = useAppSelector((s) => s.auth.status);
   const error = useAppSelector((s) => s.auth.error);

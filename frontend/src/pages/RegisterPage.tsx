@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Checkbox, Form, Input, message } from 'antd';
+import { Alert, App, Button, Card, Checkbox, Form, Input } from 'antd';
 import { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { ApiErrorAlert, PageHeader } from '../components/ui';
@@ -6,6 +6,7 @@ import { register, type AuthError } from '../features/auth/authSlice';
 
 // FE_AUTH_GATEWAY §7: 501 registration_not_configured → an form, hien Alert.
 export default function RegisterPage() {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const dispatch = useAppDispatch();
   const status = useAppSelector((s) => s.auth.status);

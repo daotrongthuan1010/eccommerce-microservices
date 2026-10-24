@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, Descriptions, Drawer, Form, Input, Modal, Popconfirm, Space, Transfer, Typography, message } from 'antd';
+import { App, Button, Card, Descriptions, Drawer, Form, Input, Modal, Popconfirm, Space, Transfer, Typography } from 'antd';
 import { KeyOutlined, SafetyOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -25,6 +25,7 @@ import {
 const PROTECTED_ROLES = ['TENANT_ADMIN'];
 
 export default function AdminIamRolesPage() {
+  const { message } = App.useApp();
   const rolesQuery = useListIamRolesQuery();
   const permsQuery = useListPermissionsQuery(undefined);
   const [createRole, createState] = useCreateIamRoleMutation();

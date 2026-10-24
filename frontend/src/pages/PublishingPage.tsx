@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, Form, Input, Space, message } from 'antd';
+import { App, Button, Card, Form, Input, Space } from 'antd';
 import {
   useSubmitForApprovalMutation,
   useApprovePublicationMutation,
@@ -11,6 +11,7 @@ import { PageHeader, ApiErrorAlert, FormSection, ActionBar } from '../components
 // + approve/reject (reject body {reason}) trên đường doubled
 // /api/product/api/v1/... verbatim.
 export function PublishingPage() {
+  const { message } = App.useApp();
   const [submit, submitState] = useSubmitForApprovalMutation();
   const [approve, approveState] = useApprovePublicationMutation();
   const [reject, rejectState] = useRejectPublicationMutation();

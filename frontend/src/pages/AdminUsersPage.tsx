@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  App,
   Button,
   Card,
   Descriptions,
@@ -12,7 +13,6 @@ import {
   Switch,
   Typography,
   Upload,
-  message,
 } from 'antd';
 import { ReloadOutlined, StopOutlined, TeamOutlined, UploadOutlined, UserAddOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -60,6 +60,7 @@ function useDebounced(value: string, delay = 300): string {
 const KNOWN_ROLES = ['ADMIN', 'USER', 'MODERATOR'];
 
 export default function AdminUsersPage() {
+  const { message } = App.useApp();
   const myUsername = useAppSelector((s) => s.auth.username);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<string | undefined>(undefined);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, Space, Tree, message } from 'antd';
+import { App, Button, Card, Space, Tree } from 'antd';
 import type { DataNode } from 'antd/es/tree';
 import {
   useGetCategoryTreeQuery,
@@ -28,6 +28,7 @@ function toTreeNodes(nodes: CategoryTreeNode[]): DataNode[] {
 }
 
 export function CatalogPage() {
+  const { message } = App.useApp();
   const roles = useAppSelector((s) => s.auth.roles);
   const isAdmin = roles.includes('ADMIN');
   const [brandPage, setBrandPage] = useState(0);

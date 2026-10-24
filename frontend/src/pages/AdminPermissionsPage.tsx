@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, Checkbox, Col, Popconfirm, Row, Select, Space, Typography, message } from 'antd';
+import { App, Button, Card, Checkbox, Col, Popconfirm, Row, Select, Space, Typography } from 'antd';
 import { SafetyOutlined } from '@ant-design/icons';
 import {
   useListMenusQuery,
@@ -19,6 +19,7 @@ import {
 // /admin/permissions — RequireRole ADMIN. Ma tran cap permission MENU.ACTION:
 // chon menu → checklist actions (co = da cap, bo check = thu hoi).
 export default function AdminPermissionsPage() {
+  const { message } = App.useApp();
   const menusQuery = useListMenusQuery();
   const actionsQuery = useListActionsQuery();
   const [menuId, setMenuId] = useState<string | undefined>(undefined);

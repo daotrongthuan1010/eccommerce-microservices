@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Tabs, Typography, message } from 'antd';
+import { App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Tabs, Typography } from 'antd';
 import { AppstoreOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -64,6 +64,7 @@ function MenuForm({ form, menus, excludeId, isEdit }: {
 }
 
 function MenusTab() {
+  const { message } = App.useApp();
   const menusQuery = useListMenusQuery();
   const [createMenu, createState] = useCreateMenuMutation();
   const [updateMenu, updateState] = useUpdateMenuMutation();
@@ -147,6 +148,7 @@ function MenusTab() {
 }
 
 function ActionsTab() {
+  const { message } = App.useApp();
   const actionsQuery = useListActionsQuery();
   const [createAction, createState] = useCreateActionMutation();
   const [updateAction, updateState] = useUpdateActionMutation();

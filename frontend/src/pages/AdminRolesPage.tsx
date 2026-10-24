@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, Descriptions, Drawer, Form, Input, Modal, Popconfirm, Space, Transfer, Typography, message } from 'antd';
+import { App, Button, Card, Descriptions, Drawer, Form, Input, Modal, Popconfirm, Space, Transfer, Typography } from 'antd';
 import { KeyOutlined, TeamOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -28,6 +28,7 @@ import {
 // 560 voi Transfer gan/go user, tai su dung Users assign/remove endpoints.
 // Roles page chi doc + dieu huong (design D5); khong co membership API rieng.
 export default function AdminRolesPage() {
+  const { message } = App.useApp();
   const myUsername = useAppSelector((s) => s.auth.username);
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
 
