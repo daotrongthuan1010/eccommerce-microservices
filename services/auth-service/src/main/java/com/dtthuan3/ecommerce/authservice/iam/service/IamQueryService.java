@@ -147,8 +147,10 @@ public class IamQueryService {
     }
 
     /**
-     * Du lieu sider: sysadmin thay tat ca menu active; user thuong chi thay menu co it nhat
-     * mot permission MENU.*. Moi entry gom code/name/path/icon/sortOrder + allowed actions.
+     * Du lieu sider: sysadmin thay tat ca menu active; user thuong thay menu public
+     * (khong co permission nao gan vao) + menu co it nhat mot permission MENU.*
+     * duoc grant. Menu co permission nhung khong duoc grant van bi an.
+     * Moi entry gom code/name/path/icon/sortOrder + allowed actions (public -> []).
      */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> menusForUser(String subject, boolean keycloakAdmin) {
@@ -181,9 +183,11 @@ public class IamQueryService {
                         .map(p -> Map.<String, Object>of("code", p.getAction().getCode(),
                                 "name", p.getAction().getName()))
                         .collect(Collectors.toList());
-                if (allowed.isEmpty()) {
+                if (allowed.isEmpty() && !menuPerms.isEmpty()) {
+                    // Menu co permission nhung caller khong duoc grant -> an.
                     continue;
                 }
+                // menuPerms rong -> menu public: tra ve voi actions = [].
             }
             Map<String, Object> node = new LinkedHashMap<>();
             node.put("code", menu.getCode());

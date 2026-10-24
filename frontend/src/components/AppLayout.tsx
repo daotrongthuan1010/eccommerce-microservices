@@ -223,45 +223,58 @@ export default function AppLayout() {
   // neu BE doi shape.
   const myMenus: MyMenuItem[] = Array.isArray(myMenusQuery.data) ? myMenusQuery.data : [];
 
-  // Sider dong hoan toan tu GET /auth/me/menus (DB menu tree + loc quyen VIEW
-  // tu group; sysadmin thay tat ca — ref MeMenuController). Link shop co dinh
-  // (Cart/Account/...) luon giu vi DB menus chi chua admin tree; rieng admin
-  // section KHONG con fallback menu tinh — loading hien skeleton, loi hien
-  // message, rong thi an han (khong fake menus).
-  const userLinks: NonNullable<MenuProps['items']> = [
-    { key: '/', label: <Link to="/">Trang chủ</Link> },
-    { key: '/products', label: <Link to="/products">Sản phẩm</Link> },
-    { key: '/catalog', label: <Link to="/catalog">Danh mục</Link> },
-    { key: '/inventory', label: <Link to="/inventory">Tồn kho</Link> },
-    { key: '/files', label: <Link to="/files">File</Link> },
-    { key: '/cart', label: <Link to="/cart">Giỏ hàng</Link> },
-    { key: '/account', label: <Link to="/account">Tài khoản</Link> },
-  ];
-
-  const adminSection: NonNullable<MenuProps['items']> = myMenusQuery.isLoading
+  // Sider 100% tu GET /auth/me/menus (DB menu tree + loc quyen; sysadmin thay
+  // tat ca; menu public khong permission thay voi moi user — ref MeMenuController).
+  // Khong con link cung: chua login (query skip) -> loi moi dang nhap; loading ->
+  // skeleton; loi -> message; user da login nhung rong -> empty message.
+  const siderItems: NonNullable<MenuProps['items']> = !username
     ? [
         {
-          key: '__menus-loading',
-          disabled: true,
-          label: <Skeleton active paragraph={{ rows: 4 }} title={false} />,
+          key: '__guest',
+          label: (
+            <span>
+              Đăng nhập để xem menu. <Link to="/login">Đăng nhập</Link>
+            </span>
+          ),
         },
       ]
-    : myMenusQuery.isError
+    : myMenusQuery.isLoading
       ? [
           {
-            key: '__menus-error',
+            key: '__menus-loading',
             disabled: true,
-            danger: true,
+            label: <Skeleton active paragraph={{ rows: 4 }} title={false} />,
+          },
+        ]
+      : myMenusQuery.isError
+        ? [
+            {
+              key: '__menus-error',
+              disabled: true,
+              danger: true,
+              label: (
+                <Typography.Text type="danger">
+                  Không tải được menu phân quyền. Kiểm tra lại kết nối rồi tải lại trang.
+                </Typography.Text>
+              ),
+            },
+          ]
+        : buildDynamicItems(myMenus);
+
+  const items: MenuProps['items'] =
+    username && !myMenusQuery.isLoading && !myMenusQuery.isError && siderItems.length === 0
+      ? [
+          {
+            key: '__menus-empty',
+            disabled: true,
             label: (
-              <Typography.Text type="danger">
-                Không tải được menu phân quyền. Kiểm tra lại kết nối rồi tải lại trang.
+              <Typography.Text type="secondary">
+                Chưa có menu nào được phân quyền.
               </Typography.Text>
             ),
           },
         ]
-      : buildDynamicItems(myMenus);
-
-  const items: MenuProps['items'] = [...userLinks, ...adminSection];
+      : siderItems;
   const activeMenuKey = findMenuKey(myMenus, location.pathname) ?? location.pathname;
 
   return (
