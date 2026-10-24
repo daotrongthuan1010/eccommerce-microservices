@@ -91,6 +91,43 @@ const PERMS = '/auth/admin/permissions';
 const ROLES = '/auth/admin/roles/db';
 const GROUPS = '/auth/admin/groups';
 
+interface RawMenuBE {
+  id: string | number;
+  name: string;
+  code: string;
+  path?: string | null;
+  icon?: string | null;
+  parentId?: string | number | null | '';
+  orderNo?: number | '' | null;
+  sortOrder?: number | null;
+  active?: boolean;
+  default?: boolean;
+  isDefault?: boolean;
+}
+
+/** BE MenuAdminService.toMap() tra {id,code,name,path,icon,parentId,orderNo,
+ *  active,default} trong do parentId la so hoac "", orderNo la so hoac "".
+ *  Map ve IamMenu: parentId so -> string, "" -> null; orderNo -> sortOrder. */
+function toIamMenu(raw: RawMenuBE): IamMenu {
+  return {
+    id: String(raw.id),
+    code: raw.code,
+    name: raw.name,
+    path: (raw.path as string | null | undefined) ?? null,
+    icon: (raw.icon as string | null | undefined) ?? null,
+    parentId:
+      raw.parentId === '' || raw.parentId == null ? null : String(raw.parentId),
+    sortOrder:
+      typeof raw.orderNo === 'number'
+        ? raw.orderNo
+        : typeof raw.sortOrder === 'number'
+          ? raw.sortOrder
+          : undefined,
+    active: Boolean(raw.active),
+    default: Boolean(raw.default ?? raw.isDefault),
+  };
+}
+
 /** BE tra raw array — go ve {items,total} (giu nguyen neu BE da go envelope). */
 function unwrapList<T>(data: unknown): ListWrapper<T> {
   if (Array.isArray(data)) return { items: data as T[], total: data.length };
@@ -159,7 +196,11 @@ export const iamApi = createApi({
     // GET /auth/admin/menus → raw array (ref: MenuAdminController.list)
     listMenus: build.query<ListWrapper<IamMenu>, void>({
       query: () => ({ url: MENUS }),
-      transformResponse: unwrapList<IamMenu>,
+      transformResponse: (data: unknown): ListWrapper<IamMenu> => {
+        const w = unwrapList<RawMenuBE>(data);
+        const items = w.items.map(toIamMenu);
+        return { items, total: w.total };
+      },
       providesTags: ['IamMenu'],
     }),
     // GET /auth/admin/menus/{id} (ref: MenuAdminController.get)
