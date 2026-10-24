@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Space, Switch, Tabs, Typography, message } from 'antd';
+import { Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Tabs, Typography, message } from 'antd';
 import { AppstoreOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -27,14 +27,28 @@ import {
 // /admin/menus — RequireRole ADMIN. Quan tri Menu (CRUD) + Action (CRUD +
 // toggle active). Pattern AdminRolesPage: PageHeader → SummaryRow →
 // DataTable → Modal 560. Popconfirm dat ten object cu the (§15).
-function MenuForm({ form }: { form: ReturnType<typeof Form.useForm>[0] }) {
+function MenuForm({ form, menus, excludeId, isEdit }: {
+  form: ReturnType<typeof Form.useForm>[0];
+  menus: IamMenu[];
+  excludeId?: string | null;
+  isEdit?: boolean;
+}) {
   return (
     <Form form={form} layout="vertical" preserve={false}>
       <Form.Item name="code" label="Mã menu" rules={[{ required: true, message: 'Nhập mã menu' }, { pattern: /^[A-Z0-9_]+$/, message: 'VD: USER, PRODUCT, ORDER' }]}>
-        <Input placeholder="VD: PRODUCT" />
+        <Input placeholder="VD: PRODUCT" disabled={isEdit} />
       </Form.Item>
       <Form.Item name="name" label="Tên hiển thị" rules={[{ required: true, message: 'Nhập tên hiển thị' }]}>
         <Input placeholder="VD: Sản phẩm" />
+      </Form.Item>
+      <Form.Item name="parentId" label="Menu cha">
+        <Select
+          allowClear
+          placeholder="Không chọn = menu gốc"
+          options={menus
+            .filter((m) => m.id !== excludeId)
+            .map((m) => ({ value: m.id, label: `${m.code} — ${m.name}` }))}
+        />
       </Form.Item>
       <Form.Item name="path" label="Đường dẫn sider">
         <Input placeholder="VD: /products (trống = không hiện sider)" />
@@ -74,22 +88,26 @@ function MenusTab() {
     },
     {
       title: 'Thao tác', key: 'action', width: 200,
-      render: (_: unknown, r: IamMenu) => (
-        <Space>
-          <Button size="small" type="link" onClick={() => { setEditing(r); editForm.setFieldsValue(r); }}>Sửa</Button>
-          <Popconfirm
-            title={`Xóa menu ${r.name}?`}
-            description="Các permission MENU.* thuộc menu này cũng bị xóa."
-            okText="Xóa" okType="danger" cancelText="Hủy"
-            onConfirm={async () => {
-              try { await deleteMenu(r.id).unwrap(); message.success(`Đã xóa menu ${r.name}`); }
-              catch { message.error('Xóa menu thất bại'); }
-            }}
-          >
-            <Button size="small" type="link" danger>Xóa</Button>
-          </Popconfirm>
-        </Space>
-      ),
+      render: (_: unknown, r: IamMenu) => {
+        const isDefault = !!r.default;
+        return (
+          <Space>
+            <Button size="small" type="link" onClick={() => { setEditing(r); editForm.setFieldsValue({ ...r, parentId: r.parentId || null }); }}>Sửa</Button>
+            <Popconfirm
+              title={`Xóa menu ${r.name}?`}
+              description="Menu bị xóa mềm; các permission MENU.* thuộc menu này cũng bị xóa mềm. Menu còn menu con thì bị chặn — hãy xóa hoặc di chuyển menu con trước."
+              okText="Xóa" okType="danger" cancelText="Hủy"
+              disabled={isDefault}
+              onConfirm={async () => {
+                try { await deleteMenu(r.id).unwrap(); message.success(`Đã xóa menu ${r.name}`); }
+                catch { message.error('Xóa menu thất bại'); }
+              }}
+            >
+              <Button size="small" type="link" danger disabled={isDefault} title={isDefault ? 'Menu mặc định hệ thống không được xóa' : undefined}>Xóa</Button>
+            </Popconfirm>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -110,7 +128,7 @@ function MenusTab() {
             message.success(`Đã tạo menu ${v.code}`); setCreateOpen(false); createForm.resetFields();
           } catch { if (createState.error) message.error('Tạo menu thất bại'); }
         }}>
-        <MenuForm form={createForm} />
+        <MenuForm form={createForm} menus={menus} />
       </Modal>
       <Modal title={`Sửa menu ${editing?.code ?? ''}`} open={!!editing} onCancel={() => setEditing(null)} confirmLoading={updateState.isLoading}
         okText="Lưu" cancelText="Hủy" destroyOnClose
@@ -122,7 +140,7 @@ function MenusTab() {
             message.success(`Đã lưu menu ${editing.code}`); setEditing(null);
           } catch { if (updateState.error) message.error('Lưu menu thất bại'); }
         }}>
-        <MenuForm form={editForm} />
+        <MenuForm form={editForm} menus={menus} excludeId={editing?.id ?? null} isEdit />
       </Modal>
     </div>
   );

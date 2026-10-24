@@ -27,6 +27,7 @@ export interface IamMenu {
   parentId?: string | null;
   sortOrder?: number;
   active: boolean;
+  default?: boolean;
 }
 
 export interface IamAction {
@@ -107,8 +108,8 @@ function toMenuPayload(
   const out: Record<string, unknown> = {};
   if (forCreate) {
     out.code = data.code;
-    if (data.parentId !== undefined) out.parentId = data.parentId || null;
   }
+  if (data.parentId !== undefined) out.parentId = data.parentId || null;
   if (data.name !== undefined) out.name = data.name;
   if (data.path !== undefined) out.path = data.path ?? null;
   if (data.icon !== undefined) out.icon = data.icon ?? null;
@@ -171,7 +172,7 @@ export const iamApi = createApi({
       query: (data) => ({ url: MENUS, method: 'post', data: toMenuPayload(data, true) }),
       invalidatesTags: ['IamMenu', 'MyMenus'],
     }),
-    // PUT /auth/admin/menus/{id} {name?,path?,icon?,orderNo?} (code/active la read-only)
+    // PUT /auth/admin/menus/{id} {name?,path?,icon?,orderNo?,parentId?} (code/active la read-only, parentId null = ve root)
     updateMenu: build.mutation<IamMenu, { id: string; data: Partial<IamMenu> }>({
       query: ({ id, data }) => ({ url: `${MENUS}/${id}`, method: 'put', data: toMenuPayload(data, false) }),
       invalidatesTags: ['IamMenu', 'MyMenus'],

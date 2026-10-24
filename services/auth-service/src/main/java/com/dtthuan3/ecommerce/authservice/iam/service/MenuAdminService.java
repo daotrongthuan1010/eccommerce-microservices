@@ -1,7 +1,9 @@
 package com.dtthuan3.ecommerce.authservice.iam.service;
 
 import com.dtthuan3.ecommerce.authservice.iam.entity.Menu;
+import com.dtthuan3.ecommerce.authservice.iam.entity.Permission;
 import com.dtthuan3.ecommerce.authservice.iam.repository.MenuRepository;
+import com.dtthuan3.ecommerce.authservice.iam.repository.PermissionRepository;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -16,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class MenuAdminService {
 
     private final MenuRepository menuRepository;
+    private final PermissionRepository permissionRepository;
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> list() {
@@ -42,9 +45,13 @@ public class MenuAdminService {
     }
 
     @Transactional
-    public Map<String, Object> update(Long id, String name, String path, String icon, Integer orderNo) {
+    public Map<String, Object> update(Long id, String name, String path, String icon, Integer orderNo,
+            Long parentId) {
         Menu menu = menuRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Menu not found: " + id));
+        if (Boolean.TRUE.equals(menu.getIsDeleted())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Menu not found: " + id);
+        }
         if (name != null) {
             menu.setName(name);
         }
@@ -56,6 +63,29 @@ public class MenuAdminService {
         }
         if (orderNo != null) {
             menu.setOrderNo(orderNo);
+        }
+        if (parentId != null) {
+            if (parentId.equals(id)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Menu cannot be its own parent");
+            }
+            Menu parent = menuRepository.findById(parentId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                            "Parent menu not found: " + parentId));
+            if (Boolean.TRUE.equals(parent.getIsDeleted())) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Parent menu not found: " + parentId);
+            }
+            Menu ancestor = parent;
+            while (ancestor != null) {
+                if (ancestor.getId() != null && ancestor.getId().equals(id)) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT,
+                            "Cannot set parent: would create a cycle");
+                }
+                ancestor = ancestor.getParent();
+            }
+            menu.setParent(parent);
+        } else {
+            menu.setParent(null);
         }
         return toMap(menuRepository.save(menu));
     }
@@ -71,8 +101,19 @@ public class MenuAdminService {
     public void delete(Long id) {
         Menu menu = menuRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Menu not found: " + id));
+        if (Boolean.TRUE.equals(menu.getIsDeleted())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Menu not found: " + id);
+        }
         if (Boolean.TRUE.equals(menu.getIsDefault())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot delete a default system menu");
+        }
+        if (!menuRepository.findByParentIdAndIsDeletedFalse(id).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Cannot delete menu with children. Delete or move child menus first");
+        }
+        for (Permission permission : permissionRepository.findByMenuIdAndIsDeletedFalse(id)) {
+            permission.setIsDeleted(true);
+            permissionRepository.save(permission);
         }
         menu.setIsDeleted(true);
         menu.setIsActive(false);
@@ -88,6 +129,7 @@ public class MenuAdminService {
                 "icon", menu.getIcon() == null ? "" : menu.getIcon(),
                 "parentId", menu.getParent() == null ? (Object) "" : menu.getParent().getId(),
                 "orderNo", menu.getOrderNo() == null ? (Object) "" : menu.getOrderNo(),
-                "active", Boolean.TRUE.equals(menu.getIsActive()));
+                "active", Boolean.TRUE.equals(menu.getIsActive()),
+                "default", Boolean.TRUE.equals(menu.getIsDefault()));
     }
 }

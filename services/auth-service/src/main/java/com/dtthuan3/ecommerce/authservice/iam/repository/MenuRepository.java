@@ -14,6 +14,8 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 
     List<Menu> findAllByIsDeletedFalseOrderByOrderNoAscIdAsc();
 
+    List<Menu> findByParentIdAndIsDeletedFalse(Long parentId);
+
     @Query("select m from Menu m left join fetch m.parent where m.isDeleted = false and m.isActive = true order by m.orderNo asc, m.id asc")
     List<Menu> findAllActiveWithParent();
 }

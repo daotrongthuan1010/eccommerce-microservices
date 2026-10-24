@@ -47,7 +47,7 @@ public class MenuAdminController {
     public Map<String, Object> update(@PathVariable Long id,
             @Valid @RequestBody UpdateMenuRequest request) {
         return menuAdminService.update(id, request.name(), request.path(), request.icon(),
-                request.orderNo());
+                request.orderNo(), request.parentId());
     }
 
     @DeleteMapping("/{id}")
@@ -68,5 +68,6 @@ public class MenuAdminController {
             String name,
             String path,
             String icon,
-            Integer orderNo) {}
+            Integer orderNo,
+            Long parentId) {}
 }
