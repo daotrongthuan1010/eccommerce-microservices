@@ -3,13 +3,14 @@ description: >-
   Deploy frontend (Vite nginx) to VPS k3s independently: scp k8s/frontend/,
   substitute __IMAGE_TAG__ in a temp copy, kubectl apply + rollout status +
   auto undo scoped to its own Deployment, then smoke `/` 200 + SPA fallback
-  /products/123 serving index.html. Skips quietly if frontend:SHA was never
-  built/pushed. Same pattern as cd-all.yml frontend-leaf.
+  /products/123 serving index.html. Sanity-checks the floating tag exists on
+  Hub, then deploys it. Same pattern as cd-all.yml frontend-leaf.
 
 inputs:
-  sha:
-    description: 'Image tag (commit SHA) to deploy'
-    required: true
+  tag:
+    description: 'Image tag to deploy (floating alias, e.g. develop)'
+    required: false
+    default: develop
   host:
     required: true
   port:
@@ -39,7 +40,7 @@ runs:
     - name: Deploy frontend to VPS k3s via SSH
       uses: appleboy/ssh-action@v1.2.0
       env:
-        IMAGE_TAG: ${{ inputs.sha }}
+        IMAGE_TAG: ${{ inputs.tag }}
         DH_USER: ${{ inputs.dockerhub_username }}
         DH_TOKEN: ${{ inputs.dockerhub_token }}
       with:
@@ -53,10 +54,10 @@ runs:
           # Login first: manifest inspect on anonymous pulls hits
           # Docker Hub rate limits; authenticated checks do not.
           echo "$DH_TOKEN" | docker login -u "$DH_USER" --password-stdin
-          # Skip (not fail) if this tag was never built/pushed (e.g. push
-          # only touched BE code, so CI never built FE for this SHA).
+          # Sanity check on the floating tag (always exists after the first
+          # green FE build): skip quietly instead of failing if missing.
           if ! docker manifest inspect "$DH_USER/frontend:${IMAGE_TAG}" >/dev/null 2>&1; then
-            echo "SKIP (frontend:${IMAGE_TAG} not on Hub — no FE build for this SHA)"
+            echo "SKIP (frontend:${IMAGE_TAG} not on Hub yet — no green FE build)"
             exit 0
           fi
           kubectl create namespace ecommerce --dry-run=client -o yaml | kubectl apply -f -

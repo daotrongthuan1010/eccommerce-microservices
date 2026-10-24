@@ -90,12 +90,11 @@ jobs:
             fi
           done
           echo "services=$KEPT" >> "$GITHUB_OUTPUT"
-          if docker manifest inspect "$DH_USER/frontend:${SHA}" >/dev/null 2>&1; then
-            echo "deploy_frontend=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "SKIP (frontend:${SHA} not on Hub — no FE build for this SHA)"
-            echo "deploy_frontend=false" >> "$GITHUB_OUTPUT"
-          fi
+          # workflow_run: always try FE via the floating `develop` tag (CI
+          # promotes frontend:develop on every green FE build). No :SHA
+          # inspect — head_sha can differ from the SHA CI actually built, which
+          # caused false skips.
+          echo "deploy_frontend=true" >> "$GITHUB_OUTPUT"
 
   deploy:
     needs: select
@@ -133,8 +132,10 @@ jobs:
   # Frontend deploys in its own job (not the BE matrix): deploy-service action
   # cannot serve it (k8s dir mapping + Spring actuator smoke don't apply to
   # nginx). Same steps as cd-all.yml frontend-leaf, factored into
-  # ./.github/actions/deploy-frontend. Runs only when frontend:SHA exists on
-  # Hub (i.e. CI just built FE) — BE-only pushes skip quietly.
+  # ./.github/actions/deploy-frontend. Deploys the floating `develop` tag
+  # (CI promotes frontend:develop on every green FE build) — no :SHA
+  # coupling, so no false skips. BE-only pushes still reach here; the action
+  # sanity-checks the tag and redeploys the latest green FE (idempotent).
   deploy-frontend:
     needs: select
     if: ${{ needs.select.outputs.deploy_frontend == 'true' }}
@@ -147,7 +148,7 @@ jobs:
       - name: Deploy frontend (independent job)
         uses: ./.github/actions/deploy-frontend
         with:
-          sha: ${{ needs.select.outputs.sha }}
+          tag: develop
           host: ${{ secrets.VPS_SSH_HOST }}
           port: ${{ secrets.VPS_SSH_PORT }}
           username: ${{ secrets.VPS_SSH_USER }}
