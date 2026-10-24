@@ -114,6 +114,14 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: 'admin/actions',
+        element: (
+          <RequireRole roles={['ADMIN']}>
+            <Suspense fallback={fallback}><AdminMenusPage /></Suspense>
+          </RequireRole>
+        ),
+      },
+      {
         path: 'admin/permissions',
         element: (
           <RequireRole roles={['ADMIN']}>

@@ -52,6 +52,7 @@ const KNOWN_SIDER_PATHS = new Set<string>([
   '/admin/users',
   '/admin/roles',
   '/admin/menus',
+  '/admin/actions',
   '/admin/permissions',
   '/admin/iam-roles',
   '/admin/groups',
