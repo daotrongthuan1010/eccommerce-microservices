@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Form, Input, message } from 'antd';
+import { Alert, Button, Card, Checkbox, Form, Input, message } from 'antd';
 import { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { ApiErrorAlert, PageHeader } from '../components/ui';
@@ -20,10 +20,15 @@ export default function RegisterPage() {
     password: string;
     firstName?: string;
     lastName?: string;
+    seller?: boolean;
   }) => {
     try {
       const res = await dispatch(register(values)).unwrap();
-      setDone(`Đã tạo tài khoản ${res.username}. Vui lòng đăng nhập.`);
+      setDone(
+        values.seller
+          ? `Đã tạo tài khoản bán hàng ${res.username}. Vui lòng kiểm tra email để xác minh rồi đăng nhập.`
+          : `Đã tạo tài khoản ${res.username}. Vui lòng kiểm tra email để xác minh rồi đăng nhập.`,
+      );
     } catch (e) {
       const err = e as AuthError;
       if (err?.code === 'registration_not_configured') {
@@ -40,7 +45,7 @@ export default function RegisterPage() {
 
   return (
     <div style={{ maxWidth: 480, margin: '48px auto' }}>
-      <PageHeader title="Đăng ký" subTitle="Tạo tài khoản mới" />
+      <PageHeader title="Đăng ký" subTitle="Tạo tài khoản mua sắm — xác minh qua email" />
       {notConfigured ? (
         <Alert
           type="warning"
@@ -90,6 +95,9 @@ export default function RegisterPage() {
             </Form.Item>
             <Form.Item name="lastName" label="Họ">
               <Input placeholder="Họ (tùy chọn)" />
+            </Form.Item>
+            <Form.Item name="seller" valuePropName="checked">
+              <Checkbox>Đăng ký bán hàng (mở shop trên sàn)</Checkbox>
             </Form.Item>
             <Form.Item>
               <Button type="primary" htmlType="submit" block loading={loading}>

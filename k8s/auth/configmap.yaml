@@ -16,6 +16,10 @@ data:
   KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
   DB_URL: "jdbc:mysql://mysql:3306/auth_db?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC"
   DB_USERNAME: "auth_user"
+  # auth_db live thieu bang IAM (chi co demo_accounts + BASELINE v1) -> dat
+  # baseline-version=0 de V1__iam_tenant_group.sql duoc ap dung that.
+  SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
+  SPRING_FLYWAY_BASELINE_VERSION: "0"
   KEYCLOAK_JWK_SET_URI: "http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs"
   KEYCLOAK_ISSUER_URI: "http://162.4.177.91:7080/realms/ecommerce"
   KEYCLOAK_TOKEN_URI: "http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/token"
@@ -24,10 +28,13 @@ data:
   KEYCLOAK_REALM: "ecommerce"
   KEYCLOAK_ADMIN_REALM: "master"
   KEYCLOAK_CLIENT_ID: "ecommerce-app"
-  # Service-account client cho Keycloak Admin API. De CHANGEME + tao secret that o rollout;
-  # de trong = tat register/forgot/change-password (tra 501 kem huong dan thu cong).
-  KEYCLOAK_ADMIN_CLIENT_ID: "CHANGEME"
+  # Service-account client cho Keycloak Admin API. Repo giu gia tri that dang
+  # chay tren cluster ('ecommerce-admin'); secret that cap qua Secret/env ngoai.
+  # De trong = tat register/forgot/change-password (tra 501 kem huong dan thu cong).
+  KEYCLOAK_ADMIN_CLIENT_ID: "ecommerce-admin"
   IAM_PROVISION_ENABLED: "true"
-  # Ma tenant mac dinh (phai co trong seed V1). Doi thanh ma that truoc rollout.
-  IAM_DEFAULT_TENANT: "CHANGEME"
+  # Ma tenant mac dinh (phai co trong seed neu dung). De trong = provision
+  # user muc he thong, khong gan tenant (khop default application.yml).
+  # Dat ma that (VD "DEFAULT") khi da seed tenants.
+  IAM_DEFAULT_TENANT: ""
   ZIPKIN_ENDPOINT: "http://tempo:9411/api/v2/spans"
