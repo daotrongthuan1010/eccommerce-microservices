@@ -105,6 +105,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # Single-node học tập: giới hạn rollout đồng thời để tránh giật
+      # CPU/disk IO (pull image + JVM start cùng lúc) làm pod chậm ready
+      # → rollout timeout → rollback dây chuyền. 14 job / 4 slot.
+      max-parallel: 4
       matrix:
         service: ${{ fromJSON(needs.select.outputs.services) }}
     steps:

@@ -171,8 +171,11 @@ runs:
           fi
 
           # Apply ONLY this service's dir, rollout ONLY its deployment.
+          # Timeout 600s = progressDeadlineSeconds của Deployment: pod Spring
+          # (image ~220MB + JVM start, readiness initialDelay 120s) vẫn ready
+          # kịp khi node tải cao; timeout ngắn hơn gây rollback oan.
           kubectl apply -f "$WORK/"
-          if ! kubectl rollout status "deployment/$SVC" -n ecommerce --timeout=300s; then
+          if ! kubectl rollout status "deployment/$SVC" -n ecommerce --timeout=600s; then
             kubectl rollout undo "deployment/$SVC" -n ecommerce
             kubectl rollout status "deployment/$SVC" -n ecommerce --timeout=300s
             exit 1

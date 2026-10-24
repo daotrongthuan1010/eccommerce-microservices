@@ -74,8 +74,17 @@ runs:
             exit 1
           fi
           # Smoke: `/` 200 + deep-link /products/123 serve index.html (SPA fallback).
-          kubectl run smoke-frontend -n ecommerce --rm -i --restart=Never \
-            --image=curlimages/curl:8.10.1 -- \
-            sh -c 'curl -fsS --max-time 10 http://frontend/ | grep -q "<div id=\"root\">" && curl -fsS --max-time 10 -o /dev/null -w "%{http_code}" http://frontend/products/123 | grep -q 200' \
-            && echo "FRONTEND SMOKE OK" \
-            || { echo "FRONTEND SMOKE FAILED"; exit 1; }
+          # Retry loop (thay vì curl 1 phát 10s): ngay sau rollout, kube-dns /
+          # Service endpoints + nginx worker có thể chưa ổn định, nhất là khi
+          # nhiều rollout chạy song song trên 1 node — timeout 1 lần không
+          # đồng nghĩa app lỗi.
+          for i in $(seq 1 6); do
+            if kubectl run smoke-frontend -n ecommerce --rm -i --restart=Never \
+              --image=curlimages/curl:8.10.1 -- \
+              sh -c 'curl -fsS --max-time 15 http://frontend/ | grep -q "<div id=\"root\">" && curl -fsS --max-time 15 -o /dev/null -w "%{http_code}" http://frontend/products/123 | grep -q 200'; then
+              echo "FRONTEND SMOKE OK"; break
+            fi
+            if [ "$i" = "6" ]; then echo "FRONTEND SMOKE FAILED"; exit 1; fi
+            echo "frontend smoke attempt $i failed — retry in 10s"
+            sleep 10
+          done
