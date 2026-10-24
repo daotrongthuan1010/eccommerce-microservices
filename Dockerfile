@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1
-# NOTE: dung mirror nha daotrongthuan/* thay vi library/* public de tranh
-# Docker Hub 429 (14 job CI cung HEAD 1 manifest tu IP shared runner).
-# Mirror 1 lan bang lenh o ghi chu cuoi file; tag giu nguyen version goc.
-FROM daotrongthuan/maven-builder:3.9.11-eclipse-temurin-21 AS build
+# NOTE: builder da chuyen sang GHCR (ghcr.io/daotrongthuan1010/maven-builder)
+# de thoat Docker Hub 429 triet de: manifest khong con resolve ve
+# registry-1.docker.io. Base image do workflow base.yml build/push tu
+# Dockerfile.base. Tag giu nguyen version goc maven:3.9.11-eclipse-temurin-21.
+FROM ghcr.io/daotrongthuan1010/maven-builder:3.9.11-eclipse-temurin-21 AS build
 ARG SERVICE
 WORKDIR /workspace
 
