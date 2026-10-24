@@ -120,9 +120,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      # Gioi han burst pull base image keo dinh Docker Hub 429
+      # Dan trai burst pull base image keo dinh Docker Hub 429
       # (14 job cung HEAD 1 manifest tu IP shared cua GitHub runner).
-      max-parallel: 4
+      max-parallel: 3
       matrix:
         service: ${{ fromJSON(needs.resolve.outputs.services) }}
     steps:
@@ -159,22 +159,28 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Retry bao ca buildx solve/pull base image (cho Docker Hub 429 tu ha
+      # lai sau backoff). Wretry giu nguyen logic build-push-action.
       - name: Build and push SHA tag only
-        uses: docker/build-push-action@v6
+        uses: Wandalen/wretry.action@v3
         with:
-          context: .
-          build-args: SERVICE=${{ matrix.service }}
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
-          # Registry buildcache is primary (shared across runs/branches);
-          # GHA cache is fallback (branch-scoped). Per-service ref/scope
-          # via matrix so services never poison each other's cache.
-          cache-from: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:buildcache
-            type=gha,scope=${{ matrix.service }}
-          cache-to: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:buildcache,mode=max
-            type=gha,mode=max,scope=${{ matrix.service }}
+          attempt_limit: 3
+          attempt_delay: 60000
+          action: docker/build-push-action@v6
+          with: |
+            context: .
+            build-args: SERVICE=${{ matrix.service }}
+            push: true
+            tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
+            # Registry buildcache is primary (shared across runs/branches);
+            # GHA cache is fallback (branch-scoped). Per-service ref/scope
+            # via matrix so services never poison each other's cache.
+            cache-from: |
+              type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:buildcache
+              type=gha,scope=${{ matrix.service }}
+            cache-to: |
+              type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:buildcache,mode=max
+              type=gha,mode=max,scope=${{ matrix.service }}
 
       - name: Cache Trivy vulnerability DB
         uses: actions/cache@v4
@@ -256,16 +262,21 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Retry tuong tu job build (frontend FROM node/nginx Docker Hub).
       - name: Build and push frontend SHA tag
-        uses: docker/build-push-action@v6
+        uses: Wandalen/wretry.action@v3
         with:
-          context: .
-          file: frontend/Dockerfile
-          build-args: |
-            VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL || 'http://162.4.177.91/api' }}
-            VITE_KEYCLOAK_URL=${{ vars.VITE_KEYCLOAK_URL || 'http://162.4.177.91:7080' }}
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/frontend:${{ github.sha }}
+          attempt_limit: 3
+          attempt_delay: 60000
+          action: docker/build-push-action@v6
+          with: |
+            context: .
+            file: frontend/Dockerfile
+            build-args: |
+              VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL || 'http://162.4.177.91/api' }}
+              VITE_KEYCLOAK_URL=${{ vars.VITE_KEYCLOAK_URL || 'http://162.4.177.91:7080' }}
+            push: true
+            tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/frontend:${{ github.sha }}
 
       - name: Promote SHA tag to env alias (no rebuild)
         if: ${{ github.event_name == 'push' }}
