@@ -1,10 +1,12 @@
-# Base builder image pipeline: builds Dockerfile.base and pushes to GHCR.
+# Base images pipeline: builds Dockerfile.base (builder) and
+# Dockerfile.base-runtime (runtime) and pushes both to GHCR.
 #
 # AFTER THE FIRST PUSH: go to
 #   https://github.com/users/daotrongthuan1010/packages
-# open package "maven-builder" -> Package settings -> Change visibility to Public.
+# open packages "maven-builder" and "eclipse-temurin" -> Package settings ->
+# Change visibility to Public.
 # (GITHUB_TOKEN cannot self-publish a private package to public; one manual
-# click is required once. Subsequent pushes keep the visibility.)
+# click is required once per package. Subsequent pushes keep the visibility.)
 name: base
 
 on:
@@ -12,11 +14,13 @@ on:
     branches: [develop, main]
     paths:
       - Dockerfile.base
+      - Dockerfile.base-runtime
       - .github/workflows/base.yml
   workflow_dispatch:
 
 env:
   BASE_IMAGE: ghcr.io/daotrongthuan1010/maven-builder:3.9.11-eclipse-temurin-21
+  RUNTIME_IMAGE: ghcr.io/daotrongthuan1010/eclipse-temurin:21-jre-jammy
 
 jobs:
   build-base:
@@ -51,3 +55,17 @@ jobs:
             file: Dockerfile.base
             push: true
             tags: ${{ env.BASE_IMAGE }}
+
+      # Single pull of upstream eclipse-temurin:21-jre-jammy (namespaced as
+      # docker.io/library/eclipse-temurin). Same 429 retry as the builder.
+      - name: Build and push base runtime to GHCR
+        uses: Wandalen/wretry.action@v3
+        with:
+          attempt_limit: 3
+          attempt_delay: 60000
+          action: docker/build-push-action@v6
+          with: |
+            context: .
+            file: Dockerfile.base-runtime
+            push: true
+            tags: ${{ env.RUNTIME_IMAGE }}

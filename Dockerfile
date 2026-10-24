@@ -48,8 +48,10 @@ COPY services ./services
 RUN --mount=type=cache,target=/root/.m2 mvn -B -T1C -pl services/${SERVICE} -am package -DskipTests && cp services/${SERVICE}/target/${SERVICE}-0.0.1-SNAPSHOT.jar /tmp/app.jar
 RUN java -Djarmode=layertools -jar /tmp/app.jar extract --destination /tmp/layers
 
-FROM daotrongthuan/eclipse-temurin:21-jre-jammy
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* && groupadd --system app && useradd --system --gid app app
+# NOTE: runtime da chuyen sang GHCR (ghcr.io/daotrongthuan1010/eclipse-temurin)
+# de thoat Docker Hub 429: curl + user app da bake san trong
+# Dockerfile.base-runtime (workflow base.yml). Tag giu nguyen version goc 21-jre-jammy.
+FROM ghcr.io/daotrongthuan1010/eclipse-temurin:21-jre-jammy
 WORKDIR /app
 COPY --from=build --chown=app:app /tmp/layers/dependencies/ ./
 COPY --from=build --chown=app:app /tmp/layers/spring-boot-loader/ ./

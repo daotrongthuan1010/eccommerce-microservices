@@ -241,7 +241,7 @@ export default function AdminMenusPage() {
     <div>
       <PageHeader
         title="Menus & Actions"
-        subTitle="Danh mục chức năng và hành động — nền của chuỗi Menu → Action → Permission"
+        subTitle="Danh mục chức năng và hành động — nền của chuỗi Menu → Action → Permission (RBAC)"
         extra={<Typography.Text type="secondary">Permission code = MENU.ACTION</Typography.Text>}
       />
       <SummaryRow
