@@ -1,0 +1,152 @@
+# Port of docker-compose.yml `postgres` (postgres:17.6).
+# Init scripts come from ConfigMap `postgres-init` — create BEFORE apply (see README):
+#   kubectl create configmap postgres-init -n ecommerce --from-file=infra/postgres/
+# Credentials come from Secret `infra-postgres-secrets` (see secret-templates.yaml.example).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: ecommerce
+  labels:
+    app: postgres
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: ecommerce
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # single writer on RWO volume; never roll while mounted
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17.6
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: pg
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-postgres-secrets
+                  key: postgres-password
+            - name: KEYCLOAK_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-postgres-secrets
+                  key: keycloak-db-password
+            - name: CATALOG_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-postgres-secrets
+                  key: catalog-db-password
+            - name: INVENTORY_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-postgres-secrets
+                  key: inventory-db-password
+            - name: ORDER_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-postgres-secrets
+                  key: order-db-password
+            - name: NOTIFICATION_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-postgres-secrets
+                  key: notification-db-password
+            - name: PRODUCT_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-postgres-secrets
+                  key: product-db-password
+            - name: REVIEW_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-postgres-secrets
+                  key: review-db-password
+            - name: ANALYTICS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-postgres-secrets
+                  key: analytics-db-password
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - pg_isready -h 127.0.0.1 -U postgres -d postgres
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - pg_isready -h 127.0.0.1 -U postgres -d postgres && test -f /var/lib/postgresql/data/.initialized
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 20
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
+        - name: initdb
+          configMap:
+            name: postgres-init
+            defaultMode: 0755 # *.sh must stay executable for the entrypoint
+---
+# LoadBalancer (k3s Klipper lb) exposes the compose port 5432 on the node IP,
+# preserving the DEV 0.0.0.0 public-access behavior from vps-infra memory.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: ecommerce
+  labels:
+    app: postgres
+spec:
+  type: LoadBalancer
+  selector:
+    app: postgres
+  ports:
+    - name: pg
+      port: 5432
+      targetPort: pg

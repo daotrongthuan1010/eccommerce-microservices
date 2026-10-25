@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: discovery-config
+  namespace: ecommerce
+  labels:
+    app: discovery-service
+data:
+  SERVER_PORT: "8761"
+  EUREKA_HOSTNAME: "discovery-service"
+  ZIPKIN_ENDPOINT: "http://tempo:9411/api/v2/spans"

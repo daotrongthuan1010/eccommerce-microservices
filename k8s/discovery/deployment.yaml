@@ -1,0 +1,52 @@
+# Image tag: replace __IMAGE_TAG__ with phase1-<git-sha> at rollout time, e.g.
+#   sed -i "s/__IMAGE_TAG__/phase1-$(git rev-parse --short HEAD)/g" k8s/*/deployment.yaml
+# or: kubectl set image deployment/discovery-service -n ecommerce \
+#       discovery-service=daotrongthuan/discovery-service:phase1-<sha>
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discovery-service
+  namespace: ecommerce
+  labels:
+    app: discovery-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: discovery-service
+  template:
+    metadata:
+      labels:
+        app: discovery-service
+    spec:
+      imagePullSecrets:
+        - name: dockerhub-pull
+      containers:
+        - name: discovery-service
+          image: daotrongthuan/discovery-service:__IMAGE_TAG__
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8761
+          envFrom:
+            - configMapRef:
+                name: discovery-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            initialDelaySeconds: 120
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 10

@@ -59,6 +59,19 @@ public class DisplayRuleController {
         );
     }
 
+    @GetMapping("/abc")
+    public ResponseEntity<ApiResponse<List<DisplayRuleResponse>>> getTest(
+            @PathVariable String collectionId
+    ) {
+
+        return ResponseEntity.ok(
+                ApiResponse.ok(
+                        displayRuleService
+                                .getByCollectionId(collectionId)
+                )
+        );
+    }
+
     /**
      * Lấy các rule ACTIVE của Collection.
      */

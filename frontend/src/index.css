@@ -1,0 +1,7 @@
+body {
+  margin: 0;
+  background: #f0f2f5;
+}
+.money {
+  font-variant-numeric: tabular-nums;
+}

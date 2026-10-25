@@ -1,0 +1,438 @@
+# Phase 4 — cert-manager (quay.io/jetstack/cert-manager:v1.16.2, controller + webhook).
+# Namespace stays `ecommerce` per repo style. Upstream CRDs are installed FIRST
+# (imperative, one-liner in README §7 — vendoring 5000 lines is not worth it):
+#   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.crds.yaml
+# Webhook TLS is bootstrapped by Job `cert-manager-init` (openssl self-signed CA
+# + server cert, patches caBundles) — no cainjector component needed.
+# Self-signed ClusterIssuer is a placeholder (no domain yet): swap for a
+# Let's Encrypt ACME issuer once a real domain exists.
+# Sizing ~150Mi.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cert-manager
+  namespace: ecommerce
+  labels:
+    app: cert-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cert-manager
+  labels:
+    app: cert-manager
+rules:
+  - apiGroups: ["cert-manager.io"]
+    resources: ["certificates", "certificaterequests", "issuers", "clusterissuers", "orders", "challenges"]
+    verbs: ["*"]
+  - apiGroups: ["cert-manager.io"]
+    resources: ["certificates/finalizers", "certificaterequests/finalizers", "issuers/finalizers", "clusterissuers/finalizers", "orders/finalizers"]
+    verbs: ["update"]
+  - apiGroups: ["cert-manager.io"]
+    resources: ["certificates/status", "certificaterequests/status", "issuers/status", "clusterissuers/status", "orders/status", "challenges/status"]
+    verbs: ["update", "patch"]
+  - apiGroups: ["acme.cert-manager.io"]
+    resources: ["orders", "challenges"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["secrets", "events", "services", "pods"]
+    verbs: ["*"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    # cert-manager-init waits on the webhook rollout (readiness included);
+    # deployments/status not needed.
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["*"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses/finalizers"]
+    verbs: ["update"]
+  # Leader election: controller uses --leader-election-namespace=ecommerce,
+  # so the lease lives in `ecommerce` — covered by this ClusterRoleBinding.
+  # (Upstream splits this into a namespaced Role; single ClusterRole is
+  # equivalent here. Without it the controller CrashLoops: "cannot get
+  # resource leases ... in namespace ecommerce", observed 2026-10-24.)
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cert-manager
+  labels:
+    app: cert-manager
+subjects:
+  - kind: ServiceAccount
+    name: cert-manager
+    namespace: ecommerce
+roleRef:
+  kind: ClusterRole
+  name: cert-manager
+  apiGroup: rbac.authorization.k8s.io
+---
+# Webhook needs to read validating configs + update CRD conversion caBundles.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cert-manager-webhook
+  labels:
+    app: cert-manager
+rules:
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources: ["validatingwebhookconfigurations", "mutatingwebhookconfigurations"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cert-manager-webhook
+  labels:
+    app: cert-manager
+subjects:
+  - kind: ServiceAccount
+    name: cert-manager
+    namespace: ecommerce
+roleRef:
+  kind: ClusterRole
+  name: cert-manager-webhook
+  apiGroup: rbac.authorization.k8s.io
+---
+# One-shot bootstrap: self-signed CA + webhook server cert, TLS secret,
+# and caBundle patches (ValidatingWebhookConfiguration + all cert-manager CRDs).
+# Runs BEFORE the controller/webhook Deployments roll (README wave order).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cert-manager-init
+  namespace: ecommerce
+  labels:
+    app: cert-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cert-manager-init
+  labels:
+    app: cert-manager
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "update", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    # cert-manager-init calls `rollout status` on the webhook Deployment.
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources: ["validatingwebhookconfigurations"]
+    # create: VWC may not exist on first run (Job creates it), then update/patch.
+    verbs: ["get", "create", "update", "patch"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cert-manager-init
+  labels:
+    app: cert-manager
+subjects:
+  - kind: ServiceAccount
+    name: cert-manager-init
+    namespace: ecommerce
+roleRef:
+  kind: ClusterRole
+  name: cert-manager-init
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cert-manager-init
+  namespace: ecommerce
+  labels:
+    app: cert-manager
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app: cert-manager-init
+        job-name: cert-manager-init
+    spec:
+      serviceAccountName: cert-manager-init
+      restartPolicy: OnFailure
+      # bitnamilegacy/minio runs as non-root; apt + mv to /usr/local/bin need root.
+      securityContext:
+        runAsUser: 0
+      containers:
+        - name: init
+          image: bitnamilegacy/minio:latest # small shell + openssl carrier already on nodes
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              if ! command -v kubectl >/dev/null 2>&1; then
+                echo "installing kubectl client..."
+                apt-get update -qq && apt-get install -y -qq curl ca-certificates >/dev/null
+                K8S_VER=$(curl -fsSL https://dl.k8s.io/release/stable.txt)
+                curl -fsSLO "https://dl.k8s.io/release/${K8S_VER}/bin/linux/amd64/kubectl"
+                chmod +x kubectl && mv kubectl /usr/local/bin/
+              fi
+              cd /tmp/certs
+              openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+                -keyout ca.key -out ca.crt -subj "/CN=cert-manager-webhook-ca"
+              openssl req -newkey rsa:2048 -nodes -keyout tls.key -out tls.csr \
+                -subj "/CN=cert-manager-webhook.ecommerce.svc" \
+                -addext "subjectAltName=DNS:cert-manager-webhook.ecommerce.svc,DNS:cert-manager-webhook.ecommerce.svc.cluster.local"
+              printf "basicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=DNS:cert-manager-webhook.ecommerce.svc,DNS:cert-manager-webhook.ecommerce.svc.cluster.local\n" > ext.cnf
+              openssl x509 -req -in tls.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+                -days 825 -out tls.crt -extfile ext.cnf
+              kubectl -n ecommerce create secret tls cert-manager-webhook-tls \
+                --cert=tls.crt --key=tls.key --dry-run=client -o yaml | kubectl apply -f -
+              CABUNDLE=$(base64 -w0 ca.crt)
+              # CRDs ship with strategy None (no conversion webhook needed) —
+              # skip caBundle patches so this step never fails for a repo-owned
+              # manifest that doesn't point at the webhook. If a webhook
+              # conversion is ever added to vendored CRDs, patch here.
+              if kubectl get crd certificates.cert-manager.io -o jsonpath='{.spec.conversion.strategy}' 2>/dev/null | grep -q Webhook; then
+                for crd in certificates.cert-manager.io certificaterequests.cert-manager.io issuers.cert-manager.io clusterissuers.cert-manager.io orders.acme.cert-manager.io challenges.acme.cert-manager.io; do
+                  kubectl patch crd "$crd" --type=json \
+                    -p="[{\"op\":\"replace\",\"path\":\"/spec/conversion/webhook/clientConfig/caBundle\",\"value\":\"${CABUNDLE}\"}]" || true
+                done
+              else
+                echo "CRD conversion strategy is None — skipping caBundle patches"
+              fi
+              # Create the ValidatingWebhookConfiguration HERE (not in this file):
+              # creating it earlier would fail-close cert-manager.io writes
+              # before the webhook TLS secret exists. Wait for webhook Deploy.
+              kubectl rollout status deploy/cert-manager-webhook -n ecommerce --timeout=300s
+              cat <<EOF | kubectl apply -f -
+              apiVersion: admissionregistration.k8s.io/v1
+              kind: ValidatingWebhookConfiguration
+              metadata:
+                name: cert-manager-webhook
+                labels:
+                  app: cert-manager
+              webhooks:
+                - name: webhook.cert-manager.io
+                  admissionReviewVersions: ["v1"]
+                  clientConfig:
+                    service:
+                      name: cert-manager-webhook
+                      namespace: ecommerce
+                      path: /validate
+                    caBundle: ${CABUNDLE}
+                  rules:
+                    - operations: ["CREATE", "UPDATE"]
+                      apiGroups: ["cert-manager.io"]
+                      apiVersions: ["v1"]
+                      resources: ["certificates", "certificaterequests", "issuers", "clusterissuers"]
+                      scope: Namespaced
+                    - operations: ["CREATE", "UPDATE"]
+                      apiGroups: ["cert-manager.io"]
+                      apiVersions: ["v1"]
+                      resources: ["clusterissuers"]
+                      scope: Cluster
+                  namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: ecommerce
+                  failurePolicy: Fail
+                  sideEffects: None
+              EOF
+              echo "webhook TLS bootstrapped"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+          volumeMounts:
+            - name: work
+              mountPath: /tmp/certs
+      volumes:
+        - name: work
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cert-manager-webhook
+  namespace: ecommerce
+  labels:
+    app: cert-manager
+spec:
+  type: ClusterIP
+  selector:
+    app: cert-manager-webhook
+  ports:
+    - name: https
+      port: 443
+      targetPort: https
+---
+# NOTE: ValidatingWebhookConfiguration is NOT in this file — Job `cert-manager-init`
+# creates it after the webhook TLS secret + Deployment exist (fail-open ordering).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-manager-webhook
+  namespace: ecommerce
+  labels:
+    app: cert-manager-webhook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cert-manager-webhook
+  template:
+    metadata:
+      labels:
+        app: cert-manager-webhook
+    spec:
+      serviceAccountName: cert-manager
+      containers:
+        - name: webhook
+          image: quay.io/jetstack/cert-manager-webhook:v1.16.2
+          imagePullPolicy: IfNotPresent
+          args:
+            - --v=2
+            - --secure-port=10250
+            - --tls-cert-file=/tls/tls.crt
+            - --tls-private-key-file=/tls/tls.key
+          ports:
+            - name: https
+              containerPort: 10250
+            # Insecure health server (upstream default): serves ONLY /livez
+            # and /healthz over plain HTTP. Probing the webhook port (10250,
+            # which serves just /mutate + /validate) returns 404 and the
+            # kubelet kills the pod -> CrashLoopBackOff (observed 2026-10-24).
+            - name: healthcheck
+              containerPort: 6080
+          volumeMounts:
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: healthcheck
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: healthcheck
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 12
+      volumes:
+        - name: tls
+          secret:
+            secretName: cert-manager-webhook-tls
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-manager
+  namespace: ecommerce
+  labels:
+    app: cert-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cert-manager
+  template:
+    metadata:
+      labels:
+        app: cert-manager
+    spec:
+      serviceAccountName: cert-manager
+      containers:
+        - name: cert-manager
+          image: quay.io/jetstack/cert-manager-controller:v1.16.2
+          imagePullPolicy: IfNotPresent
+          args:
+            - --v=2
+            - --cluster-resource-namespace=ecommerce
+            - --leader-election-namespace=ecommerce
+          ports:
+            - name: metrics
+              containerPort: 9402
+            # v1.16 controller serves the healthz server on :9403 (NOT the
+            # historical :6080) — verified live 2026-10-24: 9403/livez -> ok,
+            # 6080 -> connection refused. Probing 6080 kills the pod.
+            - name: healthz
+              containerPort: 9403
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 192Mi
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: healthz
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+---
+# Self-signed ClusterIssuer placeholder (task spec: no domain yet).
+# Provides Traefik TLS certs NOW; replace with a Let's Encrypt ACME issuer
+# (dns01 recommended — Traefik websecure is LoadBalancer without a domain)
+# once a real domain exists.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned
+  labels:
+    app: cert-manager
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-tls
+  namespace: ecommerce
+  labels:
+    app: api-gateway
+spec:
+  secretName: gateway-tls
+  commonName: ecommerce.local
+  dnsNames:
+    - ecommerce.local
+    - api-gateway
+    - api-gateway.ecommerce.svc.cluster.local
+  # Node IP SAN lets curl hit https://162.4.177.91 via Traefik websecure.
+  ipAddresses:
+    - 162.4.177.91
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  issuerRef:
+    name: selfsigned
+    kind: ClusterIssuer

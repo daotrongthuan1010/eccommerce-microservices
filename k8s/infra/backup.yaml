@@ -1,0 +1,106 @@
+# Phase 4 — backup CronJob: nightly pg_dump + mysqldump + mc mirror of
+# MinIO buckets, stored in the `backups` MinIO bucket (created by minio-init).
+# Credentials reuse the existing infra secrets — no new Secret needed.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-scripts
+  namespace: ecommerce
+  labels:
+    app: backup
+data:
+  backup.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    STAMP=$(date +%F)
+    DEST="local/backups/${STAMP}"
+    echo "==> pg_dump postgres -> ${DEST}/postgres/"
+    PGPASSWORD="$POSTGRES_PASSWORD" pg_dumpall -h postgres -U postgres -f /tmp/pg-all.sql
+    echo "==> mysqldump mysql -> ${DEST}/mysql/"
+    MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqldump -h mysql -uroot --all-databases --single-transaction --routines --triggers > /tmp/mysql-all.sql
+    echo "==> mc mirror minio-init buckets -> ${DEST}/minio/"
+    /opt/bitnami/minio-client/bin/mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+    /opt/bitnami/minio-client/bin/mc mb --ignore-existing local/backups
+    /opt/bitnami/minio-client/bin/mc cp /tmp/pg-all.sql "${DEST}/postgres/pg-all.sql"
+    /opt/bitnami/minio-client/bin/mc cp /tmp/mysql-all.sql "${DEST}/mysql/mysql-all.sql"
+    /opt/bitnami/minio-client/bin/mc mirror --overwrite local/product-assets "${DEST}/minio/product-assets"
+    /opt/bitnami/minio-client/bin/mc mirror --overwrite local/ecommerce-files "${DEST}/minio/ecommerce-files"
+    echo "==> backup ${STAMP} complete"
+    ls -la /tmp/*.sql
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: infra-backup
+  namespace: ecommerce
+  labels:
+    app: backup
+spec:
+  schedule: "0 2 * * *" # 02:00 nightly (VPS local time)
+  timeZone: Asia/Ho_Chi_Minh
+  concurrencyPolicy: Forbid # never overlap two dumps on the RWO volumes' hosts
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app: infra-backup
+            job-name: infra-backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              # One carrier image already on nodes: postgres client + mc.
+              # mysqldump is fetched via apt on first run if missing.
+              image: bitnamilegacy/minio:latest
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/bash
+                - -ec
+                - |
+                  if ! command -v pg_dumpall >/dev/null 2>&1; then
+                    echo "installing postgres + mysql clients..."
+                    apt-get update -qq && apt-get install -y -qq postgresql-client default-mysql-client >/dev/null
+                  fi
+                  /scripts/backup.sh
+              env:
+                - name: POSTGRES_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: infra-postgres-secrets
+                      key: postgres-password
+                - name: MYSQL_ROOT_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: infra-mysql-secrets
+                      key: mysql-root-password
+                - name: MINIO_ROOT_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: infra-minio-secrets
+                      key: root-user
+                - name: MINIO_ROOT_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: infra-minio-secrets
+                      key: root-password
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+          volumes:
+            - name: scripts
+              configMap:
+                name: backup-scripts
+                defaultMode: 0755

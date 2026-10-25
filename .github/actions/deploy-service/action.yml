@@ -1,0 +1,215 @@
+name: deploy-service
+description: >-
+  Deploy ONE service to VPS k3s independently: scp only its k8s/<dir>/,
+  substitute __IMAGE_TAG__ in a temp copy, render ONLY its Secret from
+  GitHub Secrets, kubectl apply + rollout status + auto undo scoped to its
+  own Deployment, then smoke gateway health + its direct actuator.
+  Failures affect only this service.
+
+inputs:
+  service:
+    description: 'Service name, e.g. catalog-service'
+    required: true
+  sha:
+    description: 'Image tag (commit SHA) to deploy'
+    required: true
+  host:
+    required: true
+  port:
+    required: true
+  username:
+    required: true
+  key:
+    required: true
+  dockerhub_username:
+    required: true
+  dockerhub_token:
+    required: true
+  iam_internal_token:
+    description: 'Shared secret auth<->gateway (X-Internal-Token). Empty = secret channel off.'
+    required: false
+    default: ''
+  keycloak_admin_client_secret:
+    description: 'Keycloak service-account secret for auth register/forgot/change-password. Empty = 501 mode.'
+    required: false
+    default: ''
+
+# DEV/learning defaults (matches .env + /opt/eccommerce/.env).
+# No DB/Redis/MinIO passwords in GitHub Secrets by design.
+
+runs:
+  using: composite
+  steps:
+    - name: Copy only this service's manifests to VPS
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ inputs.host }}
+        port: ${{ inputs.port }}
+        username: ${{ inputs.username }}
+        key: ${{ inputs.key }}
+        # Service -> k8s dir mapping (api-gateway lives in k8s/gateway/).
+        source: >-
+          ${{ inputs.service == 'api-gateway' && 'k8s/gateway/' || '' }}${{
+            inputs.service == 'discovery-service' && 'k8s/discovery/' || '' }}${{
+            inputs.service == 'auth-service' && 'k8s/auth/' || '' }}${{
+            inputs.service == 'user-service' && 'k8s/user/' || '' }}${{
+            inputs.service == 'catalog-service' && 'k8s/catalog/' || '' }}${{
+            inputs.service == 'inventory-service' && 'k8s/inventory/' || '' }}${{
+            inputs.service == 'order-service' && 'k8s/order/' || '' }}${{
+            inputs.service == 'payment-service' && 'k8s/payment/' || '' }}${{
+            inputs.service == 'notification-service' && 'k8s/notification/' || '' }}${{
+            inputs.service == 'search-service' && 'k8s/search/' || '' }}${{
+            inputs.service == 'product-service' && 'k8s/product/' || '' }}${{
+            inputs.service == 'review-service' && 'k8s/review/' || '' }}${{
+            inputs.service == 'analytics-service' && 'k8s/analytics/' || '' }}${{
+            inputs.service == 'file-service' && 'k8s/file/' || '' }}
+        target: /tmp/k8s-deploy-src
+
+    - name: Deploy to VPS k3s via SSH
+      uses: appleboy/ssh-action@v1.2.0
+      env:
+        SVC: ${{ inputs.service }}
+        IMAGE_TAG: ${{ inputs.sha }}
+        DH_USER: ${{ inputs.dockerhub_username }}
+        DH_TOKEN: ${{ inputs.dockerhub_token }}
+        IAM_INTERNAL_TOKEN: ${{ inputs.iam_internal_token }}
+        KEYCLOAK_ADMIN_CLIENT_SECRET: ${{ inputs.keycloak_admin_client_secret }}
+      with:
+        host: ${{ inputs.host }}
+        port: ${{ inputs.port }}
+        username: ${{ inputs.username }}
+        key: ${{ inputs.key }}
+        envs: SVC,IMAGE_TAG,DH_USER,DH_TOKEN,IAM_INTERNAL_TOKEN,KEYCLOAK_ADMIN_CLIENT_SECRET
+        script: |
+          set -euo pipefail
+          # DEV defaults (same as .env / /opt/eccommerce/.env) — learning env, no secrets.
+          AUTH_DB_PASSWORD=local_auth_change_me
+          USER_DB_PASSWORD=local_user_change_me
+          CATALOG_DB_PASSWORD=local_catalog_change_me
+          INVENTORY_DB_PASSWORD=local_inventory_change_me
+          ORDER_DB_PASSWORD=local_order_change_me
+          PAYMENT_DB_PASSWORD=local_payment_change_me
+          NOTIFICATION_DB_PASSWORD=local_notification_change_me
+          PRODUCT_DB_PASSWORD=local_product_change_me
+          REVIEW_DB_PASSWORD=local_review_change_me
+          ANALYTICS_DB_PASSWORD=local_analytics_change_me
+          REDIS_PASSWORD=local_redis_change_me
+          MINIO_ROOT_USER=local_minio_admin
+          MINIO_ROOT_PASSWORD=local_minio_change_me
+          # Skip (not fail) if this service's image tag was never built/pushed
+          # (e.g. its CI leg failed while others succeeded). One broken service
+          # never blocks the rest.
+          if ! docker manifest inspect "$DH_USER/$SVC:${IMAGE_TAG}" >/dev/null 2>&1; then
+            echo "SKIP ($SVC:${IMAGE_TAG} not on Hub — its CI build failed, others unaffected)"
+            exit 0
+          fi
+          echo "$DH_TOKEN" | docker login -u "$DH_USER" --password-stdin
+          kubectl create namespace ecommerce --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret docker-registry dockerhub-pull -n ecommerce \
+            --docker-username="$DH_USER" --docker-password="$DH_TOKEN" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # Service -> k8s dir mapping (api-gateway lives in k8s/gateway/).
+          case "$SVC" in
+            api-gateway) D=gateway ;;
+            *) D="${SVC%-service}" ;;
+          esac
+          SRC="/tmp/k8s-deploy-src/k8s/$D"
+          WORK="/tmp/k8s-deploy-$SVC"
+          rm -rf "$WORK" && cp -r "$SRC" "$WORK"
+
+          # Substitute image tag in a temp copy (repo files keep __IMAGE_TAG__).
+          grep -rl "__IMAGE_TAG__" "$WORK" --include=deployment.yaml \
+            | xargs sed -i "s/__IMAGE_TAG__/${IMAGE_TAG}/g"
+
+          # Render ONLY this service's Secret from GitHub Secrets (never committed).
+          SECRETS_FILE="/tmp/k8s-secrets-${SVC}-${IMAGE_TAG}.yaml"
+          trap 'shred -u "$SECRETS_FILE" 2>/dev/null || rm -f "$SECRETS_FILE"' EXIT
+          case "$SVC" in
+            auth-service)       DBPW="$AUTH_DB_PASSWORD";         NEEDS_DB=yes; NEEDS_REDIS=yes; NEEDS_MINIO=no ;;
+            user-service)       DBPW="$USER_DB_PASSWORD";         NEEDS_DB=yes; NEEDS_REDIS=yes; NEEDS_MINIO=no ;;
+            catalog-service)    DBPW="$CATALOG_DB_PASSWORD"      ; NEEDS_DB=yes; NEEDS_REDIS=yes; NEEDS_MINIO=yes ;;
+            inventory-service)  DBPW="$INVENTORY_DB_PASSWORD"    ; NEEDS_DB=yes; NEEDS_REDIS=yes; NEEDS_MINIO=no ;;
+            order-service)      DBPW="$ORDER_DB_PASSWORD"        ; NEEDS_DB=yes; NEEDS_REDIS=yes; NEEDS_MINIO=no ;;
+            payment-service)    DBPW="$PAYMENT_DB_PASSWORD"      ; NEEDS_DB=yes; NEEDS_REDIS=yes; NEEDS_MINIO=no ;;
+            notification-service) DBPW="$NOTIFICATION_DB_PASSWORD"; NEEDS_DB=yes; NEEDS_REDIS=yes; NEEDS_MINIO=no ;;
+            product-service)    DBPW="$PRODUCT_DB_PASSWORD"      ; NEEDS_DB=yes; NEEDS_REDIS=yes; NEEDS_MINIO=yes ;;
+            review-service)     DBPW="$REVIEW_DB_PASSWORD"       ; NEEDS_DB=yes; NEEDS_REDIS=yes; NEEDS_MINIO=no ;;
+            analytics-service)  DBPW="$ANALYTICS_DB_PASSWORD"    ; NEEDS_DB=yes; NEEDS_REDIS=yes; NEEDS_MINIO=no ;;
+            search-service)     DBPW=""                          ; NEEDS_DB=no;  NEEDS_REDIS=yes; NEEDS_MINIO=no ;;
+            file-service)       DBPW=""                          ; NEEDS_DB=no;  NEEDS_REDIS=no;  NEEDS_MINIO=yes ;;
+            *)                  DBPW=""                          ; NEEDS_DB=no;  NEEDS_REDIS=no;  NEEDS_MINIO=no ;;
+          esac
+          SHORT="${SVC%-service}"
+          # IAM secrets (auth + gateway). Rendered ONLY from GitHub Secrets inputs,
+          # never committed. Empty = channel stays off (safe default).
+          NEEDS_IAM=no
+          case "$SVC" in
+            auth-service|api-gateway) NEEDS_IAM=yes ;;
+          esac
+          if [ "$NEEDS_DB" = "yes" ] || [ "$NEEDS_REDIS" = "yes" ] || [ "$NEEDS_MINIO" = "yes" ] || [ "$NEEDS_IAM" = "yes" ]; then
+            {
+              echo "apiVersion: v1"
+              echo "kind: Secret"
+              echo "metadata: {name: ${SHORT}-secrets, namespace: ecommerce}"
+              echo "type: Opaque"
+              echo "stringData:"
+              [ "$NEEDS_DB" = "yes" ] && echo "  db-password: $DBPW"
+              [ "$NEEDS_REDIS" = "yes" ] && echo "  redis-password: $REDIS_PASSWORD"
+              if [ "$NEEDS_MINIO" = "yes" ]; then
+                echo "  minio-access-key: $MINIO_ROOT_USER"
+                echo "  minio-secret-key: $MINIO_ROOT_PASSWORD"
+              fi
+              if [ "$NEEDS_IAM" = "yes" ]; then
+                echo "  iam-internal-token: ${IAM_INTERNAL_TOKEN:-}"
+              fi
+              if [ "$SVC" = "auth-service" ]; then
+                echo "  keycloak-admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-}"
+              fi
+            } > "$SECRETS_FILE"
+            kubectl apply -f "$SECRETS_FILE"
+          fi
+
+          # Apply ONLY this service's dir, rollout ONLY its deployment.
+          # Timeout 600s = progressDeadlineSeconds của Deployment: pod Spring
+          # (image ~220MB + JVM start, readiness initialDelay 120s) vẫn ready
+          # kịp khi node tải cao; timeout ngắn hơn gây rollback oan.
+          kubectl apply -f "$WORK/"
+          if ! kubectl rollout status "deployment/$SVC" -n ecommerce --timeout=600s; then
+            kubectl rollout undo "deployment/$SVC" -n ecommerce
+            kubectl rollout status "deployment/$SVC" -n ecommerce --timeout=300s
+            exit 1
+          fi
+
+          # Smoke: gateway health through Traefik (entryPoint web = port 80).
+          for i in $(seq 1 30); do
+            if curl -fsS http://162.4.177.91/actuator/health | grep -q '"status":"UP"'; then
+              echo "GATEWAY SMOKE OK"; break
+            fi
+            if [ "$i" = "30" ]; then echo "GATEWAY SMOKE FAILED"; exit 1; fi
+            sleep 10
+          done
+          # Smoke: this service's own gateway route resolves (no 502/503/504).
+          # Route id == service name, path /api/<short>/** per api-gateway
+          # application.yml (StripPrefix rewrites to the service actuator).
+          # discovery-service / api-gateway have no gateway route — skip.
+          SHORT="${SVC%-service}"
+          case "$SVC" in
+            discovery-service|api-gateway)
+              echo "ROUTE SMOKE SKIPPED ($SVC has no gateway route)" ;;
+            *)
+              CODE=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 \
+                "http://162.4.177.91/api/${SHORT}/actuator/health" || echo "000")
+              case "$CODE" in
+                000|502|503|504)
+                  echo "ROUTE SMOKE FAILED ($SVC /api/${SHORT}/... -> HTTP $CODE)"; exit 1 ;;
+                *)
+                  echo "ROUTE SMOKE OK ($SVC /api/${SHORT}/... -> HTTP $CODE)" ;;
+              esac ;;
+          esac
+          PORT=$(kubectl get svc "$SVC" -n ecommerce -o jsonpath='{.spec.ports[0].port}')
+          kubectl run "smoke-$SHORT" -n ecommerce --rm -i --restart=Never \
+            --image=curlimages/curl:8.10.1 -- \
+            curl -fsS --max-time 10 "http://${SVC}:${PORT}/actuator/health" | grep -q '"status":"UP"' \
+            && echo "DIRECT SMOKE OK ($SVC)" \
+            || { echo "DIRECT SMOKE FAILED ($SVC)"; exit 1; }

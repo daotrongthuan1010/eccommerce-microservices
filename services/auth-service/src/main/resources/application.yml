@@ -37,10 +37,34 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs}
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://162.4.177.91:7080/realms/ecommerce}
 auth:
   keycloak:
     token-uri: ${KEYCLOAK_TOKEN_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/token}
+    logout-uri: ${KEYCLOAK_LOGOUT_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/logout}
     client-id: ${KEYCLOAK_CLIENT_ID:ecommerce-app}
+    server-url: ${KEYCLOAK_SERVER_URL:http://162.4.177.91:7080}
+    realm: ${KEYCLOAK_REALM:ecommerce}
+    admin:
+      # Service account cho Keycloak Admin API (register, forgot/change password, verify email).
+      # De trong client-secret = tat cac endpoint do (tra 501 kem huong dan thu cong).
+      # Tao 1 lan trong Keycloak Admin Console: Clients > Create client (confidential,
+      # bat Service accounts roles), gan realm-management roles: manage-users, view-users.
+      client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:}
+      client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
+      realm: ${KEYCLOAK_ADMIN_REALM:master}
+iam:
+  internal:
+    # Shared secret cho goi service-to-service /internal/** (gateway gui qua header
+    # X-Internal-Token). BAT BUOC dat IAM_INTERNAL_TOKEN khi deploy, de trong = tat kenh secret.
+    token: ${IAM_INTERNAL_TOKEN:}
+  provision:
+    # JIT provisioning (P2): tao auth_users khi thay Keycloak sub la lan dau.
+    enabled: ${IAM_PROVISION_ENABLED:true}
+    # Ma tenant mac dinh (phai co trong seed). Bo trong = tao user muc he thong, khong quyen.
+    default-tenant-code: ${IAM_DEFAULT_TENANT:}
+    # Id group mac dinh. Bo comment + dat IAM_DEFAULT_GROUP_ID khi da seed group.
+    # default-group-id: ${IAM_DEFAULT_GROUP_ID:}
 eureka:
   client:
     service-url:
@@ -48,7 +72,7 @@ eureka:
     registry-fetch-interval-seconds: 15
   instance:
     hostname: ${EUREKA_HOSTNAME:auth-service}
-    prefer-ip-address: false
+    prefer-ip-address: ${EUREKA_INSTANCE_PREFER_IP_ADDRESS:false}
 grpc:
   server:
     port: ${GRPC_SERVER_PORT:9081}

@@ -1,0 +1,258 @@
+name: cd-all
+
+# FULL ordered rollout of all 14 services, wave by wave.
+# Each wave deploys its services and waits before the next wave starts.
+# For a single service (or a few), use cd-dev.yml instead — failures there
+# stay scoped to that service's job.
+#
+# Wave order (infra k8s/infra/ is applied once, separately — app services only):
+#   core       : discovery-service, api-gateway        (phase 1 platform)
+#   identity   : auth-service, user-service            (phase 1 domain)
+#   data       : file-service, catalog-service, product-service
+#   trade      : inventory-service, order-service, payment-service
+#   downstream : search-service, notification-service
+#   leaf       : review-service, analytics-service
+# Rationale: file + catalog/product own MinIO buckets; inventory gates
+# order/payment; search/notification are downstream consumers; review/analytics
+# are leaves.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Image tag (commit SHA) to deploy; defaults to HEAD sha of develop'
+        required: false
+        default: ''
+
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.out.outputs.sha }}
+    steps:
+      - id: out
+        run: |
+          SHA='${{ inputs.sha }}'
+          if [ -z "$SHA" ]; then SHA="$(git ls-remote https://github.com/${{ github.repository }}.git develop | cut -f1)"; fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+  core:
+    needs: select
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [discovery-service, api-gateway]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: "Deploy ${{ matrix.service }} (wave: core)"
+        uses: ./.github/actions/deploy-service
+        with:
+          service: ${{ matrix.service }}
+          sha: ${{ needs.select.outputs.sha }}
+          host: ${{ secrets.VPS_SSH_HOST }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          iam_internal_token: ${{ secrets.IAM_INTERNAL_TOKEN }}
+          keycloak_admin_client_secret: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
+
+  identity:
+    needs: [select, core]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [auth-service, user-service]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: "Deploy ${{ matrix.service }} (wave: identity)"
+        uses: ./.github/actions/deploy-service
+        with:
+          service: ${{ matrix.service }}
+          sha: ${{ needs.select.outputs.sha }}
+          host: ${{ secrets.VPS_SSH_HOST }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          iam_internal_token: ${{ secrets.IAM_INTERNAL_TOKEN }}
+          keycloak_admin_client_secret: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
+
+  data:
+    needs: [select, identity]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [file-service, catalog-service, product-service]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: "Deploy ${{ matrix.service }} (wave: data)"
+        uses: ./.github/actions/deploy-service
+        with:
+          service: ${{ matrix.service }}
+          sha: ${{ needs.select.outputs.sha }}
+          host: ${{ secrets.VPS_SSH_HOST }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          iam_internal_token: ${{ secrets.IAM_INTERNAL_TOKEN }}
+          keycloak_admin_client_secret: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
+
+  trade:
+    needs: [select, data]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [inventory-service, order-service, payment-service]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: "Deploy ${{ matrix.service }} (wave: trade)"
+        uses: ./.github/actions/deploy-service
+        with:
+          service: ${{ matrix.service }}
+          sha: ${{ needs.select.outputs.sha }}
+          host: ${{ secrets.VPS_SSH_HOST }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          iam_internal_token: ${{ secrets.IAM_INTERNAL_TOKEN }}
+          keycloak_admin_client_secret: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
+
+  downstream:
+    needs: [select, trade]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [search-service, notification-service]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: "Deploy ${{ matrix.service }} (wave: downstream)"
+        uses: ./.github/actions/deploy-service
+        with:
+          service: ${{ matrix.service }}
+          sha: ${{ needs.select.outputs.sha }}
+          host: ${{ secrets.VPS_SSH_HOST }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          iam_internal_token: ${{ secrets.IAM_INTERNAL_TOKEN }}
+          keycloak_admin_client_secret: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
+
+  leaf:
+    needs: [select, downstream]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [review-service, analytics-service]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: "Deploy ${{ matrix.service }} (wave: leaf)"
+        uses: ./.github/actions/deploy-service
+        with:
+          service: ${{ matrix.service }}
+          sha: ${{ needs.select.outputs.sha }}
+          host: ${{ secrets.VPS_SSH_HOST }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          iam_internal_token: ${{ secrets.IAM_INTERNAL_TOKEN }}
+          keycloak_admin_client_secret: ${{ secrets.KEYCLOAK_ADMIN_CLIENT_SECRET }}
+
+  # Frontend deploys LAST (leaf wave, cung review/analytics): khong dung
+  # deploy-service action chung vi smoke cua no doi Spring actuator — nginx
+  # khong co. Pattern giong het action: scp k8s/frontend/, the
+  # __IMAGE_TAG__ trong ban copy tam (khong sed file repo), apply +
+  # rollout status, smoke `/` 200 + deep-link tra ve index.html.
+  frontend-leaf:
+    needs: [select, leaf]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: Copy k8s/frontend to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_SSH_HOST }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: 'k8s/frontend/'
+          target: /tmp/k8s-deploy-src
+      - name: "Deploy frontend (wave: leaf)"
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          IMAGE_TAG: ${{ needs.select.outputs.sha }}
+          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DH_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        with:
+          host: ${{ secrets.VPS_SSH_HOST }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: IMAGE_TAG,DH_USER,DH_TOKEN
+          script: |
+            set -euo pipefail
+            if ! docker manifest inspect "$DH_USER/frontend:${IMAGE_TAG}" >/dev/null 2>&1; then
+              echo "SKIP (frontend:${IMAGE_TAG} not on Hub — its CI build failed)"
+              exit 0
+            fi
+            echo "$DH_TOKEN" | docker login -u "$DH_USER" --password-stdin
+            kubectl create namespace ecommerce --dry-run=client -o yaml | kubectl apply -f -
+            kubectl create secret docker-registry dockerhub-pull -n ecommerce \
+              --docker-username="$DH_USER" --docker-password="$DH_TOKEN" \
+              --dry-run=client -o yaml | kubectl apply -f -
+            WORK="/tmp/k8s-deploy-frontend"
+            rm -rf "$WORK" && cp -r /tmp/k8s-deploy-src/k8s/frontend "$WORK"
+            grep -rl "__IMAGE_TAG__" "$WORK" --include=deployment.yaml \
+              | xargs sed -i "s/__IMAGE_TAG__/${IMAGE_TAG}/g"
+            kubectl apply -f "$WORK/"
+            if ! kubectl rollout status deployment/frontend -n ecommerce --timeout=300s; then
+              kubectl rollout undo deployment/frontend -n ecommerce
+              kubectl rollout status deployment/frontend -n ecommerce --timeout=300s
+              exit 1
+            fi
+            # Smoke (đồng bộ với .github/actions/deploy-frontend): exec TRỰC
+            # TIẾP vào pod frontend, wget http://localhost/ (nginx:alpine có
+            # sẵn busybox wget, KHÔNG có curl). Bỏ đường Service-name qua
+            # kube-dns + Klipper LB — từng timeout 6/6 dù app sống.
+            kubectl wait --for=condition=ready pod -l app=frontend -n ecommerce --timeout=60s \
+              || echo "no frontend pod ready after 60s — retry loop will pick one up"
+            for i in $(seq 1 6); do
+              POD=$(kubectl get pods -n ecommerce -l app=frontend --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}')
+              if [ -n "$POD" ] && kubectl exec "$POD" -n ecommerce -- \
+                sh -c 'wget -qO- http://localhost/ | grep -q "<div id=\"root\">" && wget -qO- http://localhost/products/123 | grep -q "<div id=\"root\">"'; then
+                echo "FRONTEND SMOKE OK"; break
+              fi
+              if [ "$i" = "6" ]; then echo "FRONTEND SMOKE FAILED"; exit 1; fi
+              echo "frontend smoke attempt $i failed — retry in 10s"
+              sleep 10
+            done

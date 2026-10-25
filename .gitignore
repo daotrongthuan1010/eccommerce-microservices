@@ -7,6 +7,11 @@ backups/
 *.log
 .claude/
 .settings/
+# Docs local - khong push len remote
+*.md
+!README.md
+openspec/
+CHECKLIST*.md
 *.pw
 *.pem
 *.key
@@ -15,3 +20,14 @@ install-docker*.sh
 
 # Local helper scripts (giu local, khong push len remote)
 scripts/
+
+# Folders local-only (giu local, khong push len remote)
+docs/
+postman/
+**/docs/
+
+# Frontend build output (W1 housekeeping)
+frontend/dist/
+frontend/node_modules/
+frontend/tsconfig.tsbuildinfo
+**/node_modules/

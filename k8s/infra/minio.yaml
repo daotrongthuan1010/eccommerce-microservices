@@ -1,0 +1,172 @@
+# Port of docker-compose.yml `minio` + `minio-init` (bitnamilegacy/minio:latest).
+# Credentials come from Secret `infra-minio-secrets` (see secret-templates.yaml.example).
+# In-cluster clients use http://minio:9000; public DEV URL stays http://162.4.177.91:9000.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-data
+  namespace: ecommerce
+  labels:
+    app: minio
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: ecommerce
+  labels:
+    app: minio
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # single server on RWO volume; never roll while mounted
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      # Bitnami images run as non-root UID 1001; local-path provisions root-owned dirs.
+      securityContext:
+        fsGroup: 1001
+      containers:
+        - name: minio
+          image: bitnamilegacy/minio:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - minio
+            - server
+            - /bitnami/minio/data
+            - --console-address
+            - :9001
+          ports:
+            - name: api
+              containerPort: 9000
+            - name: console
+              containerPort: 9001
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: infra-minio-secrets
+                  key: root-user
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-minio-secrets
+                  key: root-password
+            - name: MINIO_API_PORT_NUMBER
+              value: "9000"
+            - name: MINIO_CONSOLE_PORT_NUMBER
+              value: "9001"
+            - name: MINIO_SCHEME
+              value: http
+          volumeMounts:
+            - name: data
+              mountPath: /bitnami/minio/data
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: api
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: api
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: minio-data
+---
+# LoadBalancer (k3s Klipper lb) exposes compose ports 9000+9001 on the node IP,
+# preserving the DEV 0.0.0.0 public-access behavior from vps-infra memory.
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: ecommerce
+  labels:
+    app: minio
+spec:
+  type: LoadBalancer
+  selector:
+    app: minio
+  ports:
+    - name: api
+      port: 9000
+      targetPort: api
+    - name: console
+      port: 9001
+      targetPort: console
+---
+# Port of compose `minio-init`: creates buckets product-assets + ecommerce-files.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-init
+  namespace: ecommerce
+  labels:
+    app: minio
+spec:
+  backoffLimit: 30 # minio is slow on first start; retry until Ready
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app: minio-init
+        job-name: minio-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: minio-init
+          image: bitnamilegacy/minio:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              /opt/bitnami/minio-client/bin/mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+              /opt/bitnami/minio-client/bin/mc mb --ignore-existing local/product-assets
+              /opt/bitnami/minio-client/bin/mc mb --ignore-existing local/ecommerce-files
+              /opt/bitnami/minio-client/bin/mc mb --ignore-existing local/backups # Phase 4: backup CronJob target
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: infra-minio-secrets
+                  key: root-user
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-minio-secrets
+                  key: root-password
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
