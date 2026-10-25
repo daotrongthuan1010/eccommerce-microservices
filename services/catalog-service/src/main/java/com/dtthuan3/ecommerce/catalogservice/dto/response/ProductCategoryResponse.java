@@ -3,11 +3,13 @@ package com.dtthuan3.ecommerce.catalogservice.dto.response;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.util.UUID;
+
 @Getter
 @Builder
 public class ProductCategoryResponse {
 
-    private String productId;
+    private UUID productId;
 
     private String categoryId;
 

@@ -1,0 +1,6 @@
+# Base runtime image — rebuilt on GHCR to escape Docker Hub 429.
+# Upstream: eclipse-temurin:21-jre-jammy (version pinned, do not float).
+# Bakes curl + app user so service Dockerfiles stay lean (apt-get/useradd
+# moved here from the root Dockerfile runtime stage).
+FROM eclipse-temurin:21-jre-jammy
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* && groupadd --system app && useradd --system --gid app app

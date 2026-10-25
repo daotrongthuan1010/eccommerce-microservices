@@ -12,4 +12,6 @@ public interface UserGroupRoleRepository extends JpaRepository<UserGroupRole, Us
     @Query("select ugr from UserGroupRole ugr join fetch ugr.role r left join fetch r.rolePermissions rp"
             + " left join fetch rp.permission where ugr.group.id = :groupId")
     List<UserGroupRole> findByGroupIdWithRolePermissions(@Param("groupId") Long groupId);
+
+    List<UserGroupRole> findByGroupId(Long groupId);
 }

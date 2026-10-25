@@ -39,6 +39,8 @@ rules:
     verbs: ["*"]
   - apiGroups: ["apps"]
     resources: ["deployments"]
+    # cert-manager-init waits on the webhook rollout (readiness included);
+    # deployments/status not needed.
     verbs: ["get", "list", "watch"]
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingresses"]
@@ -46,6 +48,14 @@ rules:
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingresses/finalizers"]
     verbs: ["update"]
+  # Leader election: controller uses --leader-election-namespace=ecommerce,
+  # so the lease lives in `ecommerce` — covered by this ClusterRoleBinding.
+  # (Upstream splits this into a namespaced Role; single ClusterRole is
+  # equivalent here. Without it the controller CrashLoops: "cannot get
+  # resource leases ... in namespace ecommerce", observed 2026-10-24.)
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -113,9 +123,14 @@ rules:
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["get", "create", "update", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    # cert-manager-init calls `rollout status` on the webhook Deployment.
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["admissionregistration.k8s.io"]
     resources: ["validatingwebhookconfigurations"]
-    verbs: ["get", "update", "patch"]
+    # create: VWC may not exist on first run (Job creates it), then update/patch.
+    verbs: ["get", "create", "update", "patch"]
   - apiGroups: ["apiextensions.k8s.io"]
     resources: ["customresourcedefinitions"]
     verbs: ["get", "list", "patch"]
@@ -183,10 +198,18 @@ spec:
               kubectl -n ecommerce create secret tls cert-manager-webhook-tls \
                 --cert=tls.crt --key=tls.key --dry-run=client -o yaml | kubectl apply -f -
               CABUNDLE=$(base64 -w0 ca.crt)
-              for crd in certificates.cert-manager.io certificaterequests.cert-manager.io issuers.cert-manager.io clusterissuers.cert-manager.io orders.acme.cert-manager.io challenges.acme.cert-manager.io; do
-                kubectl patch crd "$crd" --type=json \
-                  -p="[{\"op\":\"replace\",\"path\":\"/spec/conversion/webhook/clientConfig/caBundle\",\"value\":\"${CABUNDLE}\"}]" || true
-              done
+              # CRDs ship with strategy None (no conversion webhook needed) —
+              # skip caBundle patches so this step never fails for a repo-owned
+              # manifest that doesn't point at the webhook. If a webhook
+              # conversion is ever added to vendored CRDs, patch here.
+              if kubectl get crd certificates.cert-manager.io -o jsonpath='{.spec.conversion.strategy}' 2>/dev/null | grep -q Webhook; then
+                for crd in certificates.cert-manager.io certificaterequests.cert-manager.io issuers.cert-manager.io clusterissuers.cert-manager.io orders.acme.cert-manager.io challenges.acme.cert-manager.io; do
+                  kubectl patch crd "$crd" --type=json \
+                    -p="[{\"op\":\"replace\",\"path\":\"/spec/conversion/webhook/clientConfig/caBundle\",\"value\":\"${CABUNDLE}\"}]" || true
+                done
+              else
+                echo "CRD conversion strategy is None — skipping caBundle patches"
+              fi
               # Create the ValidatingWebhookConfiguration HERE (not in this file):
               # creating it earlier would fail-close cert-manager.io writes
               # before the webhook TLS secret exists. Wait for webhook Deploy.
@@ -287,6 +310,12 @@ spec:
           ports:
             - name: https
               containerPort: 10250
+            # Insecure health server (upstream default): serves ONLY /livez
+            # and /healthz over plain HTTP. Probing the webhook port (10250,
+            # which serves just /mutate + /validate) returns 404 and the
+            # kubelet kills the pod -> CrashLoopBackOff (observed 2026-10-24).
+            - name: healthcheck
+              containerPort: 6080
           volumeMounts:
             - name: tls
               mountPath: /tls
@@ -301,8 +330,8 @@ spec:
           livenessProbe:
             httpGet:
               path: /livez
-              port: https
-              scheme: HTTPS
+              port: healthcheck
+              scheme: HTTP
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
@@ -310,8 +339,8 @@ spec:
           readinessProbe:
             httpGet:
               path: /healthz
-              port: https
-              scheme: HTTPS
+              port: healthcheck
+              scheme: HTTP
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 5
@@ -350,6 +379,11 @@ spec:
           ports:
             - name: metrics
               containerPort: 9402
+            # v1.16 controller serves the healthz server on :9403 (NOT the
+            # historical :6080) — verified live 2026-10-24: 9403/livez -> ok,
+            # 6080 -> connection refused. Probing 6080 kills the pod.
+            - name: healthz
+              containerPort: 9403
           resources:
             requests:
               cpu: 50m
@@ -360,7 +394,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /livez
-              port: 6080
+              port: healthz
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5

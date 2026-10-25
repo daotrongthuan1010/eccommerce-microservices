@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, InputNumber, Space, message } from 'antd';
+import { App, Button, InputNumber, Space } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { Link } from 'react-router-dom';
 import {
@@ -15,6 +15,7 @@ import { ApiErrorAlert, DataTable, PageHeader } from '../components/ui';
 
 // Wave 4.2 — gio hang hoan toan offline tren orderMock. KHONG goi /api/order/**.
 export default function CartPage() {
+  const { message } = App.useApp();
   const [cart, setCart] = useState<Cart | null>(null);
   const [error, setError] = useState<string | null>(null);
 

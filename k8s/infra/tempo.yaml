@@ -3,7 +3,9 @@
 # The Zipkin receiver lets the 14 Spring Boot apps (micrometer-tracing-bridge-brave
 # + zipkin-reporter-brave) switch by ConfigMap hostname only: ZIPKIN_ENDPOINT
 # http://zipkin:9411/api/v2/spans -> http://tempo:9411/api/v2/spans. No rebuild.
-# Sizing ~300Mi.
+# Sizing ~1Gi (was ~300Mi): monolith OOMKilled (exit 137) at 384Mi during
+# WAL replay + block flush/compaction — observed CrashLoopBackOff 2026-10-24.
+# Same class of fix as inventory/product bumps (memory note 2026-10-22).
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -108,10 +110,10 @@ spec:
           resources:
             requests:
               cpu: 200m
-              memory: 192Mi
+              memory: 512Mi
             limits:
               cpu: 500m
-              memory: 384Mi
+              memory: 1Gi
           livenessProbe:
             httpGet:
               path: /ready

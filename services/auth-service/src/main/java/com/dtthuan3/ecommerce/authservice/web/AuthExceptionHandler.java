@@ -76,6 +76,46 @@ public class AuthExceptionHandler {
                 .body(Map.of("error", "user_exists", "message", ex.getMessage()));
     }
 
+    @ExceptionHandler(KeycloakAdminClient.UserNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleUserNotFound(KeycloakAdminClient.UserNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("error", "user_not_found", "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(KeycloakAdminClient.RealmRoleNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleRoleNotFound(
+            KeycloakAdminClient.RealmRoleNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("error", "role_not_found", "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(KeycloakAdminClient.EmailAlreadyExistsException.class)
+    public ResponseEntity<Map<String, Object>> handleEmailExists(
+            KeycloakAdminClient.EmailAlreadyExistsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "email_exists", "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(KeycloakAdminClient.RoleAlreadyExistsException.class)
+    public ResponseEntity<Map<String, Object>> handleRoleExists(
+            KeycloakAdminClient.RoleAlreadyExistsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "role_exists", "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(AdminRoleController.ProtectedRoleException.class)
+    public ResponseEntity<Map<String, Object>> handleProtectedRole(
+            AdminRoleController.ProtectedRoleException ex) {
+        return ResponseEntity.badRequest()
+                .body(Map.of("error", "protected_role", "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(AdminUserController.SelfLockoutException.class)
+    public ResponseEntity<Map<String, Object>> handleSelfLockout(AdminUserController.SelfLockoutException ex) {
+        return ResponseEntity.badRequest()
+                .body(Map.of("error", "self_lockout", "message", ex.getMessage()));
+    }
+
     @ExceptionHandler(AuthController.WrongCurrentPasswordException.class)
     public ResponseEntity<Map<String, Object>> handleWrongPassword(AuthController.WrongCurrentPasswordException ex) {
         return ResponseEntity.badRequest()

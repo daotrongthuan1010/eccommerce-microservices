@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Input, Space, message } from 'antd';
+import { App, Button, Input, Space } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   useApproveReceiptMutation,
@@ -23,6 +23,7 @@ import {
 // (GET list, POST tao), PATCH /api/v1/receipts/{id}/actuals + lifecycle
 // POST /api/inventory/receipts/{id}/submit|approve|post.
 export default function ReceiptsPage() {
+  const { message } = App.useApp();
   const [warehouseId, setWarehouseId] = useState('');
   const [appliedWarehouseId, setAppliedWarehouseId] = useState('');
   const [newReceipt, setNewReceipt] = useState('');

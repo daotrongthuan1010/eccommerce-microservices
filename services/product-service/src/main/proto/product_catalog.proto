@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package product_catalog;
+
+option java_multiple_files = true;
+option java_package = "com.dtthuan3.ecommerce.grpc.catalog";
+option java_outer_classname = "ProductCatalogProto";
+
+service ProductCatalogGrpcService {
+  rpc SyncProduct(SyncProductRequest)
+      returns (SyncProductResponse);
+}
+
+message SyncProductRequest {
+  // Định danh Product bên Product Service.
+  string product_id = 1;
+
+  // Mã nghiệp vụ duy nhất của Product.
+  string product_code = 2;
+
+  // ID tham chiếu do Catalog Service quản lý.
+  string category_id = 3;
+  string brand_id = 4;
+  string manufacturer_id = 5;
+
+  // Thông tin trạng thái và revision.
+  string status = 6;
+  string current_revision_id = 7;
+  string published_revision_id = 8;
+
+  // Metadata phục vụ đồng bộ.
+  int64 updated_at_epoch_ms = 9;
+}
+
+message SyncProductResponse {
+  bool success = 1;
+  string message = 2;
+  string product_id = 3;
+}

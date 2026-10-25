@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Input, List, Space, Typography, message } from 'antd';
+import { Alert, App, Button, Card, Input, List, Space, Typography } from 'antd';
 import { useState } from 'react';
 import { ApiErrorAlert, ListSkeleton, PageHeader } from '../components/ui';
 import {
@@ -14,6 +14,7 @@ import {
 // FE_API_CONTRACT §7: upload/batch multipart, 207 failures hien thi per-file,
 // download stream blob (KHONG parse envelope), delete by key.
 export default function FilesPage() {
+  const { message } = App.useApp();
   const [folder, setFolder] = useState('');
   const [key, setKey] = useState('');
   const [batchResult, setBatchResult] = useState<BatchUploadData | null>(null);
