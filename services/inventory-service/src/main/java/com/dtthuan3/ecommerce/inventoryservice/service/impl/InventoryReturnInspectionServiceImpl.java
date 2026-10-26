@@ -31,6 +31,21 @@ public class InventoryReturnInspectionServiceImpl implements InventoryReturnInsp
     private final InventoryRepository inventoryRepository;
     private final StockMovementRepository stockMovementRepository;
 
+    /** Đọc kết quả inspection đã ghi; không trả thành công giả khi parcel còn ở khu cách ly. */
+    @Override
+    @Transactional(readOnly = true)
+    public ReturnInspectionResponse getByReceiptId(String receiptId) {
+        String normalizedReceiptId = receiptId.trim();
+        if (receiptRepository.findReceiptById(normalizedReceiptId).isEmpty()) {
+            throw new BusinessException(ErrorCode.NOT_FOUND,
+                    "Không tìm thấy biên nhận hàng trả: " + receiptId);
+        }
+        InspectionRecord inspection = inspectionRepository.findByReceiptId(normalizedReceiptId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_RESOURCE_STATE,
+                        "Biên nhận chưa được kiểm tra chất lượng"));
+        return toResponse(inspection);
+    }
+
     /**
      * Chốt một lần kiểm tra cho toàn bộ parcel: hàng đạt chuẩn rời pending để thành khả dụng,
      * hàng hỏng chuyển sang defective. Khóa receipt tuần tự hóa request cùng parcel; nếu có lỗi

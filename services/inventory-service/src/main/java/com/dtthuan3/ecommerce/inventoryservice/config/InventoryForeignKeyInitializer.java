@@ -63,6 +63,38 @@ public class InventoryForeignKeyInitializer implements InitializingBean {
                 "source_inventory_id", "inventory", "id");
         ensureForeignKey("inventory_transfer_receipt_line", "fk_transfer_receipt_line_destination_inventory",
                 "destination_inventory_id", "inventory", "id");
+        ensureForeignKey("inventory_count_session", "fk_inventory_count_session_warehouse",
+                "warehouse_id", "inventory_warehouse", "id");
+        ensureForeignKey("inventory_count_session", "fk_inventory_count_session_location",
+                "location_id", "inventory_location", "id");
+        ensureForeignKey("inventory_count_review", "fk_inventory_count_review_session",
+                "session_id", "inventory_count_session", "id");
+        ensureForeignKey("inventory_count_session_line", "fk_inventory_count_line_session",
+                "session_id", "inventory_count_session", "id");
+        ensureForeignKey("inventory_count_session_line", "fk_inventory_count_line_inventory",
+                "inventory_id", "inventory", "id");
+        ensureForeignKey("inventory_count_session_line", "fk_inventory_count_line_location",
+                "location_id", "inventory_location", "id");
+        ensureForeignKey("inventory_count_submission", "fk_inventory_count_submission_session",
+                "session_id", "inventory_count_session", "id");
+        ensureForeignKey("inventory_count_observation", "fk_inventory_count_observation_submission",
+                "submission_id", "inventory_count_submission", "id");
+        ensureForeignKey("inventory_count_observation", "fk_inventory_count_observation_session",
+                "session_id", "inventory_count_session", "id");
+        ensureForeignKey("inventory_count_observation", "fk_inventory_count_observation_inventory",
+                "inventory_id", "inventory", "id");
+        ensureForeignKey("inventory_shortage_case", "fk_inventory_shortage_inventory",
+                "inventory_id", "inventory", "id");
+        ensureForeignKey("inventory_shortage_reallocation", "fk_shortage_reallocation_case",
+                "shortage_case_id", "inventory_shortage_case", "id");
+        ensureForeignKey("inventory_shortage_reallocation", "fk_shortage_reallocation_inventory",
+                "target_inventory_id", "inventory", "id");
+        ensureForeignKey("inventory_reservation_line", "fk_inventory_reservation_line_header",
+                "reservation_id", "inventory_reservation", "id");
+        ensureForeignKey("inventory_reservation_line", "fk_inventory_reservation_line_inventory",
+                "inventory_id", "inventory", "id");
+        ensureForeignKey("inventory_reservation_operation", "fk_inventory_reservation_operation_header",
+                "reservation_id", "inventory_reservation", "id");
     }
 
     /**

@@ -16,6 +16,8 @@ import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Phát outbox sau commit; lease cho phép nhiều instance poll mà không khóa hàng trong lúc gọi Kafka. */
@@ -28,9 +30,13 @@ public class InventoryEventOutboxPublisher {
     private final MeterRegistry meterRegistry;
     private final AtomicLong pendingEvents = new AtomicLong();
     private final AtomicLong oldestEventAgeSeconds = new AtomicLong();
+    private final AtomicInteger inFlightEvents = new AtomicInteger();
 
     @Value("${inventory.kafka.outbox-batch-size:100}")
     private int batchSize;
+
+    @Value("${inventory.kafka.outbox-max-in-flight:100}")
+    private int maxInFlight;
 
     @Value("${inventory.kafka.outbox-lease:PT3M}")
     private Duration leaseDuration;
@@ -42,21 +48,36 @@ public class InventoryEventOutboxPublisher {
     void registerMetrics() {
         meterRegistry.gauge("inventory.event.outbox.pending", pendingEvents);
         meterRegistry.gauge("inventory.event.outbox.oldest_age_seconds", oldestEventAgeSeconds);
+        meterRegistry.gauge("inventory.event.outbox.in_flight", inFlightEvents);
+        if (maxInFlight < 1) {
+            throw new IllegalStateException("inventory.kafka.outbox-max-in-flight phải lớn hơn 0");
+        }
     }
 
     /** Claim ngắn trong PostgreSQL, sau đó gửi bất đồng bộ để không giữ transaction/row lock qua mạng. */
     @Scheduled(fixedDelayString = "${inventory.kafka.outbox-poll-delay-ms:500}")
     public void publishAvailableBatch() {
         Instant now = Instant.now();
+        // Chỉ claim số lượng publisher còn năng lực xử lý; backlog lớn không tạo vô hạn request gửi Kafka.
+        int requestedSlots = Math.min(Math.max(batchSize, 1), maxInFlight);
+        int reservedSlots = reserveSendSlots(requestedSlots);
+        if (reservedSlots == 0) return;
+
         List<OutboxMessage> batch;
         try {
             int safeBatchSize = Math.max(1, Math.min(batchSize, 500));
-            batch = outboxRepository.claimAvailable(safeBatchSize, now, now.plus(leaseDuration));
+            batch = outboxRepository.claimAvailable(Math.min(reservedSlots, safeBatchSize), now,
+                    now.plus(leaseDuration));
         } catch (RuntimeException failure) {
+            inFlightEvents.addAndGet(-reservedSlots);
             meterRegistry.counter("inventory.event.outbox.claim.failures").increment();
             log.error("Không claim được Inventory event outbox", failure);
             return;
         }
+
+        // Nếu backlog ít hơn số slot đã giữ, trả slot thừa để lần poll sau có thể xử lý ngay.
+        int unusedSlots = reservedSlots - batch.size();
+        if (unusedSlots > 0) inFlightEvents.addAndGet(-unusedSlots);
 
         if (!batch.isEmpty()) {
             meterRegistry.counter("inventory.event.outbox.claimed").increment(batch.size());
@@ -100,17 +121,42 @@ public class InventoryEventOutboxPublisher {
         try {
             kafkaTemplate.send(message.topic(), message.aggregateId(), message.payload())
                     .whenComplete((result, failure) -> {
-                        if (failure == null) {
-                            recordPublishDuration(message, publishTimer, "ack");
-                            markPublished(message, result);
-                        } else {
-                            recordPublishDuration(message, publishTimer, "failure");
-                            scheduleRetry(message, failure);
+                        try {
+                            if (failure == null) {
+                                recordPublishDuration(message, publishTimer, "ack");
+                                markPublished(message, result);
+                            } else {
+                                recordPublishDuration(message, publishTimer, "failure");
+                                scheduleRetry(message, failure);
+                            }
+                        } catch (RuntimeException callbackFailure) {
+                            // Nếu xử lý callback lỗi, lease sẽ hết hạn và publisher poll lại event sau đó.
+                            meterRegistry.counter("inventory.event.outbox.callback.failures").increment();
+                            log.error("Lỗi xử lý callback Inventory outbox, eventId={}",
+                                    message.eventId(), callbackFailure);
+                        } finally {
+                            inFlightEvents.decrementAndGet();
                         }
                     });
         } catch (RuntimeException failure) {
-            recordPublishDuration(message, publishTimer, "failure");
-            scheduleRetry(message, failure);
+            try {
+                recordPublishDuration(message, publishTimer, "failure");
+                scheduleRetry(message, failure);
+            } finally {
+                inFlightEvents.decrementAndGet();
+            }
+        }
+    }
+
+    /** Giữ slot bằng CAS để không vượt giới hạn ngay cả khi scheduler chạy song song. */
+    private int reserveSendSlots(int requested) {
+        if (requested < 1) return 0;
+        while (true) {
+            int current = inFlightEvents.get();
+            int available = maxInFlight - current;
+            if (available <= 0) return 0;
+            int reserved = Math.min(requested, available);
+            if (inFlightEvents.compareAndSet(current, current + reserved)) return reserved;
         }
     }
 
@@ -121,12 +167,15 @@ public class InventoryEventOutboxPublisher {
 
     private void markPublished(OutboxMessage message, SendResult<String, String> result) {
         try {
-            if (outboxRepository.markPublished(message.eventId(), Instant.now())) {
+            if (outboxRepository.markPublished(message.eventId(), message.leaseToken(), Instant.now())) {
                 meterRegistry.counter("inventory.event.outbox.published",
                         "event_type", message.eventType()).increment();
                 log.debug("Đã publish Inventory event: eventId={}, topic={}, partition={}, offset={}",
                         message.eventId(), message.topic(), result.getRecordMetadata().partition(),
                         result.getRecordMetadata().offset());
+            } else {
+                meterRegistry.counter("inventory.event.outbox.stale_callbacks", "operation", "ack").increment();
+                log.debug("Bỏ ACK callback không còn sở hữu lease: eventId={}", message.eventId());
             }
         } catch (RuntimeException failure) {
             // Nếu broker đã nhận nhưng DB chưa được đánh dấu, lease sẽ hết hạn và event được gửi lại.
@@ -139,14 +188,24 @@ public class InventoryEventOutboxPublisher {
 
     private void scheduleRetry(OutboxMessage message, Throwable failure) {
         long shift = Math.min(Math.max(message.attempts() - 1, 0), 9);
-        long delaySeconds = Math.min(300, 1L << shift);
+        long baseDelaySeconds = Math.min(300, 1L << shift);
+        // Rải các lần retry để nhiều event lỗi cùng lúc không dồn thành một đợt gửi lại.
+        long jitterRangeSeconds = Math.max(1, baseDelaySeconds / 4);
+        long jitterSeconds = ThreadLocalRandom.current().nextLong(-jitterRangeSeconds,
+                jitterRangeSeconds + 1);
+        long delaySeconds = Math.max(1, Math.min(300, baseDelaySeconds + jitterSeconds));
         try {
-            outboxRepository.scheduleRetry(message.eventId(), Instant.now().plusSeconds(delaySeconds),
-                    rootMessage(failure));
-            meterRegistry.counter("inventory.event.outbox.publish.failures",
-                    "event_type", message.eventType()).increment();
-            log.warn("Publish Inventory event lỗi; retry sau {} giây, eventId={}, attempt={}",
-                    delaySeconds, message.eventId(), message.attempts(), failure);
+            boolean scheduled = outboxRepository.scheduleRetry(message.eventId(), message.leaseToken(),
+                    Instant.now().plusSeconds(delaySeconds), rootMessage(failure));
+            if (scheduled) {
+                meterRegistry.counter("inventory.event.outbox.publish.failures",
+                        "event_type", message.eventType()).increment();
+                log.warn("Publish Inventory event lỗi; retry sau {} giây, eventId={}, attempt={}",
+                        delaySeconds, message.eventId(), message.attempts(), failure);
+            } else {
+                meterRegistry.counter("inventory.event.outbox.stale_callbacks", "operation", "retry").increment();
+                log.debug("Bỏ retry callback không còn sở hữu lease: eventId={}", message.eventId());
+            }
         } catch (RuntimeException persistenceFailure) {
             meterRegistry.counter("inventory.event.outbox.retry_persistence.failures").increment();
             log.error("Không lưu được lịch retry Inventory outbox; lease sẽ hết hạn, eventId={}",

@@ -15,6 +15,9 @@ public enum MovementType {
     /** Hàng khả dụng được giữ trước cho một đơn/nghiệp vụ. */
     RESERVE,
 
+    /** Reservation được xác nhận sau bước thanh toán; tổng lượng đang giữ không đổi. */
+    COMMIT,
+
     /** Hàng đã giữ được trả lại tồn khả dụng. */
     RELEASE,
 

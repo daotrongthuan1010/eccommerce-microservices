@@ -1,5 +1,6 @@
-package com.dtthuan3.ecommerce.inventoryservice.repository;
+package com.dtthuan3.ecommerce.inventoryservice.repository.customrepo;
 
+import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryReturnReceiptRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -58,6 +59,26 @@ public class JdbcInventoryReturnReceiptRepository implements InventoryReturnRece
                 resultSet.getString("reason"),
                 resultSet.getTimestamp("created_at").toLocalDateTime()),
                 returnRequestId, orderLineId, parcelIdentity);
+        return records.stream().findFirst();
+    }
+
+    /** Đọc chi tiết parcel đã nhận, gồm thông tin vị trí và lượng đã cộng dồn cho dòng trả. */
+    @Override
+    public Optional<ReturnReceiptRecord> findReceiptById(String receiptId) {
+        List<ReturnReceiptRecord> records = jdbcTemplate.query("""
+                SELECT id, return_request_id, order_line_id, parcel_identity, inventory_id,
+                       enterprise_id, warehouse_id, location_id, sku, approved_quantity,
+                       received_quantity, line_received_after, inventory_version_after,
+                       performed_by, reason, created_at
+                FROM inventory_return_receipt WHERE id = ?
+                """, (rs, row) -> new ReturnReceiptRecord(rs.getString("id"),
+                rs.getString("return_request_id"), rs.getString("order_line_id"),
+                rs.getString("parcel_identity"), rs.getString("inventory_id"),
+                rs.getString("enterprise_id"), rs.getString("warehouse_id"),
+                rs.getString("location_id"), rs.getString("sku"), rs.getBigDecimal("approved_quantity"),
+                rs.getBigDecimal("received_quantity"), rs.getBigDecimal("line_received_after"),
+                rs.getLong("inventory_version_after"), rs.getString("performed_by"),
+                rs.getString("reason"), rs.getTimestamp("created_at").toLocalDateTime()), receiptId);
         return records.stream().findFirst();
     }
 

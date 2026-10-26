@@ -71,11 +71,19 @@ public interface InventoryRepository {
     /** Chỉ xuất hàng từ tồn khả dụng, ngăn tồn khả dụng xuống dưới 0. */
     Optional<Inventory> issue(String inventoryId, BigDecimal quantity);
 
+    /** Dispatch phần đã reserve: giảm vật lý và reserved cùng lúc, không chạm lượng khả dụng khác. */
+    Optional<Inventory> dispatchReserved(String inventoryId, BigDecimal quantity);
+
     /** Trừ/cộng theo lô khi từng lượng dương và tồn khả dụng tại DB vẫn đủ. */
     List<Inventory> dispatchTransferBatch(List<TransferDispatchUpdate> updates);
 
     /** Chỉ nhận lượng kiểm kê không âm và vẫn bao phủ các lượng đã cam kết. */
     Optional<Inventory> adjust(String inventoryId, BigDecimal actualQuantity);
+
+    /** Ghi đồng thời ba bucket đã kiểm đếm, chỉ khi balance vẫn ở version snapshot và reserved còn hợp lệ. */
+    Optional<Inventory> adjustCountedBuckets(String inventoryId, BigDecimal goodQuantity,
+                                             BigDecimal defectiveQuantity, BigDecimal pendingQuantity,
+                                             long expectedVersion);
 
     /** ID tồn nguồn và lượng cần chuyển cho một dòng đã được khóa trước khi cập nhật. */
     record TransferDispatchUpdate(String inventoryId, BigDecimal quantity) {}

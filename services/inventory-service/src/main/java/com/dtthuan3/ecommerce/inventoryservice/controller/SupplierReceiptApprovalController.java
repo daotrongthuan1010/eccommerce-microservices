@@ -2,6 +2,7 @@ package com.dtthuan3.ecommerce.inventoryservice.controller;
 
 import com.dtthuan3.ecommerce.common.response.ApiResponse;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.ApproveSupplierReceiptRequest;
+import com.dtthuan3.ecommerce.inventoryservice.dto.request.RejectSupplierReceiptRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptResponse;
 import com.dtthuan3.ecommerce.inventoryservice.service.SupplierReceiptService;
 import jakarta.validation.Valid;
@@ -37,5 +38,16 @@ public class SupplierReceiptApprovalController {
             Authentication authentication) {
         return ApiResponse.ok("Duyệt phiếu nhập thành công",
                 receiptService.approve(receiptId, request, authentication.getName()));
+    }
+
+    /** Từ chối phiếu SUBMITTED; tài khoản xử lý được lấy từ JWT, không nhận từ request body. */
+    @PostMapping("/{receiptId}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<SupplierReceiptResponse> reject(
+            @PathVariable @NotBlank @Size(max = 36) String receiptId,
+            @Valid @RequestBody RejectSupplierReceiptRequest request,
+            Authentication authentication) {
+        return ApiResponse.ok("Từ chối phiếu nhập thành công",
+                receiptService.reject(receiptId, request, authentication.getName()));
     }
 }

@@ -4,11 +4,19 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 /** Cổng lưu phiếu điều chuyển; service chỉ biết interface, SQL được đặt trong adapter JDBC. */
 public interface InventoryTransferRepository {
     /** Tìm phiếu theo khóa idempotency để trả kết quả cũ hoặc phát hiện payload không khớp. */
     Optional<TransferHeaderRecord> findByOperationId(String operationId);
+
+    /** Đọc header phiếu theo ID mà không khóa dòng vì API chi tiết chỉ đọc. */
+    Optional<TransferHeaderRecord> findById(String transferId);
+
+    /** Danh sách phiếu theo doanh nghiệp và trạng thái, sắp xếp mới nhất trước. */
+    Page<TransferHeaderRecord> search(String enterpriseId, String status, Pageable pageable);
 
     /** Khóa header trong transaction để dispatch đồng thời cùng phiếu được tuần tự hóa. */
     Optional<TransferHeaderRecord> findByIdForUpdate(String transferId);
@@ -28,6 +36,13 @@ public interface InventoryTransferRepository {
     /** Compare-and-set CREATED sang IN_TRANSIT và lưu khóa retry/audit trong cùng câu UPDATE. */
     boolean markDispatched(String transferId, long expectedVersion, String operationId,
                            String dispatchedBy, Instant dispatchedAt);
+
+    /** Chuyển CREATED sang APPROVED bằng compare-and-set và lưu dấu kiểm duyệt. */
+    boolean approve(String transferId, long expectedVersion, String operationId, String payloadHash,
+                    String approvedBy, Instant approvedAt);
+
+    /** Đọc dấu duyệt để replay cùng request sau timeout mà không duyệt lần hai. */
+    Optional<ApprovalRecord> findApproval(String transferId);
 
     /** Cộng các bucket đã nhận vào dòng phiếu nếu lượng đối soát không vượt phần còn đang vận chuyển. */
     boolean markLinesReceived(String transferId, List<ReceiptProgressUpdate> updates);
@@ -55,6 +70,10 @@ public interface InventoryTransferRepository {
                                 String reason, String status, long version,
                                 String createdBy, Instant createdAt, String dispatchOperationId,
                                 Long dispatchExpectedVersion, String dispatchedBy, Instant dispatchedAt) {}
+
+    /** Thông tin audit tối thiểu của thao tác duyệt phiếu. */
+    record ApprovalRecord(String operationId, Long expectedVersion, String payloadHash,
+                          String approvedBy, Instant approvedAt) {}
 
     /** Dữ liệu một dòng hàng đã lưu. */
     record TransferLineRecord(String lineId, int lineNumber, String sku, BigDecimal plannedQuantity,

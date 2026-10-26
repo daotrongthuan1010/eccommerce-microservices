@@ -1,5 +1,6 @@
-package com.dtthuan3.ecommerce.inventoryservice.repository;
+package com.dtthuan3.ecommerce.inventoryservice.repository.customrepo;
 
+import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryEventOutboxRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -14,6 +15,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /** PostgreSQL adapter: batch insert, leasing query và cập nhật retry/publish bằng SQL rõ ràng. */
 @Repository
@@ -80,16 +82,18 @@ public class JdbcInventoryEventOutboxRepository implements InventoryEventOutboxR
         if (claimed.isEmpty()) return claimed;
 
         List<OutboxMessage> leased = new ArrayList<>(claimed.size());
-        jdbcTemplate.batchUpdate("""
+        List<String> leaseTokens = claimed.stream().map(message -> UUID.randomUUID().toString()).toList();
+        int[] leaseUpdates = jdbcTemplate.batchUpdate("""
                         UPDATE inventory_event_outbox
-                        SET available_at = ?, attempts = attempts + 1
+                        SET available_at = ?, lease_token = ?, attempts = attempts + 1
                         WHERE event_id = ? AND published_at IS NULL
                         """,
                 new BatchPreparedStatementSetter() {
                     @Override
                     public void setValues(PreparedStatement statement, int index) throws SQLException {
                         statement.setTimestamp(1, Timestamp.from(leaseUntil));
-                        statement.setString(2, claimed.get(index).eventId());
+                        statement.setString(2, leaseTokens.get(index));
+                        statement.setString(3, claimed.get(index).eventId());
                     }
 
                     @Override
@@ -97,33 +101,40 @@ public class JdbcInventoryEventOutboxRepository implements InventoryEventOutboxR
                         return claimed.size();
                     }
                 });
-        for (OutboxMessage message : claimed) {
+        for (int updatedRows : leaseUpdates) {
+            if (updatedRows == 0) {
+                // Không trả event cho publisher nếu DB chưa ghi nhận token sở hữu lease.
+                throw new IllegalStateException("Không thể ghi nhận lease cho Inventory outbox event");
+            }
+        }
+        for (int index = 0; index < claimed.size(); index++) {
+            OutboxMessage message = claimed.get(index);
             leased.add(new OutboxMessage(message.eventId(), message.topic(), message.eventType(),
-                    message.aggregateId(), message.payload(), message.attempts() + 1));
+                    message.aggregateId(), message.payload(), message.attempts() + 1, leaseTokens.get(index)));
         }
         return leased;
     }
 
     @Override
-    public boolean markPublished(String eventId, Instant publishedAt) {
+    public boolean markPublished(String eventId, String leaseToken, Instant publishedAt) {
         return jdbcTemplate.update("""
                         UPDATE inventory_event_outbox
-                        SET published_at = ?, last_error = NULL
-                        WHERE event_id = ? AND published_at IS NULL
+                        SET published_at = ?, last_error = NULL, lease_token = NULL
+                        WHERE event_id = ? AND lease_token = ? AND published_at IS NULL
                         """,
-                Timestamp.from(publishedAt), eventId) == 1;
+                Timestamp.from(publishedAt), eventId, leaseToken) == 1;
     }
 
     @Override
-    public boolean scheduleRetry(String eventId, Instant availableAt, String errorMessage) {
+    public boolean scheduleRetry(String eventId, String leaseToken, Instant availableAt, String errorMessage) {
         String safeError = errorMessage == null ? "Unknown Kafka publish error"
                 : errorMessage.substring(0, Math.min(errorMessage.length(), 1000));
         return jdbcTemplate.update("""
                         UPDATE inventory_event_outbox
-                        SET available_at = ?, last_error = ?
-                        WHERE event_id = ? AND published_at IS NULL
+                        SET available_at = ?, last_error = ?, lease_token = NULL
+                        WHERE event_id = ? AND lease_token = ? AND published_at IS NULL
                         """,
-                Timestamp.from(availableAt), safeError, eventId) == 1;
+                Timestamp.from(availableAt), safeError, eventId, leaseToken) == 1;
     }
 
     @Override

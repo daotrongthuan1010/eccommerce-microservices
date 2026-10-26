@@ -8,6 +8,7 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.request.ApproveSupplierReceip
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.UpdateSupplierReceiptActualsRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.PostSupplierReceiptRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.SubmitSupplierReceiptRequest;
+import com.dtthuan3.ecommerce.inventoryservice.dto.request.RejectSupplierReceiptRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptResponse;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptSummaryResponse;
 import com.dtthuan3.ecommerce.inventoryservice.repository.SupplierReceiptRepository;
@@ -68,6 +69,9 @@ public class SupplierReceiptServiceImpl implements SupplierReceiptService {
 
     /** Ranh giới transaction cục bộ bao trùm header, lines và document references. */
     private final TransactionTemplate transactionTemplate;
+
+    /** Retry toàn bộ nghiệp vụ ghi sổ trong transaction mới nếu PostgreSQL chọn transaction làm deadlock victim. */
+    private final DeadlockRetryExecutor deadlockRetryExecutor;
 
     /** Cộng tồn và ghi lịch sử nhập trong transaction đang ghi sổ receipt. */
     private final InventoryService inventoryService;
@@ -489,6 +493,39 @@ public class SupplierReceiptServiceImpl implements SupplierReceiptService {
         });
     }
 
+    /** Chỉ từ chối phiếu đang SUBMITTED; cập nhật trạng thái/version và lý do trong cùng câu SQL. */
+    @Override
+    public SupplierReceiptResponse reject(String receiptId, RejectSupplierReceiptRequest request,
+                                          String rejectedBy) {
+        return transactionTemplate.execute(status -> {
+            SupplierReceiptHeader header = receiptRepository.findByIdForUpdate(receiptId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                            "Không tìm thấy phiếu nhập: " + receiptId));
+            if (!"SUBMITTED".equals(header.status())) {
+                throw new BusinessException(ErrorCode.INVALID_RESOURCE_STATE,
+                        "Chỉ được từ chối phiếu đang ở trạng thái SUBMITTED");
+            }
+            if (header.version() != request.expectedVersion()) {
+                throw new BusinessException(ErrorCode.VERSION_CONFLICT,
+                        "Phiếu đã thay đổi; hãy tải lại dữ liệu mới nhất trước khi từ chối");
+            }
+            if (rejectedBy == null || rejectedBy.isBlank()) {
+                throw new BusinessException(ErrorCode.UNAUTHORIZED, "Không xác định được người từ chối phiếu");
+            }
+            Instant rejectedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
+            if (!receiptRepository.markRejected(receiptId, request.expectedVersion(), rejectedBy,
+                    request.rejectionReason().trim(), rejectedAt)) {
+                throw new BusinessException(ErrorCode.VERSION_CONFLICT,
+                        "Phiếu đã đổi trạng thái hoặc version trong lúc từ chối");
+            }
+            SupplierReceiptHeader rejected = new SupplierReceiptHeader(header.id(), header.warehouseId(),
+                    header.supplierRef(), header.operationId(), header.payloadHash(), "REJECTED",
+                    header.version() + 1, header.createdAt(), header.approvedBy(), header.approvedAt());
+            return toResponse(rejected, receiptRepository.findLines(receiptId),
+                    receiptRepository.findDocumentAssetIds(receiptId));
+        });
+    }
+
     /** Bảo đảm mỗi dòng đã kiểm đếm và toàn bộ số thực nhận đã được phân vào đúng các bucket chất lượng. */
     private void validateReceiptClassification(List<SupplierReceiptLineRecord> lines) {
         if (lines.isEmpty()) {
@@ -510,7 +547,8 @@ public class SupplierReceiptServiceImpl implements SupplierReceiptService {
      */
     @Override
     public SupplierReceiptResponse post(String receiptId, PostSupplierReceiptRequest request, String performedBy) {
-        return transactionTemplate.execute(status -> postInsideTransaction(receiptId, request, performedBy));
+        return deadlockRetryExecutor.execute("ghi sổ phiếu nhập " + receiptId,
+                () -> postInsideTransaction(receiptId, request, performedBy));
     }
 
     private SupplierReceiptResponse postInsideTransaction(String receiptId,

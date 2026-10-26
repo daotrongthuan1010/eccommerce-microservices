@@ -1,5 +1,6 @@
-package com.dtthuan3.ecommerce.inventoryservice.repository;
+package com.dtthuan3.ecommerce.inventoryservice.repository.customrepo;
 
+import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryReturnInspectionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;

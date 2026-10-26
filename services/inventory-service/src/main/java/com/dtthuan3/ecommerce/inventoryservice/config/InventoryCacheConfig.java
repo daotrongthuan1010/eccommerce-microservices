@@ -23,12 +23,13 @@ import lombok.RequiredArgsConstructor;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ThreadLocalRandom;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.springframework.data.redis.connection.RedisServerCommands;
 import org.springframework.boot.actuate.metrics.cache.RedisCacheMetrics;
 
-/** Cấu hình Redis cache riêng cho các truy vấn Location ít thay đổi. */
+/** Cấu hình Redis cache cho metadata Warehouse và Location ít thay đổi. */
 @Slf4j
 @Configuration
 @EnableCaching
@@ -41,27 +42,44 @@ public class InventoryCacheConfig extends CachingConfigurerSupport {
     @Value("${inventory.cache.location-id-ttl:PT2M}")
     private Duration locationIdCacheTtl;
 
+    @Value("${inventory.cache.location-list-ttl:PT2M}")
+    private Duration locationListCacheTtl;
+
+    @Value("${inventory.cache.warehouse-id-ttl:PT5M}")
+    private Duration warehouseIdCacheTtl;
+
+    @Value("${inventory.cache.warehouse-list-ttl:PT3M}")
+    private Duration warehouseListCacheTtl;
+
+    @Value("${inventory.cache.availability-ttl:PT1S}")
+    private Duration availabilityCacheTtl;
+
     private final MeterRegistry meterRegistry;
 
     /**
-     * RedisCacheManager lưu key dạng chuỗi và value dạng JSON để nhiều instance Inventory dùng chung cache.
-     * TTL giới hạn thời gian tồn tại dữ liệu; mutation chỉ invalidates qua outbox sau khi transaction DB commit.
+     * RedisCacheManager dùng key chuỗi và value JSON để nhiều instance Inventory chia sẻ cache.
+     * TTL giới hạn dữ liệu cũ; các thay đổi ghi lệnh invalidation vào outbox cùng transaction PostgreSQL.
      */
     @Bean
     @Override
     public CacheManager cacheManager() {
-        RedisCacheConfiguration configuration = RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(locationIdCacheTtl)
-                .disableCachingNullValues()
-                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(
-                        new StringRedisSerializer()))
-                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(
-                        new GenericJackson2JsonRedisSerializer()));
+        RedisCacheConfiguration configuration = cacheConfiguration(locationIdCacheTtl);
+        RedisCacheConfiguration warehouseIdConfiguration = cacheConfiguration(warehouseIdCacheTtl);
+        RedisCacheConfiguration warehouseListConfiguration = cacheConfiguration(warehouseListCacheTtl);
+        RedisCacheConfiguration locationListConfiguration = cacheConfiguration(locationListCacheTtl);
+        // Thêm độ lệch 0–25% để các snapshot không hết hạn đồng loạt và tạo nhiều cache miss cùng lúc.
+        RedisCacheConfiguration availabilityConfiguration = cacheConfiguration(availabilityCacheTtl)
+                .entryTtl((key, value) -> availabilityCacheTtl.plusMillis(
+                        ThreadLocalRandom.current().nextLong(1, Math.max(2, availabilityCacheTtl.toMillis() / 4))));
 
         RedisCacheManager manager = RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(configuration)
                 .withInitialCacheConfigurations(Map.of(
-                        "inventory-location-by-id-v2", configuration))
+                        "inventory-location-by-id-v2", configuration,
+                        "inventory-location-list-v1", locationListConfiguration,
+                        "inventory-availability-by-sku-v1", availabilityConfiguration,
+                        "inventory-warehouse-by-id-v1", warehouseIdConfiguration,
+                        "inventory-warehouse-list-by-enterprise-v1", warehouseListConfiguration))
                 .enableStatistics()
                 .build();
         // RedisCache statistics expose shared-cache hit/miss counters through Micrometer/Prometheus.
@@ -84,6 +102,17 @@ public class InventoryCacheConfig extends CachingConfigurerSupport {
                     }
                 });
         return manager;
+    }
+
+    /** Chia sẻ serializer/key format giữa các cache, chỉ khác TTL theo tính chất dữ liệu. */
+    private RedisCacheConfiguration cacheConfiguration(Duration ttl) {
+        return RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl(ttl)
+                .disableCachingNullValues()
+                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(
+                        new StringRedisSerializer()))
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(
+                        new GenericJackson2JsonRedisSerializer()));
     }
 
     /**
