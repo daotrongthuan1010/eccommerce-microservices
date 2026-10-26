@@ -5,8 +5,34 @@ spring:
   application:
     name: catalog-service
 
+  cloud:
+    openfeign:
+      client:
+        config:
+          product-service:
+            connectTimeout: ${PRODUCT_API_CONNECT_TIMEOUT:1000}
+            readTimeout: ${PRODUCT_API_READ_TIMEOUT:2000}
+
+  security:
+    oauth2:
+      client:
+        registration:
+          catalog-search-reader:
+            provider: catalog-keycloak
+            client-id: ${CATALOG_SEARCH_CLIENT_ID:catalog-service}
+            client-secret: ${CATALOG_SEARCH_CLIENT_SECRET:}
+            authorization-grant-type: client_credentials
+        provider:
+          catalog-keycloak:
+            token-uri: ${KEYCLOAK_TOKEN_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/token}
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs}
+
   elasticsearch:
     uris: ${ELASTICSEARCH_URL:http://162.4.177.91:9200}
+    connection-timeout: ${ELASTICSEARCH_CONNECT_TIMEOUT:1s}
+    socket-timeout: ${ELASTICSEARCH_SOCKET_TIMEOUT:2s}
 
   data:
     redis:
@@ -46,17 +72,14 @@ spring:
       group-id: catalog-service
       auto-offset-reset: earliest
       enable-auto-commit: false
+      max-poll-records: 50
+    listener:
+      ack-mode: record
 
     producer:
       acks: all
       properties:
         enable.idempotence: true
-
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs}
 
 eureka:
   client:
@@ -95,10 +118,29 @@ management:
     enabled: false
     sampling:
       probability: 1.0
-
   zipkin:
     tracing:
       endpoint: ${ZIPKIN_ENDPOINT:http://162.4.177.91:9411/api/v2/spans}
+
+resilience4j:
+  retry:
+    instances:
+      catalogSearch:
+        max-attempts: 2
+        wait-duration: 50ms
+        retry-exceptions:
+          - org.springframework.dao.DataAccessException
+  circuitbreaker:
+    instances:
+      catalogSearch:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 5s
+        permitted-number-of-calls-in-half-open-state: 3
+        record-exceptions:
+          - org.springframework.dao.DataAccessException
 
 info:
   app:
@@ -108,3 +150,16 @@ info:
 logging:
   level:
     org.springframework.security: DEBUG
+
+catalog:
+  search:
+    index:
+      bootstrap-enabled: ${CATALOG_SEARCH_INDEX_BOOTSTRAP_ENABLED:false}
+    kafka:
+      replication-factor: ${CATALOG_SEARCH_KAFKA_REPLICATION_FACTOR:1}
+    replay:
+      max-events-per-second: ${CATALOG_SEARCH_REPLAY_MAX_EVENTS_PER_SECOND:5}
+    events:
+      product-topic: ${PRODUCT_EVENTS_TOPIC:product-events}
+      group-id: ${PRODUCT_SEARCH_PROJECTION_GROUP:catalog-product-search-projection}
+      concurrency: ${PRODUCT_EVENTS_CONCURRENCY:3}

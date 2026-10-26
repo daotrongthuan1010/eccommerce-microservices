@@ -9,6 +9,9 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
+import org.springframework.data.elasticsearch.annotations.InnerField;
+import org.springframework.data.elasticsearch.annotations.MultiField;
+import org.springframework.data.elasticsearch.annotations.Setting;
 
 import java.util.List;
 
@@ -17,7 +20,8 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Document(indexName = "products")
+@Document(indexName = "products", createIndex = false)
+@Setting(settingPath = "elasticsearch/catalog-products-settings.json")
 public class ProductSearchDocument {
 
     @Id
@@ -26,7 +30,10 @@ public class ProductSearchDocument {
     @Field(type = FieldType.Keyword)
     private String sku;
 
-    @Field(type = FieldType.Text)
+    @MultiField(
+            mainField = @Field(type = FieldType.Text, analyzer = "catalog_text", searchAnalyzer = "catalog_text"),
+            otherFields = @InnerField(suffix = "autocomplete", type = FieldType.Search_As_You_Type, analyzer = "catalog_text")
+    )
     private String name;
 
     private BrandSearchDocument brand;
@@ -38,7 +45,7 @@ public class ProductSearchDocument {
     @Field(type = FieldType.Keyword)
     private String status;
 
-    @Field(type = FieldType.Text)
+    @Field(type = FieldType.Text, analyzer = "catalog_text", searchAnalyzer = "catalog_text")
     private String searchText;
 
     private StockSearchDocument stock;
