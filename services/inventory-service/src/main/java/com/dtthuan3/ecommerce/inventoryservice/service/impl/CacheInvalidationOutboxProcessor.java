@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 
-/** Applies durable cache invalidation commands and retains failures for retry. */
+/** Xử lý lệnh invalidation đã commit; giữ lại và retry nếu Redis chưa thể xóa cache. */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -30,7 +30,12 @@ public class CacheInvalidationOutboxProcessor {
         try {
             Cache cache = cacheManager.getCache(event.getCacheName());
             if (cache == null) throw new IllegalStateException("Unknown cache " + event.getCacheName());
-            cache.evictIfPresent(event.getCacheKey());
+            // Key * chỉ dùng cho cache danh sách Location có nhiều key phân trang.
+            if ("*".equals(event.getCacheKey())) {
+                cache.clear();
+            } else {
+                cache.evictIfPresent(event.getCacheKey());
+            }
             outboxRepository.delete(event);
             meterRegistry.counter("inventory.cache.invalidation.processed", "cache", event.getCacheName()).increment();
         } catch (RuntimeException failure) {

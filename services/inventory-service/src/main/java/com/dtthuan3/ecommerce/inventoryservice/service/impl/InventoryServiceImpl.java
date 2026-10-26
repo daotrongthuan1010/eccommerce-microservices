@@ -39,6 +39,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /** Chứa nghiệp vụ tồn kho; cập nhật số lượng và lịch sử được xác nhận hoặc hoàn tác cùng nhau. */
 @Service
@@ -49,6 +51,8 @@ public class InventoryServiceImpl implements InventoryService {
     private final StockMovementRepository stockMovementRepository;
     private final InventoryBatchProperties batchProperties;
     private final InventoryLocationAccessService locationAccessService;
+    private final DeadlockRetryExecutor deadlockRetryExecutor;
+    private final InventoryAvailabilityReadCache availabilityReadCache;
 
     /** Tìm hoặc tạo vị trí tồn theo SKU, cộng hàng nhập và ghi lịch sử trong một giao dịch. */
     @Override
@@ -112,15 +116,41 @@ public class InventoryServiceImpl implements InventoryService {
                 .map(Map.Entry::getValue)
                 .toList();
 
+        // Tạo balance thiếu trước, nhưng chưa giữ khóa balance nào trong bước này.
+        // Nhờ vậy toàn bộ tồn của batch có thể được khóa một lượt theo cùng thứ tự ID như transfer.
+        for (ClassifiedStockReceipt request : ordered) {
+            inventoryRepository.ensureExists(request.enterpriseId(), request.warehouseId(),
+                    request.locationId(), request.sku());
+        }
+
+        Map<ClassifiedStockKey, String> inventoryIdByPosition = new HashMap<>();
+        List<String> inventoryIds = new ArrayList<>(ordered.size());
+        for (ClassifiedStockReceipt request : ordered) {
+            ClassifiedStockKey key = new ClassifiedStockKey(request.enterpriseId(), request.warehouseId(),
+                    request.locationId(), request.sku(), request.receiptId());
+            Inventory inventory = inventoryRepository.findByPosition(request.enterpriseId(),
+                            request.warehouseId(), request.locationId(), request.sku())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.INTERNAL_ERROR,
+                            "Không tìm thấy balance vừa được khởi tạo cho SKU " + request.sku()));
+            inventoryIdByPosition.put(key, inventory.getId());
+            inventoryIds.add(inventory.getId());
+        }
+        Map<String, Inventory> lockedById = inventoryRepository.findByIdsForUpdate(inventoryIds).stream()
+                .collect(Collectors.toMap(Inventory::getId, Function.identity()));
+
         List<StockMovement> movements = new ArrayList<>();
         for (ClassifiedStockReceipt request : ordered) {
             BigDecimal totalReceived = request.goodQuantity()
                     .add(request.damagedQuantity()).add(request.inspectionQuantity());
             if (totalReceived.signum() == 0) continue;
 
-            // Tạo dòng tồn nếu chưa có; nếu đã có, repository khóa dòng trước khi cập nhật.
-            Inventory before = inventoryRepository.createOrFind(request.enterpriseId(), request.warehouseId(),
-                    request.locationId(), request.sku());
+            ClassifiedStockKey key = new ClassifiedStockKey(request.enterpriseId(), request.warehouseId(),
+                    request.locationId(), request.sku(), request.receiptId());
+            Inventory before = lockedById.get(inventoryIdByPosition.get(key));
+            if (before == null) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "Không khóa được balance của SKU " + request.sku());
+            }
             Inventory after = inventoryRepository.receiveClassified(before.getId(), request.goodQuantity(),
                     request.damagedQuantity(), request.inspectionQuantity());
 
@@ -436,8 +466,12 @@ public class InventoryServiceImpl implements InventoryService {
      * sau khi trừ nguồn, cộng đích và ghi cặp lịch sử dùng chung mã tham chiếu.
      */
     @Override
-    @Transactional
     public TransferInventoryResponse transfer(TransferInventoryRequest request) {
+        return deadlockRetryExecutor.execute("chuyển tồn giữa hai vị trí",
+                () -> transferInTransaction(request));
+    }
+
+    private TransferInventoryResponse transferInTransaction(TransferInventoryRequest request) {
         // Một dòng tồn không thể vừa là nguồn vừa là đích của cùng lần chuyển.
         if (request.fromInventoryId().equals(request.toInventoryId())) {
             throw new BusinessException(ErrorCode.INVALID_OPERATION,
@@ -511,8 +545,8 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional(readOnly = true)
     public Page<InventoryResponse> available(String sku, String warehouseId, String locationId, Pageable pageable) {
-        return inventoryRepository.findAvailable(sku, warehouseId, locationId, pageable)
-                .map(this::toResponse);
+        // Lượt xem tồn theo SKU có thể dùng snapshot Redis ngắn hạn; lệnh reserve vẫn kiểm tra DB nguyên tử.
+        return availabilityReadCache.findAvailable(sku, warehouseId, locationId, pageable).toPage(pageable);
     }
 
     /** Kiểm tra khoảng thời gian rồi chuyển bộ lọc và thông tin trang xuống truy vấn SQL. */

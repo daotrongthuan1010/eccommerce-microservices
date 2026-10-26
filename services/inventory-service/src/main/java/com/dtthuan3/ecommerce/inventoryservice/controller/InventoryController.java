@@ -187,6 +187,22 @@ public class InventoryController {
                 returnReceiptService.receive(request, authentication == null ? null : authentication.getName()));
     }
 
+    /** Tra cứu biên nhận parcel trả hàng và biết parcel còn cách ly hay đã kiểm tra. */
+    @GetMapping("/returns/receipts/{receiptId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<ReturnReceiptResponse> getReturnReceipt(@PathVariable String receiptId) {
+        return ApiResponse.ok("Lấy thông tin biên nhận hàng trả thành công",
+                returnReceiptService.getById(receiptId));
+    }
+
+    /** Khôi phục kết quả phân loại đã chốt nếu client mất response của lần kiểm định trước. */
+    @GetMapping("/returns/receipts/{receiptId}/inspection")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<ReturnInspectionResponse> getReturnInspection(@PathVariable String receiptId) {
+        return ApiResponse.ok("Lấy kết quả kiểm tra hàng trả thành công",
+                returnInspectionService.getByReceiptId(receiptId));
+    }
+
     /** Kiểm tra toàn bộ parcel đã nhận và chuyển số lượng ra khỏi khu chờ kiểm tra. */
     @PostMapping("/returns/{receiptId}/inspect")
     @PreAuthorize("hasRole('ADMIN')")

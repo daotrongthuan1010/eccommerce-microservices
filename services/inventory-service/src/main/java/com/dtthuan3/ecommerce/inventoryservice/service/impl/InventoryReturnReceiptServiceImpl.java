@@ -2,6 +2,7 @@ package com.dtthuan3.ecommerce.inventoryservice.service.impl;
 
 import com.dtthuan3.ecommerce.common.exception.BusinessException;
 import com.dtthuan3.ecommerce.common.exception.ErrorCode;
+import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryReturnInspectionRepository;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.ReceiveReturnReceiptRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.ReturnReceiptResponse;
 import com.dtthuan3.ecommerce.inventoryservice.entity.Inventory;
@@ -27,8 +28,21 @@ import java.util.UUID;
 public class InventoryReturnReceiptServiceImpl implements InventoryReturnReceiptService {
     private final InventoryRepository inventoryRepository;
     private final InventoryReturnReceiptRepository returnReceiptRepository;
+    private final InventoryReturnInspectionRepository returnInspectionRepository;
     private final StockMovementRepository stockMovementRepository;
     private final InventoryLocationAccessService locationAccessService;
+
+    /** Tra cứu trạng thái hiện tại; trạng thái INSPECTED chỉ được trả khi đã có kết quả lưu bền vững. */
+    @Override
+    @Transactional(readOnly = true)
+    public ReturnReceiptResponse getById(String receiptId) {
+        ReturnReceiptRecord receipt = returnReceiptRepository.findReceiptById(receiptId.trim())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "Không tìm thấy biên nhận hàng trả: " + receiptId));
+        String status = returnInspectionRepository.findByReceiptId(receiptId.trim()).isPresent()
+                ? "INSPECTED" : "QUARANTINED";
+        return toResponse(receipt, status);
+    }
 
     @Override
     @Transactional
@@ -108,9 +122,13 @@ public class InventoryReturnReceiptServiceImpl implements InventoryReturnReceipt
     }
 
     private ReturnReceiptResponse toResponse(ReturnReceiptRecord record) {
+        return toResponse(record, "QUARANTINED");
+    }
+
+    private ReturnReceiptResponse toResponse(ReturnReceiptRecord record, String status) {
         return new ReturnReceiptResponse(record.id(), record.returnRequestId(), record.orderLineId(),
                 record.parcelIdentity(), record.inventoryId(), record.sku(), record.warehouseId(),
                 record.locationId(), record.approvedQuantity(), record.receivedQuantity(),
-                record.lineReceivedAfter(), record.inventoryVersionAfter(), "QUARANTINED", record.createdAt());
+                record.lineReceivedAfter(), record.inventoryVersionAfter(), status, record.createdAt());
     }
 }

@@ -51,6 +51,10 @@ public class InventoryEventOutbox {
     @Column(name = "available_at", nullable = false)
     private Instant availableAt;
 
+    /** Token nhận diện lease hiện tại; callback của lease cũ không được sửa trạng thái mới. */
+    @Column(name = "lease_token", length = 36)
+    private String leaseToken;
+
     /** Số lần publisher đã claim để gửi. */
     @Column(nullable = false)
     private int attempts;

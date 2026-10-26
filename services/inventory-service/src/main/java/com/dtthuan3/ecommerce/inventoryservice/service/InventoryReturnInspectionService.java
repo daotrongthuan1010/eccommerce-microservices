@@ -6,6 +6,9 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.response.ReturnInspectionResp
 /** Hợp đồng xử lý phân loại chất lượng cho parcel hàng khách trả. */
 public interface InventoryReturnInspectionService {
 
+    /** Tra cứu kết quả đã chốt sau kiểm định để caller khôi phục response khi mất kết nối. */
+    ReturnInspectionResponse getByReceiptId(String receiptId);
+
     /** Phân loại toàn bộ parcel và chuyển số lượng khỏi bucket chờ kiểm tra. */
     ReturnInspectionResponse inspect(String receiptId, InspectReturnReceiptRequest request,
                                      String inspectedBy);

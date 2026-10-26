@@ -1,19 +1,26 @@
-package com.dtthuan3.ecommerce.inventoryservice.repository;
+package com.dtthuan3.ecommerce.inventoryservice.repository.customrepo;
 
+import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryTransferRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCreator;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Repository;
 
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.stream.IntStream;
 
 /** Adapter JDBC của phiếu điều chuyển; dùng SQL trực tiếp cho thao tác nghiệp vụ và batch dòng hàng. */
@@ -31,6 +38,57 @@ public class JdbcInventoryTransferRepository implements InventoryTransferReposit
                        dispatch_operation_id, dispatch_expected_version, dispatched_by, dispatched_at
                 FROM inventory_transfer WHERE operation_id = ?
                 """, operationId);
+    }
+
+    @Override
+    public Optional<TransferHeaderRecord> findById(String transferId) {
+        return queryHeader("""
+                SELECT id, enterprise_id, source_warehouse_id, source_location_id,
+                       destination_warehouse_id, destination_location_id, operation_id,
+                       payload_hash, reference_code, reason, status, version, created_by, created_at,
+                       dispatch_operation_id, dispatch_expected_version, dispatched_by, dispatched_at
+                FROM inventory_transfer WHERE id = ?
+                """, transferId);
+    }
+
+    @Override
+    public Page<TransferHeaderRecord> search(String enterpriseId, String status, Pageable pageable) {
+        StringBuilder where = new StringBuilder(" WHERE enterprise_id = ?");
+        List<Object> args = new ArrayList<>();
+        args.add(enterpriseId);
+        if (status != null && !status.isBlank()) {
+            where.append(" AND status = ?");
+            args.add(status);
+        }
+        String columns = "id, enterprise_id, source_warehouse_id, source_location_id, destination_warehouse_id, "
+                + "destination_location_id, operation_id, payload_hash, reference_code, reason, status, version, "
+                + "created_by, created_at, dispatch_operation_id, dispatch_expected_version, dispatched_by, dispatched_at";
+        List<TransferHeaderRecord> content = jdbcTemplate.query("SELECT " + columns + " FROM inventory_transfer"
+                        + where + " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
+                (rs, row) -> mapHeader(rs), append(args, pageable.getPageSize(), pageable.getOffset()));
+        return PageableExecutionUtils.getPage(content, pageable, () -> {
+            Long count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM inventory_transfer" + where,
+                    Long.class, args.toArray());
+            return count == null ? 0L : count;
+        });
+    }
+
+    private Object[] append(List<Object> args, Object... tail) {
+        List<Object> all = new ArrayList<>(args);
+        Collections.addAll(all, tail);
+        return all.toArray();
+    }
+
+    private TransferHeaderRecord mapHeader(ResultSet rs) throws SQLException {
+        Timestamp dispatchedTimestamp = rs.getTimestamp("dispatched_at");
+        return new TransferHeaderRecord(rs.getString("id"), rs.getString("enterprise_id"),
+                rs.getString("source_warehouse_id"), rs.getString("source_location_id"),
+                rs.getString("destination_warehouse_id"), rs.getString("destination_location_id"),
+                rs.getString("operation_id"), rs.getString("payload_hash"), rs.getString("reference_code"),
+                rs.getString("reason"), rs.getString("status"), rs.getLong("version"),
+                rs.getString("created_by"), rs.getTimestamp("created_at").toInstant(),
+                rs.getString("dispatch_operation_id"), rs.getObject("dispatch_expected_version", Long.class),
+                rs.getString("dispatched_by"), dispatchedTimestamp == null ? null : dispatchedTimestamp.toInstant());
     }
 
     @Override
@@ -162,9 +220,40 @@ public class JdbcInventoryTransferRepository implements InventoryTransferReposit
                 SET status = 'IN_TRANSIT', version = version + 1,
                     dispatch_operation_id = ?, dispatch_expected_version = ?,
                     dispatched_by = ?, dispatched_at = ?
-                WHERE id = ? AND status = 'CREATED' AND version = ?
+                WHERE id = ? AND status IN ('CREATED', 'APPROVED') AND version = ?
                 """, operationId, expectedVersion, dispatchedBy, Timestamp.from(dispatchedAt),
                 transferId, expectedVersion) == 1;
+    }
+
+    /** Duyệt có điều kiện; một trong các thao tác approve/dispatch chỉ có thể thắng trên header. */
+    @Override
+    public boolean approve(String transferId, long expectedVersion, String operationId, String payloadHash,
+                           String approvedBy, Instant approvedAt) {
+        return jdbcTemplate.update("""
+                UPDATE inventory_transfer
+                SET status = 'APPROVED', version = version + 1,
+                    approval_operation_id = ?, approval_expected_version = ?,
+                    approval_payload_hash = ?, approved_by = ?, approved_at = ?
+                WHERE id = ? AND status = 'CREATED' AND version = ?
+                """, operationId, expectedVersion, payloadHash, approvedBy,
+                Timestamp.from(approvedAt), transferId, expectedVersion) == 1;
+    }
+
+    /** Lấy khóa duyệt để so payload khi caller retry. */
+    @Override
+    public Optional<ApprovalRecord> findApproval(String transferId) {
+        List<ApprovalRecord> records = jdbcTemplate.query("""
+                SELECT approval_operation_id, approval_expected_version, approval_payload_hash,
+                       approved_by, approved_at
+                FROM inventory_transfer WHERE id = ? AND approval_operation_id IS NOT NULL
+                """, (rs, row) -> {
+            Timestamp approvedAt = rs.getTimestamp("approved_at");
+            return new ApprovalRecord(rs.getString("approval_operation_id"),
+                    rs.getObject("approval_expected_version", Long.class),
+                    rs.getString("approval_payload_hash"), rs.getString("approved_by"),
+                    approvedAt == null ? null : approvedAt.toInstant());
+        }, transferId);
+        return records.stream().findFirst();
     }
 
     /** Cộng dồn tiến độ nhận trong SQL để không thể xác nhận vượt lượng đã dispatch. */

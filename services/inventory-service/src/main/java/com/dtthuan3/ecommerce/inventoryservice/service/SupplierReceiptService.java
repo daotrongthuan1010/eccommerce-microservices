@@ -5,6 +5,7 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.request.ApproveSupplierReceip
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.UpdateSupplierReceiptActualsRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.PostSupplierReceiptRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.SubmitSupplierReceiptRequest;
+import com.dtthuan3.ecommerce.inventoryservice.dto.request.RejectSupplierReceiptRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptResponse;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptSummaryResponse;
 import org.springframework.data.domain.Page;
@@ -29,6 +30,9 @@ public interface SupplierReceiptService {
 
     /** Duyệt phiếu SUBMITTED; lưu người duyệt và thời điểm duyệt nhưng chưa cộng tồn kho. */
     SupplierReceiptResponse approve(String receiptId, ApproveSupplierReceiptRequest request, String approvedBy);
+
+    /** Từ chối phiếu SUBMITTED; không cập nhật tồn kho. */
+    SupplierReceiptResponse reject(String receiptId, RejectSupplierReceiptRequest request, String rejectedBy);
 
     /** Ghi sổ phiếu APPROVED vào tồn kho sau khi gán Location cho từng dòng. */
     SupplierReceiptResponse post(String receiptId, PostSupplierReceiptRequest request, String performedBy);

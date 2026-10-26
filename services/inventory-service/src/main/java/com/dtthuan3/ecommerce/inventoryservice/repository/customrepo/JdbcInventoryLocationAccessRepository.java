@@ -1,5 +1,6 @@
-package com.dtthuan3.ecommerce.inventoryservice.repository;
+package com.dtthuan3.ecommerce.inventoryservice.repository.customrepo;
 
+import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryLocationAccessRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;

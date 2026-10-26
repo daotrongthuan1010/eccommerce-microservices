@@ -626,6 +626,24 @@ public class JdbcInventoryRepository implements InventoryRepository {
                 .findFirst();
     }
 
+    /** Xuất đúng lượng đã giữ; điều kiện SQL bảo vệ cả tồn vật lý lẫn phần reservation còn lại. */
+    @Override
+    public Optional<Inventory> dispatchReserved(String inventoryId, BigDecimal quantity) {
+        String sql = """
+            UPDATE inventory
+            SET physical_quantity = physical_quantity - ?,
+                reserved_quantity = reserved_quantity - ?,
+                updated_at = CURRENT_TIMESTAMP,
+                version = version + 1
+            WHERE id = ? AND physical_quantity >= ? AND reserved_quantity >= ? AND ? > 0
+            RETURNING id, enterprise_id, warehouse_id, location_id, sku, physical_quantity,
+                      reserved_quantity, defective_quantity, pending_quantity, in_transit_quantity,
+                      version, created_at, updated_at
+            """;
+        return jdbcTemplate.query(sql, inventoryMapper, quantity, quantity, inventoryId,
+                quantity, quantity, quantity).stream().findFirst();
+    }
+
     /**
      * Giảm tồn vật lý và tăng in-transit cho tối đa 200 dòng trong một câu UPDATE.
      * Mỗi dòng chỉ được cập nhật nếu tồn khả dụng tại database vẫn đủ; caller rollback toàn bộ
@@ -716,6 +734,27 @@ public class JdbcInventoryRepository implements InventoryRepository {
                 )
                 .stream()
                 .findFirst();
+    }
+
+    /** Áp dụng kết quả kiểm kê theo từng bucket với optimistic guard để không ghi đè movement mới. */
+    @Override
+    public Optional<Inventory> adjustCountedBuckets(String inventoryId, BigDecimal goodQuantity,
+                                                     BigDecimal defectiveQuantity, BigDecimal pendingQuantity,
+                                                     long expectedVersion) {
+        BigDecimal physicalQuantity = goodQuantity.add(defectiveQuantity).add(pendingQuantity);
+        String sql = """
+                UPDATE inventory
+                SET physical_quantity = ?, defective_quantity = ?, pending_quantity = ?,
+                    updated_at = CURRENT_TIMESTAMP, version = version + 1
+                WHERE id = ? AND version = ? AND reserved_quantity <= ?
+                  AND ? >= 0 AND ? >= 0 AND ? >= 0
+                RETURNING id, enterprise_id, warehouse_id, location_id, sku,
+                          physical_quantity, reserved_quantity, defective_quantity,
+                          pending_quantity, in_transit_quantity, version, created_at, updated_at
+                """;
+        return jdbcTemplate.query(sql, inventoryMapper, physicalQuantity, defectiveQuantity, pendingQuantity,
+                        inventoryId, expectedVersion, goodQuantity, goodQuantity, defectiveQuantity, pendingQuantity)
+                .stream().findFirst();
     }
 }
 

@@ -12,6 +12,9 @@ public interface InventoryReturnReceiptRepository {
     Optional<ReturnReceiptRecord> findReceipt(String returnRequestId, String orderLineId,
                                               String parcelIdentity);
 
+    /** Tra cứu biên nhận theo ID mà không khóa dòng để phục vụ màn hình theo dõi. */
+    Optional<ReturnReceiptRecord> findReceiptById(String receiptId);
+
     /** Đọc và khóa biên nhận theo ID để tuần tự hóa việc kiểm tra cùng một parcel. */
     Optional<ReturnReceiptRecord> findReceiptByIdForUpdate(String receiptId);
 

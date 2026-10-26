@@ -23,6 +23,7 @@ public record IssueInventoryRequest(
         @Positive(message = "quantity phải lớn hơn 0")
         BigDecimal quantity,
         /** Version client đã đọc; giúp phát hiện dữ liệu tồn đã thay đổi trước khi xử lý. */
+        @NotNull
         @PositiveOrZero(message = "expectedVersion phải lớn hơn hoặc bằng 0") Long expectedVersion
 ) {
 }

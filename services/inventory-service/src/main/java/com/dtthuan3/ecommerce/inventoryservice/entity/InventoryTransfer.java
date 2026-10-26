@@ -101,4 +101,24 @@ public class InventoryTransfer {
     /** Thời điểm chuyển trạng thái sang IN_TRANSIT theo UTC. */
     @Column(name = "dispatched_at")
     private Instant dispatchedAt;
+
+    /** Khóa idempotency của lần duyệt; null với phiếu cũ chưa có bước duyệt. */
+    @Column(name = "approval_operation_id", length = 120)
+    private String approvalOperationId;
+
+    /** Version phiếu mà người duyệt xác nhận. */
+    @Column(name = "approval_expected_version")
+    private Long approvalExpectedVersion;
+
+    /** Người duyệt lấy từ JWT để lưu vết maker-checker. */
+    @Column(name = "approved_by", length = 255)
+    private String approvedBy;
+
+    /** Thời điểm duyệt phiếu theo UTC. */
+    @Column(name = "approved_at")
+    private Instant approvedAt;
+
+    /** Hash request duyệt để khóa lặp không thể dùng với nội dung khác. */
+    @Column(name = "approval_payload_hash", length = 64)
+    private String approvalPayloadHash;
 }

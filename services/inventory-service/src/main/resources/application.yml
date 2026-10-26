@@ -19,7 +19,8 @@ spring:
       host: ${REDIS_HOST:162.4.177.91}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:local_redis_change_me}
-      timeout: 3s
+      # Redis lỗi phải nhanh chóng chuyển sang DB; không để request web chờ cache quá lâu.
+      timeout: ${REDIS_TIMEOUT:500ms}
 
   kafka:
     # Broker dùng chung; từng môi trường nên cung cấp KAFKA_BOOTSTRAP_SERVERS riêng.
@@ -100,8 +101,17 @@ inventory:
     # Số inventory tối đa được chèn trong một request; có thể ghi đè bằng INVENTORY_BATCH_MAX_SIZE.
     max-size: ${INVENTORY_BATCH_MAX_SIZE:500}
   cache:
-    # Chỉ cache truy vấn theo ID; danh sách warehouse được phân trang và đọc trực tiếp từ PostgreSQL.
+    # Cache metadata ít thay đổi; số lượng tồn và reservation luôn được xác nhận từ PostgreSQL.
     location-id-ttl: ${INVENTORY_LOCATION_ID_CACHE_TTL:PT2M}
+    location-list-ttl: ${INVENTORY_LOCATION_LIST_CACHE_TTL:PT2M}
+    warehouse-id-ttl: ${INVENTORY_WAREHOUSE_ID_CACHE_TTL:PT5M}
+    warehouse-list-ttl: ${INVENTORY_WAREHOUSE_LIST_CACHE_TTL:PT3M}
+    # Cache rất ngắn cho màn hình xem tồn theo SKU; giữ reserve/issue luôn xác nhận ở PostgreSQL.
+    availability-ttl: ${INVENTORY_AVAILABILITY_CACHE_TTL:PT1S}
+    # Giới hạn cache-miss query theo từng instance; Hikari hiện có 5 connection, để dành 1 cho luồng khác.
+    availability-db-max-concurrency: ${INVENTORY_AVAILABILITY_DB_MAX_CONCURRENCY:4}
+    # Nếu hết permit trong thời gian này, trả 503 để bảo vệ DB thay vì xếp hàng request dài vô hạn.
+    availability-db-wait-ms: ${INVENTORY_AVAILABILITY_DB_WAIT_MS:100}
     outbox-poll-delay-ms: ${INVENTORY_CACHE_OUTBOX_POLL_DELAY_MS:1000}
     outbox-metrics-refresh-ms: ${INVENTORY_CACHE_OUTBOX_METRICS_REFRESH_MS:10000}
   sku-projection:
@@ -118,6 +128,8 @@ inventory:
     transfer-events-topic: ${INVENTORY_TRANSFER_EVENTS_TOPIC:inventory-transfer-events}
     outbox-poll-delay-ms: ${INVENTORY_EVENT_OUTBOX_POLL_DELAY_MS:500}
     outbox-batch-size: ${INVENTORY_EVENT_OUTBOX_BATCH_SIZE:100}
+    # Giới hạn số lần gửi Kafka đang chờ ACK trên mỗi instance, tránh tạo backlog bất đồng bộ trong bộ nhớ.
+    outbox-max-in-flight: ${INVENTORY_EVENT_OUTBOX_MAX_IN_FLIGHT:100}
     # Kafka có delivery timeout tối đa 120 giây; lease dài hơn để tránh instance khác claim khi lần gửi còn chạy.
     outbox-lease: ${INVENTORY_EVENT_OUTBOX_LEASE:PT3M}
     outbox-retention: ${INVENTORY_EVENT_OUTBOX_RETENTION:PT720H}
@@ -125,6 +137,10 @@ inventory:
     outbox-metrics-refresh-ms: ${INVENTORY_EVENT_OUTBOX_METRICS_REFRESH_MS:10000}
     inbox-retention: ${INVENTORY_EVENT_INBOX_RETENTION:P90D}
     inbox-cleanup-delay-ms: ${INVENTORY_EVENT_INBOX_CLEANUP_DELAY_MS:86400000}
+    # Replay chỉ xử lý một offset mỗi request; timeout đọc DLT được giới hạn để tránh giữ connection lâu.
+    dlt-replay-poll-timeout: ${INVENTORY_KAFKA_DLT_REPLAY_POLL_TIMEOUT:PT10S}
+    # Chờ lâu hơn delivery.timeout.ms của producer để chỉ trả kết quả sau khi broker xác nhận hoặc timeout gửi.
+    dlt-replay-send-timeout: ${INVENTORY_KAFKA_DLT_REPLAY_SEND_TIMEOUT:PT130S}
 
 eureka:
   client:
@@ -138,6 +154,8 @@ eureka:
 
 grpc:
   server:
+    # grpc-spring-boot-starter mở listener cho các bean @GrpcService, gồm InventoryGrpcService.
+    # Chỉ mở trong mạng nội bộ; JWT filter HTTP không tự áp dụng lên listener gRPC.
     port: ${GRPC_SERVER_PORT:9084}
 
 management:
