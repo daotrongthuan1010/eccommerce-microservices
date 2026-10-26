@@ -5,9 +5,9 @@ spring:
   application:
     name: catalog-service
 
-  # =========================================================
-  # REDIS
-  # =========================================================
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URL:http://162.4.177.91:9200}
+
   data:
     redis:
       host: ${REDIS_HOST:162.4.177.91}
@@ -15,9 +15,6 @@ spring:
       password: ${REDIS_PASSWORD:local_redis_change_me}
       timeout: 3s
 
-  # =========================================================
-  # POSTGRESQL
-  # =========================================================
   datasource:
     url: ${DB_URL:jdbc:postgresql://162.4.177.91:5432/catalog_db}
     username: ${DB_USERNAME:catalog_user}
@@ -30,29 +27,18 @@ spring:
       connection-timeout: 10000
       initialization-fail-timeout: 30000
 
-  # =========================================================
-  # JPA / HIBERNATE
-  # =========================================================
   jpa:
     hibernate:
       ddl-auto: update
-
     show-sql: true
-
     properties:
       hibernate:
         format_sql: true
 
-  # =========================================================
-  # SQL INIT
-  # =========================================================
   sql:
     init:
       mode: never
 
-  # =========================================================
-  # KAFKA
-  # =========================================================
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:162.4.177.91:9092}
 
@@ -63,55 +49,32 @@ spring:
 
     producer:
       acks: all
-
       properties:
         enable.idempotence: true
 
-  # =========================================================
-  # KEYCLOAK / OAUTH2 RESOURCE SERVER
-  # =========================================================
   security:
     oauth2:
       resourceserver:
         jwt:
           jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs}
 
-
-# =========================================================
-# EUREKA
-# =========================================================
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://162.4.177.91:8761/eureka/}
-
     registry-fetch-interval-seconds: 15
 
   instance:
     hostname: ${EUREKA_HOSTNAME:catalog-service}
     prefer-ip-address: false
 
-
-# =========================================================
-# gRPC SERVER
-# =========================================================
 grpc:
   server:
     port: ${GRPC_SERVER_PORT:9083}
 
-
-# =========================================================
-# FILE SERVICE
-# =========================================================
-# Catalog KHÔNG kết nối trực tiếp tới MinIO.
-# Catalog gọi File Service.
 file-service:
   url: ${FILE_SERVICE_URL:http://162.4.177.91:8095}
 
-
-# =========================================================
-# ACTUATOR / MONITORING
-# =========================================================
 management:
   endpoints:
     web:
@@ -121,7 +84,6 @@ management:
   endpoint:
     health:
       show-details: never
-
       probes:
         enabled: true
 
@@ -131,7 +93,6 @@ management:
 
   tracing:
     enabled: false
-
     sampling:
       probability: 1.0
 
@@ -139,19 +100,11 @@ management:
     tracing:
       endpoint: ${ZIPKIN_ENDPOINT:http://162.4.177.91:9411/api/v2/spans}
 
-
-# =========================================================
-# APPLICATION INFO
-# =========================================================
 info:
   app:
     name: catalog-service
     stage: scaffold
 
-
-# =========================================================
-# LOGGING
-# =========================================================
 logging:
   level:
     org.springframework.security: DEBUG

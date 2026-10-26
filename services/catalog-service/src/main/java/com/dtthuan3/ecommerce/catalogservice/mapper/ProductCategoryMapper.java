@@ -7,9 +7,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class ProductCategoryMapper {
 
-    public ProductCategoryResponse toResponse(
-            ProductCategory entity
-    ) {
+    public ProductCategoryResponse toResponse(ProductCategory entity) {
+
         return ProductCategoryResponse.builder()
                 .productId(entity.getProductId())
                 .categoryId(entity.getCategoryId())

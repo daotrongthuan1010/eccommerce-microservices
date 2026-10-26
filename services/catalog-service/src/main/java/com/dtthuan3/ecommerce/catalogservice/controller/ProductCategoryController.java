@@ -9,7 +9,6 @@ import com.dtthuan3.ecommerce.common.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -21,139 +20,102 @@ public class ProductCategoryController {
 
     private final ProductCategoryService productCategoryService;
 
-    /**
-     * Lấy toàn bộ category của Product.
-     */
+
     @GetMapping("/products/{productId}")
-    public ResponseEntity<
-            ApiResponse<ProductCategoriesResponse>
-            > getProductCategories(
+    public ResponseEntity<ApiResponse<ProductCategoriesResponse>>
+    getProductCategories(
             @PathVariable UUID productId
     ) {
 
-        ProductCategoriesResponse response =
-                productCategoryService
-                        .getProductCategories(productId);
-
         return ResponseEntity.ok(
                 ApiResponse.ok(
-                        "Lấy category của product thành công",
-                        response
+                        "Lấy danh sách category của product thành công",
+                        productCategoryService
+                                .getProductCategories(productId)
                 )
         );
     }
 
-    /**
-     * Gán / cập nhật toàn bộ category cho Product.
-     *
-     * ADMIN only.
-     */
+
     @PutMapping("/products/{productId}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<
-            ApiResponse<ProductCategoriesResponse>
-            > updateProductCategories(
+    public ResponseEntity<ApiResponse<ProductCategoriesResponse>>
+    updateProductCategories(
             @PathVariable UUID productId,
-            @Valid @RequestBody
+
+            @Valid
+            @RequestBody
             ProductCategoryUpdateRequest request
     ) {
-
-        ProductCategoriesResponse response =
-                productCategoryService
-                        .updateProductCategories(
-                                productId,
-                                request
-                        );
 
         return ResponseEntity.ok(
                 ApiResponse.ok(
                         "Cập nhật category của product thành công",
-                        response
+                        productCategoryService
+                                .updateProductCategories(
+                                        productId,
+                                        request
+                                )
                 )
         );
     }
 
-    /**
-     * Đặt một category làm primary.
-     *
-     * ADMIN only.
-     */
+
     @PatchMapping(
             "/products/{productId}/categories/{categoryId}/primary"
     )
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<
-            ApiResponse<ProductCategoryResponse>
-            > setPrimaryCategory(
+    public ResponseEntity<ApiResponse<ProductCategoryResponse>>
+    setPrimaryCategory(
             @PathVariable UUID productId,
             @PathVariable String categoryId
     ) {
-
-        ProductCategoryResponse response =
-                productCategoryService
-                        .setPrimaryCategory(
-                                productId,
-                                categoryId
-                        );
 
         return ResponseEntity.ok(
                 ApiResponse.ok(
                         "Đặt primary category thành công",
-                        response
+                        productCategoryService
+                                .setPrimaryCategory(
+                                        productId,
+                                        categoryId
+                                )
                 )
         );
     }
 
-    /**
-     * Xóa mapping Product - Category.
-     *
-     * ADMIN only.
-     */
+
     @DeleteMapping(
             "/products/{productId}/categories/{categoryId}"
     )
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<
-            ApiResponse<Void>
-            > removeProductFromCategory(
+    public ResponseEntity<ApiResponse<Void>>
+    removeProductFromCategory(
             @PathVariable UUID productId,
             @PathVariable String categoryId
     ) {
 
-        productCategoryService
-                .removeProductFromCategory(
-                        productId,
-                        categoryId
-                );
+        productCategoryService.removeProductFromCategory(
+                productId,
+                categoryId
+        );
 
         return ResponseEntity.ok(
                 ApiResponse.ok(
-                        "Xóa category khỏi product thành công",
+                        "Xóa product khỏi category thành công",
                         null
                 )
         );
     }
 
-    /**
-     * Lấy các Product đang thuộc Category.
-     */
-    @GetMapping(
-            "/categories/{categoryId}/products"
-    )
-    public ResponseEntity<
-            ApiResponse<CategoryProductsResponse>
-            > getCategoryProducts(
+
+    @GetMapping("/categories/{categoryId}/products")
+    public ResponseEntity<ApiResponse<CategoryProductsResponse>>
+    getCategoryProducts(
             @PathVariable String categoryId
     ) {
 
-        CategoryProductsResponse response =
-                productCategoryService
-                        .getCategoryProducts(categoryId);
-
         return ResponseEntity.ok(
                 ApiResponse.ok(
-                        "Lấy product của category thành công",
-                        response
+                        "Lấy danh sách product của category thành công",
+                        productCategoryService
+                                .getCategoryProducts(categoryId)
                 )
         );
     }

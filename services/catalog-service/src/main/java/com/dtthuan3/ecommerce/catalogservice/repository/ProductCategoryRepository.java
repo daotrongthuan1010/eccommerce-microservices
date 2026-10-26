@@ -19,20 +19,18 @@ public interface ProductCategoryRepository
             String categoryId
     );
 
+    Optional<ProductCategory> findByProductIdAndPrimaryTrue(
+            UUID productId
+    );
+
     boolean existsByProductIdAndCategoryId(
             UUID productId,
             String categoryId
-    );
-
-    Optional<ProductCategory> findByProductIdAndPrimaryTrue(
-            UUID productId
     );
 
     boolean existsByProductIdAndPrimaryTrue(
             UUID productId
     );
 
-    void deleteByProductIdAndCategoryId(
-            UUID productId,
-            String categoryId
-    );}
+    long countByProductId(UUID productId);
+}

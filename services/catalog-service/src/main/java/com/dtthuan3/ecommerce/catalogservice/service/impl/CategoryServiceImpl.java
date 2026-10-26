@@ -10,6 +10,7 @@ import com.dtthuan3.ecommerce.catalogservice.mapper.CategoryMapper;
 import com.dtthuan3.ecommerce.catalogservice.repository.CategoryRepository;
 import com.dtthuan3.ecommerce.catalogservice.service.CacheKeys;
 import com.dtthuan3.ecommerce.catalogservice.service.CategoryService;
+import com.dtthuan3.ecommerce.catalogservice.service.OutboxEventService;
 import com.dtthuan3.ecommerce.catalogservice.service.RedisCacheService;
 import com.dtthuan3.ecommerce.common.exception.BusinessException;
 import com.dtthuan3.ecommerce.common.exception.ErrorCode;
@@ -29,6 +30,7 @@ public class CategoryServiceImpl implements CategoryService {
     private final CategoryRepository categoryRepository;
     private final CategoryMapper categoryMapper;
     private final RedisCacheService redisCacheService;
+    private final OutboxEventService outboxEventService;
 
     @Override
     @Transactional
@@ -58,6 +60,23 @@ public class CategoryServiceImpl implements CategoryService {
 
         Category saved =
                 categoryRepository.save(category);
+
+        outboxEventService.createEvent(
+                "CATEGORY",
+                saved.getId(),
+                saved.getRevision(),
+                "CATEGORY_CREATED",
+                Map.of(
+                        "categoryId", saved.getId(),
+                        "parentId", saved.getParentId(),
+                        "name", saved.getName(),
+                        "slug", saved.getSlug(),
+                        "description", saved.getDescription(),
+                        "imageObjectKey", saved.getImageObjectKey(),
+                        "displayOrder", saved.getDisplayOrder(),
+                        "status", saved.getStatus().name()
+                )
+        );
 
         evictCategoryCaches(
                 saved.getId(),
@@ -225,13 +244,39 @@ public class CategoryServiceImpl implements CategoryService {
 
         categoryMapper.updateEntity(category, request);
 
-        category.setRevision(category.getRevision() + 1);
+        category.setRevision(
+                category.getRevision() + 1
+        );
 
-        Category updated = categoryRepository.save(category);
+        Category updated =
+                categoryRepository.save(category);
 
-        evictCategoryCaches(updated.getId(), oldParentId);
+        outboxEventService.createEvent(
+                "CATEGORY",
+                updated.getId(),
+                updated.getRevision(),
+                "CATEGORY_UPDATED",
+                Map.of(
+                        "categoryId", updated.getId(),
+                        "parentId", updated.getParentId(),
+                        "name", updated.getName(),
+                        "slug", updated.getSlug(),
+                        "description", updated.getDescription(),
+                        "imageObjectKey", updated.getImageObjectKey(),
+                        "displayOrder", updated.getDisplayOrder(),
+                        "status", updated.getStatus().name()
+                )
+        );
 
-        evictCategoryCaches(updated.getId(), updated.getParentId());
+        evictCategoryCaches(
+                updated.getId(),
+                oldParentId
+        );
+
+        evictCategoryCaches(
+                updated.getId(),
+                updated.getParentId()
+        );
 
         return categoryMapper.toResponse(updated);
     }
