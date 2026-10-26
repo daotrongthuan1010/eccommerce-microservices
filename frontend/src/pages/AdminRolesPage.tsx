@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, Descriptions, Drawer, Empty, Space, Tag, Transfer, message } from 'antd';
+import { App, Button, Card, Descriptions, Drawer, Form, Input, Modal, Popconfirm, Space, Transfer, Typography } from 'antd';
+import { KeyOutlined, TeamOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import {
   useListRolesQuery,
@@ -7,6 +8,8 @@ import {
   useListUsersQuery,
   useAssignRoleMutation,
   useRemoveRoleMutation,
+  useCreateRoleMutation,
+  useDeleteRoleMutation,
   type RealmRole,
 } from '../features/admin/adminApi';
 import { useAppSelector } from '../app/hooks';
@@ -15,14 +18,17 @@ import {
   DataTable,
   ListSkeleton,
   PageHeader,
+  RoleTag,
   SummaryRow,
   TableEmpty,
+  UserAvatar,
 } from '../components/ui';
 
 // /admin/roles — RequireRole ADMIN. Table (role, mo ta, members) → Drawer
 // 560 voi Transfer gan/go user, tai su dung Users assign/remove endpoints.
 // Roles page chi doc + dieu huong (design D5); khong co membership API rieng.
 export default function AdminRolesPage() {
+  const { message } = App.useApp();
   const myUsername = useAppSelector((s) => s.auth.username);
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
 
@@ -33,6 +39,10 @@ export default function AdminRolesPage() {
 
   const [assignRole, assignState] = useAssignRoleMutation();
   const [removeRole, removeState] = useRemoveRoleMutation();
+  const [createRole, createState] = useCreateRoleMutation();
+  const [deleteRole] = useDeleteRoleMutation();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm] = Form.useForm();
 
   const roles: RealmRole[] = rolesQuery.data?.items ?? [];
   const members = membersQuery.data?.items ?? [];
@@ -85,14 +95,21 @@ export default function AdminRolesPage() {
 
   const columns: ColumnsType<RealmRole> = [
     {
-      title: 'Quyền',
+      title: 'Vai trò',
       dataIndex: 'name',
       key: 'name',
-      render: (v: string) => (
-        <Tag color={v === 'ADMIN' ? 'red' : 'blue'}>{v}</Tag>
+      render: (v: string, r: RealmRole) => (
+        <Space>
+          <RoleTag role={v} />
+          {v === 'ADMIN' && (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>toàn quyền hệ thống</Typography.Text>
+          )}
+          {r.description ? (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>{r.description}</Typography.Text>
+          ) : null}
+        </Space>
       ),
     },
-    { title: 'Mô tả', dataIndex: 'description', key: 'description', render: (v?: string) => v ?? '—' },
     {
       title: 'Thành viên',
       dataIndex: 'memberCount',
@@ -103,11 +120,41 @@ export default function AdminRolesPage() {
     {
       title: 'Thao tác',
       key: 'action',
-      width: 160,
+      width: 200,
       render: (_: unknown, r: RealmRole) => (
-        <Button size="small" type="link" onClick={() => setSelectedRole(r.name)}>
-          Thành viên
-        </Button>
+        <Space>
+          <Button size="small" type="link" onClick={() => setSelectedRole(r.name)}>
+            Thành viên
+          </Button>
+          <Popconfirm
+            title={`Xóa vai trò ${r.name}?`}
+            description={
+              r.memberCount > 0
+                ? `Vai trò ${r.name} đang có ${r.memberCount} thành viên. Keycloak cho phép xóa role đang gán — hãy chắc chắn.`
+                : `Vai trò ${r.name} sẽ bị xóa khỏi realm Keycloak.`
+            }
+            okText="Xóa"
+            okType="danger"
+            cancelText="Hủy"
+            onConfirm={async () => {
+              try {
+                await deleteRole(r.name).unwrap();
+                message.success(`Đã xóa vai trò ${r.name}`);
+              } catch {
+                message.error('Xóa vai trò thất bại');
+              }
+            }}
+          >
+            <Button
+              size="small"
+              type="link"
+              danger
+              disabled={['ADMIN', 'USER', 'offline_access', 'uma_authorization'].includes(r.name)}
+            >
+              Xóa
+            </Button>
+          </Popconfirm>
+        </Space>
       ),
     },
   ];
@@ -116,12 +163,16 @@ export default function AdminRolesPage() {
 
   return (
     <div>
-      <PageHeader title="Vai trò" subTitle="Realm roles Keycloak (ADMIN)" />
+      <PageHeader
+        title="Vai trò"
+        subTitle="Realm roles Keycloak (ADMIN)"
+        extra={<Button type="primary" onClick={() => setCreateOpen(true)}>Tạo vai trò</Button>}
+      />
       <ApiErrorAlert message={mutationError ?? queryError ?? null} />
       <SummaryRow
         items={[
-          { label: 'Số vai trò', value: roles.length },
-          { label: 'Tổng lượt gán', value: <span style={{ fontVariantNumeric: 'tabular-nums' }}>{totalAssignments}</span> },
+          { label: 'Số vai trò', value: roles.length, icon: <KeyOutlined />, hint: 'realm roles Keycloak' },
+          { label: 'Tổng lượt gán', value: totalAssignments, icon: <TeamOutlined />, color: '#0F4C81', hint: 'người dùng × vai trò · xem người dùng', link: '/admin/users' },
         ]}
       />
 
@@ -129,22 +180,39 @@ export default function AdminRolesPage() {
         <ListSkeleton />
       ) : rolesQuery.isError ? (
         <Card>
-          <Empty description="Không tải được danh sách vai trò">
-            <Button type="primary" onClick={() => rolesQuery.refetch()}>
-              Thử lại
-            </Button>
-          </Empty>
+          <TableEmpty
+            illustration="roles"
+            description="Không tải được danh sách vai trò"
+            actionText="Thử lại"
+            onAction={() => rolesQuery.refetch()}
+          />
         </Card>
       ) : roles.length === 0 ? (
         <Card>
-          <TableEmpty description="Chưa có vai trò" />
+          <TableEmpty
+            illustration="roles"
+            description="Chưa có vai trò"
+            actionText="Tạo vai trò đầu tiên"
+            onAction={() => setCreateOpen(true)}
+          />
         </Card>
       ) : (
         <DataTable<RealmRole> columns={columns} data={roles} loading={rolesQuery.isFetching} rowKey="name" />
       )}
 
       <Drawer
-        title={selectedRole ? `Thành viên — ${selectedRole}` : 'Thành viên'}
+        title={
+          selectedRole ? (
+            <Space>
+              <RoleTag role={selectedRole} />
+              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                {members.length} thành viên
+              </Typography.Text>
+            </Space>
+          ) : (
+            'Thành viên'
+          )
+        }
         width={560}
         open={!!selectedRole}
         onClose={() => setSelectedRole(null)}
@@ -153,9 +221,12 @@ export default function AdminRolesPage() {
         {membersQuery.isLoading || poolQuery.isLoading ? (
           <ListSkeleton />
         ) : membersQuery.isError || poolQuery.isError ? (
-          <Empty description="Không tải được danh sách người dùng">
-            <Button onClick={() => { membersQuery.refetch(); poolQuery.refetch(); }}>Thử lại</Button>
-          </Empty>
+          <TableEmpty
+            illustration="users"
+            description="Không tải được danh sách người dùng"
+            actionText="Thử lại"
+            onAction={() => { membersQuery.refetch(); poolQuery.refetch(); }}
+          />
         ) : (
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
             <Descriptions column={1} bordered size="small">
@@ -170,7 +241,15 @@ export default function AdminRolesPage() {
               }))}
               targetKeys={memberIds}
               onChange={onTransferChange}
-              render={(item) => item.title ?? item.key}
+              render={(item) => {
+                const u = allUsers.find((x) => x.id === String(item.key));
+                return (
+                  <Space size={6}>
+                    <UserAvatar name={u?.username ?? ''} size={20} />
+                    <span>{item.title ?? item.key}</span>
+                  </Space>
+                );
+              }}
               listStyle={{ width: '45%', height: 320 }}
               showSearch
               filterOption={(input, option) =>
@@ -179,12 +258,55 @@ export default function AdminRolesPage() {
               titles={['Ngoài vai trò', 'Trong vai trò']}
               locale={{ searchPlaceholder: 'Tìm người dùng' }}
             />
-            <p style={{ color: '#888' }}>
+            <Typography.Text type="secondary">
               Gán/gỡ tại đây dùng chung endpoints Users — bảng Users và Roles cùng refresh sau mutation.
-            </p>
+            </Typography.Text>
           </Space>
         )}
       </Drawer>
+
+      <Modal
+        title="Tạo vai trò"
+        open={createOpen}
+        onCancel={() => setCreateOpen(false)}
+        confirmLoading={createState.isLoading}
+        okText="Tạo"
+        cancelText="Hủy"
+        destroyOnClose
+        onOk={async () => {
+          try {
+            const v = await createForm.validateFields();
+            await createRole({
+              name: v.name.trim(),
+              description: v.description?.trim() || undefined,
+            }).unwrap();
+            message.success(`Đã tạo vai trò ${v.name.trim()}`);
+            setCreateOpen(false);
+            createForm.resetFields();
+          } catch {
+            if (createState.error) message.error('Tạo vai trò thất bại');
+          }
+        }}
+      >
+        <ApiErrorAlert message={(createState.error as { message?: string } | undefined)?.message ?? null} />
+        <Form form={createForm} layout="vertical" preserve={false}>
+          <Form.Item
+            name="name"
+            label="Tên vai trò"
+            rules={[
+              { required: true, message: 'Nhập tên vai trò' },
+              { min: 2, message: 'Tối thiểu 2 ký tự' },
+              { max: 64, message: 'Tối đa 64 ký tự' },
+              { pattern: /^[A-Za-z0-9._-]+$/, message: 'Chỉ chữ/số và . _ -' },
+            ]}
+          >
+            <Input placeholder="VD: MODERATOR" />
+          </Form.Item>
+          <Form.Item name="description" label="Mô tả" rules={[{ max: 255, message: 'Tối đa 255 ký tự' }]}>
+            <Input.TextArea rows={2} placeholder="Mô tả vai trò (không bắt buộc)" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

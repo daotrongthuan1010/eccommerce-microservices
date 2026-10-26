@@ -1,24 +1,31 @@
 /**
- * IAM DB (tenant / group / role / permission / AuthContext) - kich hoat tu P2 (2026-10-21).
+ * IAM DB (tenant / group / role / menu / action / permission / AuthContext) - lop dieu khien
+ * kich hoat tu change {@code menu-rbac} (2026-10-23).
  *
- * <p>Quyet dinh P0: giu RBAC don gian theo Keycloak JWT (realm_access.roles +
- * resource_access roles -&gt; ROLE_*, scope/scp -&gt; SCOPE_*). Khong chay song song 2 he quyen
- * tren duong dan chinh.
+ * <p>Mo hinh phan quyen nhan su (top-down, admin cap tren cap tai khoan):
+ * {@code Menu} -&gt; {@code Action} -&gt; {@code Permission} (menu+action, code {@code MENU.ACTION})
+ * -&gt; {@code Role} -&gt; {@code UserGroup} (thanh vien thua ke qua {@code UserGroupRole}).
+ * Keycloak realm {@code ecommerce} van la identity source duy nhat ({@code sub} = {@code AuthUser.id}).
  *
- * <p>P2 kich hoat IAM DB o che do bo sung (khong chan request):
+ * <p>Web layer (ADMIN-only, tru {@code /auth/me/menus} authenticated):
  *
  * <ul>
- *   <li>JIT provisioning: {@code IamProvisioningService} tao {@code auth_users} khi thay
- *       Keycloak sub la lan dau (claims tu JWT: sub, preferred_username, email), gan
- *       tenant/group mac dinh neu co seed, idempotent + chong trung username/email.
- *   <li>Gateway enrich header (best-effort): lay AuthContext qua
- *       {@code InternalAuthController} va gan X-User-Id / X-Tenant-Id / X-Permissions cho
- *       downstream. IAM loi chi log, khong chan request.
- *   <li>Invalidation: xoa {@code iam:ctx:*} khi gan/thu hoi role (endpoint
- *       {@code /auth/admin/users/{userId}/context/refresh} + tu dong khi provision).
- *   <li>Duong internal van khong route public: gateway denyAll moi path internal (P0 giu
- *       nguyen); service-to-service dung shared secret X-Internal-Token.
+ *   <li>Menu/Action CRUD: {@code MenuAdminController}, {@code ActionAdminController} (409 khi trung
+ *       code, action chi toggle khong xoa cung).
+ *   <li>Permission: {@code PermissionAdminController} (POST{menuId,actionId}, 409 khi trung cap;
+ *       {@code GET /actions?menuCode=} loc theo grant cua caller).
+ *   <li>DB Role + Group: {@code DbRoleController}, {@code UserGroupAdminController} (assign/revoke/
+ *       setPermissions + POST/DELETE {@code /groups/{id}/roles/{roleId}} moi; self-lockout guard
+ *       409 qua {@code IamSelfLockout}).
+ *   <li>Truy van tong hop: {@code EffectivePermissionController} (KEYCLOAK UNION DB_DIRECT/DB_GROUP
+ *       kem source tags), {@code MeMenuController} (sider dong, sysadmin thay tat ca).
+ *   <li>Marketplace tu dang ky: {@code POST /auth/register} (USER + SELLER option, auto
+ *       VERIFY_EMAIL, 201 + verificationRequired; SMTP la dieu kien tien quyet, thieu thi
+ *       verificationPending). {@code seller_profiles}/CCCD la side table tuong lai (ngoai scope).
  * </ul>
+ *
+ * <p>Che do cu: P0 giu RBAC don gian theo Keycloak JWT; P2 kich hoat IAM DB bo sung (JIT
+ * provisioning, gateway enrich header, invalidation). Xem {@code IamProvisioningService}.
  *
  * <p>Ghi chu: chua chuyen sang Authorization Code + PKCE - cho frontend that, giu password
  * grant proxy hien tai (xem AuthController).

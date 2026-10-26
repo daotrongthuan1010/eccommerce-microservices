@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, Form, Input, InputNumber, Space, message } from 'antd';
+import { App, Button, Card, Form, Input, InputNumber, Space } from 'antd';
 import {
   useModerateReviewMutation,
   useCreateReviewMutation,
@@ -21,6 +21,7 @@ import {
 // với Idempotency-Key (uuid mỗi submit, giữ nguyên khi retry). List đọc
 // mock (backend chưa có GET list — contract §6).
 export function ReviewsPage() {
+  const { message } = App.useApp();
   const roles = useAppSelector((s) => s.auth.roles);
   const canModerate = roles.includes('MODERATOR') || roles.includes('ADMIN');
   const [form] = Form.useForm();

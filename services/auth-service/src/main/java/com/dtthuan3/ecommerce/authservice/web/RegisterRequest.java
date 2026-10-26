@@ -15,4 +15,6 @@ public record RegisterRequest(
                 @Size(min = 8, max = 128, message = "password must be at least 8 chars")
                 String password,
         @Size(max = 64) String firstName,
-        @Size(max = 64) String lastName) {}
+        @Size(max = 64) String lastName,
+        /** seller=true: gan them realm role SELLER (role only, chua co bang seller_profiles/CCCD). */
+        Boolean seller) {}

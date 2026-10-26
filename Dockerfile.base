@@ -1,0 +1,4 @@
+# Base builder image — rebuilt on GHCR to escape Docker Hub 429.
+# Upstream: maven:3.9.11-eclipse-temurin-21 (version pinned, do not float).
+# Kept intentionally minimal: no extra layers, stays public and light.
+FROM maven:3.9.11-eclipse-temurin-21

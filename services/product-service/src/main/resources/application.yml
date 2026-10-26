@@ -117,7 +117,11 @@ eureka:
 grpc:
   client:
     file-service:
-      address: ${FILE_SERVICE_GRPC_ADDRESS:static://162.4.177.91:9090}
+      address: ${FILE_SERVICE_GRPC_ADDRESS:static://localhost:9090}
+      negotiation-type: plaintext
+
+    catalog-service:
+      address: ${CATALOG_SERVICE_GRPC_ADDRESS:static://localhost:9091}
       negotiation-type: plaintext
 
   server:

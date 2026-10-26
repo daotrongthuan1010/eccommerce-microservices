@@ -240,9 +240,19 @@ jobs:
               kubectl rollout status deployment/frontend -n ecommerce --timeout=300s
               exit 1
             fi
-            # Smoke: `/` 200 + deep-link /products/123 serve index.html (SPA fallback).
-            kubectl run smoke-frontend -n ecommerce --rm -i --restart=Never \
-              --image=curlimages/curl:8.10.1 -- \
-              sh -c 'curl -fsS --max-time 10 http://frontend/ | grep -q "<div id=\"root\">" && curl -fsS --max-time 10 -o /dev/null -w "%{http_code}" http://frontend/products/123 | grep -q 200' \
-              && echo "FRONTEND SMOKE OK" \
-              || { echo "FRONTEND SMOKE FAILED"; exit 1; }
+            # Smoke (đồng bộ với .github/actions/deploy-frontend): exec TRỰC
+            # TIẾP vào pod frontend, wget http://localhost/ (nginx:alpine có
+            # sẵn busybox wget, KHÔNG có curl). Bỏ đường Service-name qua
+            # kube-dns + Klipper LB — từng timeout 6/6 dù app sống.
+            kubectl wait --for=condition=ready pod -l app=frontend -n ecommerce --timeout=60s \
+              || echo "no frontend pod ready after 60s — retry loop will pick one up"
+            for i in $(seq 1 6); do
+              POD=$(kubectl get pods -n ecommerce -l app=frontend --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}')
+              if [ -n "$POD" ] && kubectl exec "$POD" -n ecommerce -- \
+                sh -c 'wget -qO- http://localhost/ | grep -q "<div id=\"root\">" && wget -qO- http://localhost/products/123 | grep -q "<div id=\"root\">"'; then
+                echo "FRONTEND SMOKE OK"; break
+              fi
+              if [ "$i" = "6" ]; then echo "FRONTEND SMOKE FAILED"; exit 1; fi
+              echo "frontend smoke attempt $i failed — retry in 10s"
+              sleep 10
+            done

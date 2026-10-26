@@ -1,19 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  App,
   Button,
   Card,
   Descriptions,
   Drawer,
-  Empty,
   Form,
   Input,
   Modal,
   Select,
   Space,
   Switch,
-  Tag,
-  message,
+  Typography,
+  Upload,
 } from 'antd';
+import { ReloadOutlined, StopOutlined, TeamOutlined, UploadOutlined, UserAddOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import {
   useListUsersQuery,
@@ -21,11 +22,15 @@ import {
   useCreateUserMutation,
   useAssignRoleMutation,
   useRemoveRoleMutation,
+  useUpdateAnyProfileMutation,
+  useUpdateAnyAvatarMutation,
   useSetEnabledMutation,
   useResetPasswordMutation,
   useListRolesQuery,
   type AdminUser,
 } from '../features/admin/adminApi';
+import { useLazyFileUrlQuery, useUploadMutation } from '../features/file/fileApi';
+import { cropToSquare } from '../utils/cropImage';
 import { useAppSelector } from '../app/hooks';
 import {
   ApiErrorAlert,
@@ -33,9 +38,12 @@ import {
   FilterBar,
   ListSkeleton,
   PageHeader,
+  RoleTag,
+  RoleTags,
   StatusTag,
   SummaryRow,
   TableEmpty,
+  UserAvatar,
 } from '../components/ui';
 
 // /admin/users — RequireRole ADMIN. PageHeader → SummaryRow → FilterBar →
@@ -52,6 +60,7 @@ function useDebounced(value: string, delay = 300): string {
 const KNOWN_ROLES = ['ADMIN', 'USER', 'MODERATOR'];
 
 export default function AdminUsersPage() {
+  const { message } = App.useApp();
   const myUsername = useAppSelector((s) => s.auth.username);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<string | undefined>(undefined);
@@ -72,8 +81,12 @@ export default function AdminUsersPage() {
   const [createUser, createState] = useCreateUserMutation();
   const [assignRole, assignState] = useAssignRoleMutation();
   const [removeRole, removeState] = useRemoveRoleMutation();
+  const [updateAnyProfile, updateProfileState] = useUpdateAnyProfileMutation();
+  const [updateAnyAvatar, updateAvatarState] = useUpdateAnyAvatarMutation();
   const [setEnabled, enabledState] = useSetEnabledMutation();
   const [resetPassword, resetState] = useResetPasswordMutation();
+  const [triggerFileUrl] = useLazyFileUrlQuery();
+  const [uploadFile, uploadState] = useUploadMutation();
 
   // Reset ve trang 0 khi filter doi.
   useEffect(() => {
@@ -94,11 +107,16 @@ export default function AdminUsersPage() {
   const total = query.data?.total ?? 0;
   const disabledCount = items.filter((u) => !u.enabled).length;
   const adminCount = items.filter((u) => u.roles.includes('ADMIN')).length;
+  // Co loc/search dang ap dung khong — quyet dinh CTA cua empty state
+  // (Xoa loc khi dang loc, Tao nguoi dung khi that su trong).
+  const hasFilter = search.trim().length > 0 || roleFilter !== undefined || statusFilter !== undefined;
 
   const mutationError =
     (createState.error as { message?: string } | undefined)?.message ??
     (assignState.error as { message?: string } | undefined)?.message ??
     (removeState.error as { message?: string } | undefined)?.message ??
+    (updateProfileState.error as { message?: string } | undefined)?.message ??
+    (updateAvatarState.error as { message?: string } | undefined)?.message ??
     (enabledState.error as { message?: string } | undefined)?.message ??
     (resetState.error as { message?: string } | undefined)?.message;
 
@@ -117,13 +135,99 @@ export default function AdminUsersPage() {
   const isSelf = !!detail && !!myUsername && detail.username === myUsername;
   const [newPassword, setNewPassword] = useState('');
   const [roleToAdd, setRoleToAdd] = useState<string | undefined>(undefined);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm] = Form.useForm();
+  const [detailAvatarUrl, setDetailAvatarUrl] = useState<string | null>(null);
+
+  // Resolve file-key picture cua user dang xem → URL tuoi tho ngan (S1).
+  useEffect(() => {
+    let cancelled = false;
+    setDetailAvatarUrl(null);
+    if (!detail?.picture) return;
+    triggerFileUrl({ key: detail.picture })
+      .unwrap()
+      .then((res) => {
+        if (!cancelled) setDetailAvatarUrl(res.data?.url ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setDetailAvatarUrl(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [detail?.picture, triggerFileUrl]);
+
+  // Reset form sua ho so + avatar khi mo drawer sang user khac.
+  useEffect(() => {
+    setEditOpen(false);
+    setNewPassword('');
+    setRoleToAdd(undefined);
+  }, [selectedId]);
+
+  const onSaveAnyProfile = async () => {
+    if (!detail) return;
+    try {
+      const values = await editForm.validateFields();
+      await runMutation(
+        () =>
+          updateAnyProfile({
+            id: detail.id,
+            firstName: values.firstName?.trim() || undefined,
+            lastName: values.lastName?.trim() || undefined,
+            email: values.email?.trim() || undefined,
+          }).unwrap(),
+        'Đã lưu hồ sơ người dùng',
+        'Lưu hồ sơ thất bại',
+      ).then((ok) => {
+        if (ok) setEditOpen(false);
+      });
+    } catch {
+      // validateFields loi → form tu hien thi.
+    }
+  };
+
+  const onAdminAvatarFile = async (file: File) => {
+    if (!detail) return false;
+    try {
+      // Crop vuong o giua nhu ProfilePage — anh chu nhat se meo trong UserAvatar tron.
+      const square = await cropToSquare(file);
+      const up = await uploadFile({ file: square, folder: 'avatars' }).unwrap();
+      const key = up.data?.key;
+      if (!key) {
+        message.error('Upload ảnh thất bại: không nhận được file key');
+        return false;
+      }
+      await updateAnyAvatar({ id: detail.id, fileKey: key }).unwrap();
+      message.success('Đã cập nhật ảnh đại diện');
+    } catch {
+      message.error('Cập nhật ảnh đại diện thất bại');
+    }
+    return false;
+  };
 
   const columns: ColumnsType<AdminUser> = [
     {
-      title: 'Tên đăng nhập',
+      title: 'Người dùng',
       dataIndex: 'username',
       key: 'username',
-      render: (v: string) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span>,
+      render: (v: string, r: AdminUser) => (
+        <Space>
+          <UserAvatar name={v} size={32} />
+          <span>
+            <Button
+              type="link"
+              style={{ padding: 0, height: 'auto', fontWeight: 500 }}
+              onClick={() => { setSelectedId(r.id); setNewPassword(''); setRoleToAdd(undefined); }}
+            >
+              {v}
+            </Button>
+            <br />
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {[r.firstName, r.lastName].filter(Boolean).join(' ') || r.email || '—'}
+            </Typography.Text>
+          </span>
+        </Space>
+      ),
     },
     { title: 'Email', dataIndex: 'email', key: 'email', render: (v?: string) => v ?? '—' },
     {
@@ -137,14 +241,7 @@ export default function AdminUsersPage() {
     {
       title: 'Quyền',
       key: 'roles',
-      render: (_: unknown, r: AdminUser) =>
-        r.roles.length === 0
-          ? '—'
-          : r.roles.map((role) => (
-              <Tag key={role} color={role === 'ADMIN' ? 'red' : 'blue'}>
-                {role}
-              </Tag>
-            )),
+      render: (_: unknown, r: AdminUser) => <RoleTags roles={r.roles} />,
     },
     {
       title: 'Thao tác',
@@ -174,9 +271,9 @@ export default function AdminUsersPage() {
       <ApiErrorAlert message={mutationError ?? queryError ?? null} />
       <SummaryRow
         items={[
-          { label: 'Tổng số', value: <span style={{ fontVariantNumeric: 'tabular-nums' }}>{total}</span> },
-          { label: 'Vô hiệu hóa (trang này)', value: disabledCount },
-          { label: 'ADMIN (trang này)', value: adminCount },
+          { label: 'Tổng số', value: total, icon: <TeamOutlined />, hint: 'tài khoản trong hệ thống' },
+          { label: 'Vô hiệu hóa', value: disabledCount, icon: <StopOutlined />, color: '#C13515', hint: 'trang hiện tại' },
+          { label: 'ADMIN', value: adminCount, icon: <UserAddOutlined />, color: '#0F4C81', hint: 'trang hiện tại · xem vai trò', link: '/admin/roles' },
         ]}
       />
       <FilterBar>
@@ -206,21 +303,46 @@ export default function AdminUsersPage() {
           ]}
           style={{ width: 170 }}
         />
+        <Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>Tải lại</Button>
+        {(search || roleFilter || statusFilter) && (
+          <Button
+            onClick={() => {
+              setSearch('');
+              setRoleFilter(undefined);
+              setStatusFilter(undefined);
+            }}
+          >
+            Xóa lọc
+          </Button>
+        )}
       </FilterBar>
 
       {query.isLoading ? (
         <ListSkeleton />
       ) : query.isError ? (
         <Card>
-          <Empty description="Không tải được danh sách người dùng">
-            <Button type="primary" onClick={() => query.refetch()}>
-              Thử lại
-            </Button>
-          </Empty>
+          <TableEmpty
+            description="Không tải được danh sách người dùng"
+            actionText="Thử lại"
+            onAction={() => query.refetch()}
+          />
         </Card>
       ) : filtered.length === 0 ? (
         <Card>
-          <TableEmpty description={appliedSearch ? `Không tìm thấy "${appliedSearch}"` : 'Chưa có người dùng'} />
+          <TableEmpty
+            illustration="users"
+            description={appliedSearch ? `Không tìm thấy "${appliedSearch}"` : 'Chưa có người dùng'}
+            actionText={hasFilter ? 'Xóa lọc' : 'Tạo người dùng'}
+            onAction={
+              hasFilter
+                ? () => {
+                    setSearch('');
+                    setRoleFilter(undefined);
+                    setStatusFilter(undefined);
+                  }
+                : () => setCreateOpen(true)
+            }
+          />
         </Card>
       ) : (
         <DataTable<AdminUser>
@@ -235,7 +357,22 @@ export default function AdminUsersPage() {
       )}
 
       <Drawer
-        title="Chi tiết người dùng"
+        title={
+          detail ? (
+            <Space>
+              <UserAvatar name={detail.username} picture={detailAvatarUrl} />
+              <span>
+                {detail.username}
+                <br />
+                <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
+                  {detail.email ?? [detail.firstName, detail.lastName].filter(Boolean).join(' ') ?? '—'}
+                </Typography.Text>
+              </span>
+            </Space>
+          ) : (
+            'Chi tiết người dùng'
+          )
+        }
         width={560}
         open={!!selectedId}
         onClose={() => setSelectedId(null)}
@@ -244,9 +381,11 @@ export default function AdminUsersPage() {
         {detailQuery.isLoading ? (
           <ListSkeleton />
         ) : detailQuery.isError || !detail ? (
-          <Empty description="Không tải được chi tiết">
-            <Button onClick={() => detailQuery.refetch()}>Thử lại</Button>
-          </Empty>
+          <TableEmpty
+            description="Không tải được chi tiết"
+            actionText="Thử lại"
+            onAction={() => detailQuery.refetch()}
+          />
         ) : (
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
             <Descriptions column={1} bordered size="small">
@@ -259,23 +398,106 @@ export default function AdminUsersPage() {
                 <StatusTag status={detail.enabled ? 'ENABLED' : 'DISABLED'} />
               </Descriptions.Item>
             </Descriptions>
+            <Card
+              size="small"
+              title="Hồ sơ"
+              extra={
+                <Button
+                  size="small"
+                  type="link"
+                  onClick={() => {
+                    editForm.setFieldsValue({
+                      firstName: detail.firstName ?? '',
+                      lastName: detail.lastName ?? '',
+                      email: detail.email ?? '',
+                    });
+                    setEditOpen(true);
+                  }}
+                >
+                  Sửa
+                </Button>
+              }
+            >
+              <Space>
+                <UserAvatar name={detail.username} picture={detailAvatarUrl} size={48} />
+                <div>
+                  <Upload
+                    accept="image/*"
+                    showUploadList={false}
+                    beforeUpload={(file) => {
+                      if (!file.type.startsWith('image/')) {
+                        message.error('Chỉ chấp nhận file ảnh');
+                        return false;
+                      }
+                      if (file.size > 2 * 1024 * 1024) {
+                        message.error('Ảnh đại diện tối đa 2MB');
+                        return false;
+                      }
+                      void onAdminAvatarFile(file as File);
+                      return false;
+                    }}
+                  >
+                    <Button size="small" icon={<UploadOutlined />} loading={uploadState.isLoading || updateAvatarState.isLoading}>
+                      {detail.picture ? 'Đổi ảnh đại diện' : 'Tải ảnh đại diện'}
+                    </Button>
+                  </Upload>
+                  {detail.picture && (
+                    <Button
+                      size="small"
+                      type="link"
+                      danger
+                      loading={updateAvatarState.isLoading}
+                      onClick={() =>
+                        runMutation(
+                          () => updateAnyAvatar({ id: detail.id }).unwrap(),
+                          'Đã xóa ảnh đại diện',
+                          'Xóa ảnh đại diện thất bại',
+                        )
+                      }
+                    >
+                      Xóa ảnh
+                    </Button>
+                  )}
+                </div>
+              </Space>
+              {editOpen && (
+                <Form form={editForm} layout="vertical" style={{ marginTop: 12 }}>
+                  <Form.Item name="firstName" label="Tên" rules={[{ max: 64, message: 'Tối đa 64 ký tự' }]}>
+                    <Input placeholder="Tên" />
+                  </Form.Item>
+                  <Form.Item name="lastName" label="Họ" rules={[{ max: 64, message: 'Tối đa 64 ký tự' }]}>
+                    <Input placeholder="Họ" />
+                  </Form.Item>
+                  <Form.Item name="email" label="Email" rules={[{ type: 'email', message: 'Email không hợp lệ' }]}>
+                    <Input placeholder="Email" />
+                  </Form.Item>
+                  <Space>
+                    <Button type="primary" size="small" loading={updateProfileState.isLoading} onClick={onSaveAnyProfile}>
+                      Lưu
+                    </Button>
+                    <Button size="small" onClick={() => setEditOpen(false)}>
+                      Hủy
+                    </Button>
+                  </Space>
+                </Form>
+              )}
+            </Card>
             <Card size="small" title="Quyền (realm roles)">
               <Space wrap>
                 {detail.roles.map((r) => (
-                  <Tag
+                  <RoleTag
                     key={r}
-                    color={r === 'ADMIN' ? 'red' : 'blue'}
+                    role={r}
                     closable={!(isSelf && r === 'ADMIN')}
-                    onClose={() =>
+                    onClose={(e) => {
+                      e.preventDefault();
                       runMutation(
                         () => removeRole({ id: detail.id, role: r }).unwrap(),
                         `Đã gỡ quyền ${r}`,
                         `Gỡ quyền ${r} thất bại`,
                       )
-                    }
-                  >
-                    {r}
-                  </Tag>
+                    }}
+                  />
                 ))}
                 {detail.roles.length === 0 && '—'}
               </Space>
@@ -305,7 +527,7 @@ export default function AdminUsersPage() {
                   Gán
                 </Button>
               </Space>
-              {isSelf && <p style={{ color: '#888' }}>Không thể tự gỡ quyền ADMIN của chính mình.</p>}
+              {isSelf && <Typography.Text type="secondary">Không thể tự gỡ quyền ADMIN của chính mình.</Typography.Text>}
             </Card>
             <Card size="small" title="Trạng thái tài khoản">
               <Space>
@@ -323,7 +545,7 @@ export default function AdminUsersPage() {
                 />
                 <span>{detail.enabled ? 'Đang hoạt động' : 'Vô hiệu hóa'}</span>
               </Space>
-              {isSelf && <p style={{ color: '#888' }}>Không thể tự vô hiệu hóa tài khoản của mình.</p>}
+              {isSelf && <Typography.Text type="secondary">Không thể tự vô hiệu hóa tài khoản của mình.</Typography.Text>}
             </Card>
             <Card size="small" title="Đặt lại mật khẩu">
               <Space>

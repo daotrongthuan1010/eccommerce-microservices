@@ -1,0 +1,94 @@
+name: deploy-frontend
+description: >-
+  Deploy frontend (Vite nginx) to VPS k3s independently: scp k8s/frontend/,
+  substitute __IMAGE_TAG__ in a temp copy, kubectl apply + rollout status +
+  auto undo scoped to its own Deployment, then smoke `/` 200 + SPA fallback
+  /products/123 serving index.html. Sanity-checks the floating tag exists on
+  Hub, then deploys it. Same pattern as cd-all.yml frontend-leaf.
+
+inputs:
+  tag:
+    description: 'Image tag to deploy (floating alias, e.g. develop)'
+    required: false
+    default: develop
+  host:
+    required: true
+  port:
+    required: true
+  username:
+    required: true
+  key:
+    required: true
+  dockerhub_username:
+    required: true
+  dockerhub_token:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Copy frontend manifests to VPS
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ inputs.host }}
+        port: ${{ inputs.port }}
+        username: ${{ inputs.username }}
+        key: ${{ inputs.key }}
+        source: 'k8s/frontend/'
+        target: /tmp/k8s-deploy-src
+
+    - name: Deploy frontend to VPS k3s via SSH
+      uses: appleboy/ssh-action@v1.2.0
+      env:
+        IMAGE_TAG: ${{ inputs.tag }}
+        DH_USER: ${{ inputs.dockerhub_username }}
+        DH_TOKEN: ${{ inputs.dockerhub_token }}
+      with:
+        host: ${{ inputs.host }}
+        port: ${{ inputs.port }}
+        username: ${{ inputs.username }}
+        key: ${{ inputs.key }}
+        envs: IMAGE_TAG,DH_USER,DH_TOKEN
+        script: |
+          set -euo pipefail
+          # Login first: manifest inspect on anonymous pulls hits
+          # Docker Hub rate limits; authenticated checks do not.
+          echo "$DH_TOKEN" | docker login -u "$DH_USER" --password-stdin
+          # Sanity check on the floating tag (always exists after the first
+          # green FE build): skip quietly instead of failing if missing.
+          if ! docker manifest inspect "$DH_USER/frontend:${IMAGE_TAG}" >/dev/null 2>&1; then
+            echo "SKIP (frontend:${IMAGE_TAG} not on Hub yet — no green FE build)"
+            exit 0
+          fi
+          kubectl create namespace ecommerce --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret docker-registry dockerhub-pull -n ecommerce \
+            --docker-username="$DH_USER" --docker-password="$DH_TOKEN" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          WORK="/tmp/k8s-deploy-frontend"
+          rm -rf "$WORK" && cp -r /tmp/k8s-deploy-src/k8s/frontend "$WORK"
+          grep -rl "__IMAGE_TAG__" "$WORK" --include=deployment.yaml \
+            | xargs sed -i "s/__IMAGE_TAG__/${IMAGE_TAG}/g"
+          kubectl apply -f "$WORK/"
+          if ! kubectl rollout status deployment/frontend -n ecommerce --timeout=300s; then
+            kubectl rollout undo deployment/frontend -n ecommerce
+            kubectl rollout status deployment/frontend -n ecommerce --timeout=300s
+            exit 1
+          fi
+          # Smoke: exec TRỰC TIẾP vào pod frontend, wget http://localhost/
+          # (base image cuối là nginx:alpine — có sẵn busybox wget, KHÔNG có
+          # curl). Đi qua Service-name (kube-dns + Klipper LB) từng timeout
+          # 6/6 lần dù app sống, nên bỏ đường đó. Check `/` chứa
+          # <div id="root"> + SPA fallback /products/123 trả về index.
+          # kubectl wait trước vòng lặp: exec vào pod chưa ready sẽ fail.
+          kubectl wait --for=condition=ready pod -l app=frontend -n ecommerce --timeout=60s \
+            || echo "no frontend pod ready after 60s — retry loop will pick one up"
+          for i in $(seq 1 6); do
+            POD=$(kubectl get pods -n ecommerce -l app=frontend --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}')
+            if [ -n "$POD" ] && kubectl exec "$POD" -n ecommerce -- \
+              sh -c 'wget -qO- http://localhost/ | grep -q "<div id=\"root\">" && wget -qO- http://localhost/products/123 | grep -q "<div id=\"root\">"'; then
+              echo "FRONTEND SMOKE OK"; break
+            fi
+            if [ "$i" = "6" ]; then echo "FRONTEND SMOKE FAILED"; exit 1; fi
+            echo "frontend smoke attempt $i failed — retry in 10s"
+            sleep 10
+          done

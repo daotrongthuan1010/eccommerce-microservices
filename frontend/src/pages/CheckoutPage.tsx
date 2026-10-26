@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Form, Input, Select, message } from 'antd';
+import { App, Button, Form, Input, Select } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { checkout, getCart, type Cart } from '../mocks/orderMock';
 import { createPayment } from '../mocks/paymentMock';
@@ -8,6 +8,7 @@ import { ActionBar, ApiErrorAlert, FormSection, ListSkeleton, PageHeader } from 
 // Wave 4.2 — checkout hoan toan offline: orderMock.checkout + paymentMock.
 // KHONG goi /api/order/** hay /api/payment/**.
 export default function CheckoutPage() {
+  const { message } = App.useApp();
   const [cart, setCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

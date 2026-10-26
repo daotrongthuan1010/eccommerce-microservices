@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Form, Input, Space, message } from 'antd';
+import { App, Button, Card, Form, Input, Space } from 'antd';
 import { Link } from 'react-router-dom';
 import {
   useCreateProductDraftMutation,
@@ -20,6 +20,7 @@ import {
 const PAGE_SIZE = 20;
 
 export function ProductsPage() {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [lookupId, setLookupId] = useState('');
   const [submittedId, setSubmittedId] = useState('');
