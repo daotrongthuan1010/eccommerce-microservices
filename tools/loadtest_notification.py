@@ -29,14 +29,23 @@ from datetime import datetime, timezone
 ORDER_EVENTS_TOPIC = "order-events"
 
 
-def gen_event(i: int) -> dict:
+def load_user_ids(path: str | None) -> list:
+    """Doc userId that (UUID Keycloak) tu file tao boi loadtest_create_keycloak_users.py.
+    Neu khong co file, dung load-user-{i%1000} (se bi Keycloak 404 -> DLQ permanent)."""
+    if path:
+        with open(path) as f:
+            return json.load(f)
+    return [f"load-user-{i}" for i in range(1000)]
+
+
+def gen_event(i: int, user_ids: list) -> dict:
     order_code = f"ORD-LOAD-{i:07d}"
     return {
         "eventId": str(uuid.uuid4()),
         "eventType": "OrderConfirmed",
         "orderId": f"load-order-{i}",
         "orderCode": order_code,
-        "userId": f"load-user-{i % 1000}",  # 1000 user lap lai -> co trung recipient
+        "userId": user_ids[i % len(user_ids)],
         "status": "CONFIRMED",
         "totalAmount": random.randint(10000, 5000000),
         "currency": "VND",
@@ -47,13 +56,14 @@ def gen_event(i: int) -> dict:
 
 def run_kafka(args) -> None:
     total = args.count
+    user_ids = load_user_ids(args.user_ids)
     t0 = time.time()
     try:
         from kafka import KafkaProducer  # kafka-python-ng
     except ImportError:
         # Fallback: xuat JSON lines ra stdout de pipe vao kafka-console-producer
         for i in range(total):
-            print(json.dumps(gen_event(i), ensure_ascii=False))
+            print(json.dumps(gen_event(i, user_ids), ensure_ascii=False))
         sys.stderr.write(
             f"[fallback] kafka-python khong co — da xuat {total} JSON lines.\n"
             f"Dung:  python {sys.argv[0]} kafka -n {total} | "
@@ -72,7 +82,7 @@ def run_kafka(args) -> None:
     sent = 0
     report_every = max(1, total // 10)
     for i in range(total):
-        producer.send(ORDER_EVENTS_TOPIC, gen_event(i))
+        producer.send(ORDER_EVENTS_TOPIC, gen_event(i, user_ids))
         sent += 1
         if sent % report_every == 0:
             elapsed = time.time() - t0
@@ -123,6 +133,8 @@ def main() -> None:
     p_kafka = sub.add_parser("kafka", help="Publish OrderConfirmed qua Kafka")
     p_kafka.add_argument("-n", "--count", type=int, default=100_000)
     p_kafka.add_argument("--bootstrap", default="162.4.177.91:9092")
+    p_kafka.add_argument("--user-ids", default=None,
+                         help="File JSON userId that (tu loadtest_create_keycloak_users.py)")
 
     p_smtp = sub.add_parser("smtp", help="Ban SMTP thang vao Mailpit")
     p_smtp.add_argument("-n", "--count", type=int, default=100_000)
