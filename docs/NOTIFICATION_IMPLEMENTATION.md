@@ -14,17 +14,35 @@ open-source nhẹ (Go, ~30MB RAM) — nhận được hàng trăm nghìn mail de
 ## Kiến trúc slice đã implement
 
 ```
-Kafka order-events ──> OrderEventConsumer (inbox dedup)
-                          │  tạo NotificationRequest QUEUED (businessKey unique)
+Kafka order-events ──> OrderEventConsumer (inbox dedup theo eventId+source)
+                          │  chot templateVersion ACTIVE moi nhat + bien (orderCode, totalAmount)
+                          │  KHONG render, KHONG gui — chi tao NotificationRequest QUEUED
+                          │  template ACTIVE khong ton tai -> DLQ TEMPLATE_MISSING
                           ▼
-                    NotificationWorker (poll 2s, batch 100, 8 threads)
-                          │  resolve userId→email (Keycloak Admin API)
+                    NotificationWorker (poll 2s, batch 100 LIMIT DB, 8 threads)
                           ▼
-                    MailpitMailProvider (SMTP :1025, header X-Notification-Business-Key)
-                          │  UNKNOWN → tra cứu Mailpit API theo businessKey trước khi retry
-                          ▼
-                    ACCEPTED → DELIVERED | FAILED_RETRYABLE (backoff 5 lần) → FAILED_FINAL + DLQ
+                    NotificationRequestProcessor (REQUIRES_NEW, lock row)
+                          │
+                          ├─ Giai doan 0: kenh ho tro? (SMS -> DLQ UNSUPPORTED_CHANNEL)
+                          ├─ Giai doan 1: RESOLVE userId qua Keycloak Admin API (cache 10')
+                          │    Found / UserNotFound (permanent) / NoEmail (permanent) / Unavailable (retry)
+                          ├─ Giai doan 2: RENDER template version DA CHOT + bien da chot
+                          │    bien thieu -> DLQ TEMPLATE_VARIABLES_MISSING (khong gui noi dung sai)
+                          │    version mat  -> DLQ TEMPLATE_VERSION_MISSING
+                          └─ Giai doan 3: SEND SMTP Mailpit (header X-Notification-Business-Key)
+                               ACCEPTED / FAILED_RETRYABLE (backoff+jitter, max 5)
+                               UNKNOWN -> tra cuu Mailpit API theo businessKey truoc retry (NOTI-07)
+                               vu han  -> FAILED_FINAL + DLQ RETRY_EXHAUSTED
 ```
+
+**Template (NOTI-02)**: bang `notification_template` (key + version + channel + locale + status
+DRAFT/ACTIVE/RETIRED + required_variables). Seed V2: `order-confirmed` v1, `order-canceled` v1
+(tiếng Việt, biến `orderCode, displayName, totalAmount`). Request chốt `template_version` lúc tạo —
+sửa template = tạo version mới, request cũ render đúng version đã chốt (NOTI-UC04 bước 5).
+
+**Snapshot người nhận (docs 15.2)**: `recipient_email`, `recipient_name` lưu trên request sau khi
+resolve (displayName = firstName + lastName từ Keycloak); API list KHÔNG trả email/subject/body
+(che PII).
 
 ## Biến môi trường
 

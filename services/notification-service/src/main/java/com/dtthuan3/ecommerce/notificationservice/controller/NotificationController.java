@@ -77,12 +77,13 @@ public class NotificationController {
                 .toList());
     }
 
-    /** Che mot phan PII: khong tra body/full subject qua API list (docs 15.2). */
+    /** Che PII (docs 15.2): khong tra email/subject/body day du qua API list. */
     private static Map<String, Object> toSummary(NotificationRequest r) {
         return Map.of(
                 "id", r.getId(),
                 "channel", r.getChannel(),
                 "templateKey", r.getTemplateKey(),
+                "templateVersion", r.getTemplateVersion() == null ? 0 : r.getTemplateVersion(),
                 "purpose", r.getPurpose(),
                 "status", r.getStatus(),
                 "attempts", r.getAttempts(),

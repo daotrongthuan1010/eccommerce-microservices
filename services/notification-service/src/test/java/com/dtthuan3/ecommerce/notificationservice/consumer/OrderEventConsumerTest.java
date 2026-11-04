@@ -1,8 +1,11 @@
 package com.dtthuan3.ecommerce.notificationservice.consumer;
 
 import com.dtthuan3.ecommerce.notificationservice.entity.NotificationRequest;
+import com.dtthuan3.ecommerce.notificationservice.entity.NotificationTemplate;
+import com.dtthuan3.ecommerce.notificationservice.repository.NotificationDeadLetterRepository;
 import com.dtthuan3.ecommerce.notificationservice.repository.NotificationInboxRepository;
 import com.dtthuan3.ecommerce.notificationservice.repository.NotificationRequestRepository;
+import com.dtthuan3.ecommerce.notificationservice.repository.NotificationTemplateRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,7 +27,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * NOTI-UC01/03: event OrderConfirmed den trung/khong theo thu tu khong tao request lan 2.
- * Inbox dedup theo (eventId, source); businessKey chong trung.
+ * Consumer chi chot du lieu (templateVersion + bien), khong render khong gui.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -38,35 +41,56 @@ class OrderEventConsumerTest {
 
     @Mock private NotificationInboxRepository inbox;
     @Mock private NotificationRequestRepository requests;
+    @Mock private NotificationTemplateRepository templates;
+    @Mock private NotificationDeadLetterRepository deadLetters;
 
     private OrderEventConsumer consumer;
 
+    private NotificationTemplate activeTemplate(String key) {
+        NotificationTemplate t = new NotificationTemplate();
+        t.setTemplateKey(key);
+        t.setVersion(3); // version moi nhat de kiem tra consumer chot dung
+        t.setChannel("EMAIL");
+        t.setLocale("vi");
+        t.setPurpose("TRANSACTIONAL");
+        t.setRequiredVariables("orderCode,displayName,totalAmount");
+        t.setStatus("ACTIVE");
+        return t;
+    }
+
     @BeforeEach
     void setUp() {
-        consumer = new OrderEventConsumer(inbox, requests, new ObjectMapper());
+        consumer = new OrderEventConsumer(inbox, requests, templates, deadLetters, new ObjectMapper());
+        when(templates.findFirstByTemplateKeyAndChannelAndLocaleAndStatusOrderByVersionDesc(
+                anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(Optional.of(activeTemplate("order-confirmed")));
+    }
+
+    private NotificationRequest captureSaved() {
+        ArgumentCaptor<NotificationRequest> captor = ArgumentCaptor.forClass(NotificationRequest.class);
+        verify(requests).save(captor.capture());
+        return captor.getValue();
     }
 
     @Test
-    @DisplayName("OrderConfirmed: tao request QUEUED + luu inbox")
-    void onConfirmed_createsQueuedRequest() {
+    @DisplayName("OrderConfirmed: tao request QUEUED chot templateVersion=3 + bien, KHONG render")
+    void onConfirmed_createsRequestWithSnapshot() {
         when(inbox.existsByEventIdAndSource("evt-1", "order-service")).thenReturn(false);
         when(requests.existsByBusinessKey(anyString())).thenReturn(false);
 
         consumer.onOrderEvent(CONFIRMED_EVENT);
 
-        ArgumentCaptor<NotificationRequest> captor = ArgumentCaptor.forClass(NotificationRequest.class);
-        verify(requests).save(captor.capture());
-        NotificationRequest saved = captor.getValue();
-
+        NotificationRequest saved = captureSaved();
         assertThat(saved.getStatus()).isEqualTo("QUEUED");
-        assertThat(saved.getChannel()).isEqualTo("EMAIL");
+        assertThat(saved.getTemplateKey()).isEqualTo("order-confirmed");
+        assertThat(saved.getTemplateVersion()).isEqualTo(3); // chot version ACTIVE moi nhat
+        assertThat(saved.getLocale()).isEqualTo("vi");
+        assertThat(saved.getBusinessKey()).isEqualTo("evt-1|user-1|EMAIL|order-confirmed");
+        assertThat(saved.getVariables()).contains("ORD-20261104-ABCD").contains("250.000 VND");
+        // Consumer KHONG render — subject/body null cho den khi worker gui
+        assertThat(saved.getSubject()).isNull();
+        assertThat(saved.getBody()).isNull();
         assertThat(saved.getPurpose()).isEqualTo("TRANSACTIONAL");
-        assertThat(saved.getTemplateKey()).isEqualTo("order-confirmed.vi");
-        assertThat(saved.getBusinessKey())
-                .isEqualTo("evt-1|user-1|EMAIL|order-confirmed.vi");
-        assertThat(saved.getOrderId()).isEqualTo("order-1");
-        assertThat(saved.getSubject()).contains("ORD-20261104-ABCD");
-        assertThat(saved.getBody()).contains("ORD-20261104-ABCD");
         verify(inbox).save(any());
     }
 
@@ -82,40 +106,57 @@ class OrderEventConsumerTest {
     }
 
     @Test
-    @DisplayName("businessKey trung (event khac id cung noi dung): khong tao request lan 2")
+    @DisplayName("businessKey trung: khong tao request lan 2, van ghi inbox")
     void duplicateBusinessKey_skipped() {
         when(inbox.existsByEventIdAndSource("evt-1", "order-service")).thenReturn(false);
-        when(requests.existsByBusinessKey("evt-1|user-1|EMAIL|order-confirmed.vi")).thenReturn(true);
+        when(requests.existsByBusinessKey("evt-1|user-1|EMAIL|order-confirmed")).thenReturn(true);
 
         consumer.onOrderEvent(CONFIRMED_EVENT);
 
         verify(requests, never()).save(any(NotificationRequest.class));
-        // Inbox van duoc ghi: event nay coi nhu da xu ly
         verify(inbox).save(any());
     }
 
     @Test
-    @DisplayName("OrderCanceled: tao request voi template order-canceled")
-    void onCanceled_createsCanceledTemplate() {
+    @DisplayName("OrderCanceled: template order-canceled, purpose van TRANSACTIONAL")
+    void onCanceled_usesCanceledTemplate() {
         when(inbox.existsByEventIdAndSource("evt-2", "order-service")).thenReturn(false);
         when(requests.existsByBusinessKey(anyString())).thenReturn(false);
+        when(templates.findFirstByTemplateKeyAndChannelAndLocaleAndStatusOrderByVersionDesc(
+                eq("order-canceled"), anyString(), anyString(), anyString()))
+                .thenReturn(Optional.of(activeTemplate("order-canceled")));
 
         consumer.onOrderEvent(CONFIRMED_EVENT.replace("evt-1", "evt-2")
                 .replace("OrderConfirmed", "OrderCanceled"));
 
-        ArgumentCaptor<NotificationRequest> captor = ArgumentCaptor.forClass(NotificationRequest.class);
-        verify(requests).save(captor.capture());
-        assertThat(captor.getValue().getTemplateKey()).isEqualTo("order-canceled.vi");
-        assertThat(captor.getValue().getSubject()).contains("hủy");
+        NotificationRequest saved = captureSaved();
+        assertThat(saved.getTemplateKey()).isEqualTo("order-canceled");
+    }
+
+    private static String eq(String s) { return org.mockito.ArgumentMatchers.eq(s); }
+
+    @Test
+    @DisplayName("Template ACTIVE khong ton tai: KHONG tao request, vao DLQ TEMPLATE_MISSING")
+    void templateMissing_dlq() {
+        when(inbox.existsByEventIdAndSource("evt-1", "order-service")).thenReturn(false);
+        when(templates.findFirstByTemplateKeyAndChannelAndLocaleAndStatusOrderByVersionDesc(
+                anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(Optional.empty());
+
+        consumer.onOrderEvent(CONFIRMED_EVENT);
+
+        verify(requests, never()).save(any(NotificationRequest.class));
+        verify(deadLetters).save(any());
     }
 
     @Test
-    @DisplayName("Event khac (OrderCreated): khong tao thong bao, nhung van ghi inbox (da xu ly)")
+    @DisplayName("Event khac (OrderCreated): khong tao thong bao, van ghi inbox")
     void unrelatedEvent_skipped() {
+        when(inbox.existsByEventIdAndSource("evt-1", "order-service")).thenReturn(false);
+
         consumer.onOrderEvent(CONFIRMED_EVENT.replace("OrderConfirmed", "OrderCreated"));
 
         verify(requests, never()).save(any(NotificationRequest.class));
-        // Inbox van duoc ghi: event coi nhu da xu ly, event lan 2 khong phai parse lai
         verify(inbox).save(any());
     }
 

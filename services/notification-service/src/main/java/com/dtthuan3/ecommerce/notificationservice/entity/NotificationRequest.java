@@ -34,8 +34,17 @@ public class NotificationRequest {
     @Column(name = "template_key", nullable = false, length = 64) private String templateKey;
     @Column(nullable = false, length = 16) private String purpose;      // TRANSACTIONAL | MARKETING
     @Column(name = "business_key", nullable = false, length = 255) private String businessKey;
+    // Snapshot nguoi nhan (lay luc gui; giu lai de truy vet NOTI-15.2 che PII khi list)
+    @Column(name = "recipient_email", length = 255) private String recipientEmail;
+    @Column(name = "recipient_name", length = 255) private String recipientName;
+    // Snapshot template da chot (NOTI-UC04: version khong doi sau khi tao request)
+    @Column(name = "template_version") private Integer templateVersion;
+    @Column(nullable = false, length = 8) private String locale;
+    /** Bien render luu JSON tai thoi diem tao (orderCode, totalAmount...). */
+    @Column(columnDefinition = "TEXT") private String variables;
+    /** Subject/body render luc gui (sau khi co displayName); null cho den khi render. */
     @Column(length = 255) private String subject;
-    @Column(nullable = false, columnDefinition = "TEXT") private String body;
+    @Column(columnDefinition = "TEXT") private String body;
     @Column(nullable = false, length = 24) private String status;
     @Column(nullable = false) private int attempts;
     @Column(name = "next_attempt_at") private Instant nextAttemptAt;

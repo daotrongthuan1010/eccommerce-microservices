@@ -1,5 +1,11 @@
 package com.dtthuan3.ecommerce.notificationservice.provider;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
@@ -10,20 +16,22 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-import java.time.Instant;
-import java.util.Map;
 
 /**
- * Resolve userId -> email qua Keycloak Admin API (cung pattern KeycloakAdminClient
- * ben auth-service: client_credentials token + GET /admin/realms/{realm}/users/{id}).
- * De trong admin client-id/secret = tat resolve (mail se FAILED_RETRYABLE kem ly do
- * ro rang, khong gui mù). Cache token nhu auth-service.
+ * Resolve userId -> (email, displayName) qua Keycloak Admin API (cung pattern
+ * KeycloakAdminClient cua auth-service: client_credentials + GET /users/{id}).
+ *
+ * Cache userId -> Found/UserNotFound voi TTL: load test 1000 user lap lai 100 lan
+ * se khong goi Keycloak 100k lan. Ket qua loi (Unavailable) khong cache de retry.
  */
 @Slf4j
 @Component
 public class KeycloakRecipientResolver {
 
+    private static final Duration CACHE_TTL = Duration.ofMinutes(10);
+
     private final RestClient restClient;
+    private final ObjectMapper objectMapper;
     private final String serverUrl;
     private final String realm;
     private final String adminClientId;
@@ -33,14 +41,20 @@ public class KeycloakRecipientResolver {
     private volatile String cachedToken;
     private volatile Instant tokenExpiresAt = Instant.EPOCH;
 
+    /** Cache ket qua resolve (chi Found/UserNotFound/NoEmail — ket qua tam thuat khong cache). */
+    private record Cached(RecipientResolveResult result, Instant expiresAt) {}
+    private final Map<String, Cached> cache = new ConcurrentHashMap<>();
+
     public KeycloakRecipientResolver(
             RestClient.Builder restClientBuilder,
+            ObjectMapper objectMapper,
             @Value("${auth.keycloak.server-url:http://162.4.177.91:7080}") String serverUrl,
             @Value("${auth.keycloak.realm:ecommerce}") String realm,
             @Value("${auth.keycloak.admin.client-id:}") String adminClientId,
             @Value("${auth.keycloak.admin.client-secret:}") String adminClientSecret,
             @Value("${auth.keycloak.admin.realm:master}") String adminRealm) {
         this.restClient = restClientBuilder.build();
+        this.objectMapper = objectMapper;
         this.serverUrl = serverUrl;
         this.realm = realm;
         this.adminClientId = adminClientId;
@@ -54,13 +68,30 @@ public class KeycloakRecipientResolver {
     }
 
     /**
-     * Tra email cua user theo userId, hoac null khi khong resolve duoc.
-     * Khac biet quan trong: tra "NOT_FOUND" (String) khi user khong ton tai
-     * (404 — permanent, khong thu lai) vs null khi loi tam thuat (Keycloak down,
-     * chua cau hinh — retryable).
+     * Resolve nguoi nhan theo userId. Ket qua typed:
+     * Found / UserNotFound (permanent) / NoEmail (permanent) / Unavailable (retryable).
      */
-    public String resolveEmail(String userId) {
-        if (!isEnabled() || userId == null || userId.isBlank()) return null;
+    public RecipientResolveResult resolve(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return new RecipientResolveResult.Unavailable("userId rong");
+        }
+        if (!isEnabled()) {
+            return new RecipientResolveResult.Unavailable(
+                    "Chua cau hinh Keycloak admin client (auth.keycloak.admin.client-id/secret)");
+        }
+        Cached hit = cache.get(userId);
+        if (hit != null && Instant.now().isBefore(hit.expiresAt())) {
+            return hit.result();
+        }
+        RecipientResolveResult result = doResolve(userId);
+        if (result instanceof RecipientResolveResult.Unavailable) {
+            return result; // loi tam thuat: khong cache de lan sau retry
+        }
+        cache.put(userId, new Cached(result, Instant.now().plus(CACHE_TTL)));
+        return result;
+    }
+
+    private RecipientResolveResult doResolve(String userId) {
         try {
             Map<String, Object> user = restClient
                     .get()
@@ -68,17 +99,36 @@ public class KeycloakRecipientResolver {
                     .headers(h -> h.setBearerAuth(adminToken()))
                     .retrieve()
                     .body(new ParameterizedTypeReference<Map<String, Object>>() {});
-            if (user == null) return null;
-            Object email = user.get("email");
-            return email == null ? null : String.valueOf(email);
-        } catch (RestClientException e) {
-            // 404 = user chac chan khong ton tai -> permanent (NOTI-06: dia chi sai khong thu lai)
-            if (e instanceof HttpClientErrorException.NotFound) {
-                return "NOT_FOUND";
+            if (user == null || user.get("id") == null) {
+                return new RecipientResolveResult.UserNotFound();
             }
-            log.warn("[MAIL] Resolve email userId={} that bai: {}", userId, e.getMessage());
-            return null;
+            String email = user.get("email") == null ? null : String.valueOf(user.get("email"));
+            String displayName = displayName(user);
+            if (email == null || email.isBlank()) {
+                return new RecipientResolveResult.NoEmail(displayName);
+            }
+            return new RecipientResolveResult.Found(email, displayName);
+        } catch (HttpClientErrorException.NotFound e) {
+            return new RecipientResolveResult.UserNotFound();
+        } catch (RestClientException e) {
+            log.warn("[MAIL] Resolve userId={} loi tam thuat: {}", userId, e.getMessage());
+            return new RecipientResolveResult.Unavailable(e.getMessage());
         }
+    }
+
+    /** displayName = firstName + lastName, fallback username, fallback userId. */
+    private static String displayName(Map<String, Object> user) {
+        String first = text(user.get("firstName"));
+        String last = text(user.get("lastName"));
+        if (first != null && last != null) return first + " " + last;
+        if (first != null) return first;
+        if (last != null) return last;
+        String username = text(user.get("username"));
+        return username != null ? username : text(user.get("id"));
+    }
+
+    private static String text(Object v) {
+        return v == null ? null : String.valueOf(v);
     }
 
     private synchronized String adminToken() {
