@@ -66,16 +66,7 @@ public class CategoryServiceImpl implements CategoryService {
                 saved.getId(),
                 saved.getRevision(),
                 "CATEGORY_CREATED",
-                Map.of(
-                        "categoryId", saved.getId(),
-                        "parentId", saved.getParentId(),
-                        "name", saved.getName(),
-                        "slug", saved.getSlug(),
-                        "description", saved.getDescription(),
-                        "imageObjectKey", saved.getImageObjectKey(),
-                        "displayOrder", saved.getDisplayOrder(),
-                        "status", saved.getStatus().name()
-                )
+                categoryPayload(saved)
         );
 
         evictCategoryCaches(
@@ -256,16 +247,7 @@ public class CategoryServiceImpl implements CategoryService {
                 updated.getId(),
                 updated.getRevision(),
                 "CATEGORY_UPDATED",
-                Map.of(
-                        "categoryId", updated.getId(),
-                        "parentId", updated.getParentId(),
-                        "name", updated.getName(),
-                        "slug", updated.getSlug(),
-                        "description", updated.getDescription(),
-                        "imageObjectKey", updated.getImageObjectKey(),
-                        "displayOrder", updated.getDisplayOrder(),
-                        "status", updated.getStatus().name()
-                )
+                categoryPayload(updated)
         );
 
         evictCategoryCaches(
@@ -533,5 +515,31 @@ public class CategoryServiceImpl implements CategoryService {
                             + parentId
             );
         }
+    }
+
+    /**
+     * Payload outbox null-safe cho Category: Map.of() ném NPE khi parentId/
+     * description/imageObjectKey null (danh mục gốc, chưa có ảnh) — bug làm
+     * POST /categories 500 với mọi request. HashMap chấp nhận null.
+     */
+    private Map<String, Object> categoryPayload(Category category) {
+
+        Map<String, Object> payload = new HashMap<>();
+
+        payload.put("categoryId", category.getId());
+        payload.put("parentId", category.getParentId());
+        payload.put("name", category.getName());
+        payload.put("slug", category.getSlug());
+        payload.put("description", category.getDescription());
+        payload.put("imageObjectKey", category.getImageObjectKey());
+        payload.put("displayOrder", category.getDisplayOrder());
+        payload.put(
+                "status",
+                category.getStatus() != null
+                        ? category.getStatus().name()
+                        : null
+        );
+
+        return payload;
     }
 }

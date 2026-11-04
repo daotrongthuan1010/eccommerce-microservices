@@ -18,6 +18,7 @@ public class CategoryMapper {
         category.setName(request.getName());
         category.setSlug(request.getSlug());
         category.setDescription(request.getDescription());
+        category.setImageObjectKey(request.getImageObjectKey());
         category.setDisplayOrder(request.getDisplayOrder());
         category.setStatus(request.getStatus());
 
