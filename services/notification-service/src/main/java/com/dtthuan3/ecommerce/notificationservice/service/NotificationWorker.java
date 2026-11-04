@@ -108,13 +108,10 @@ public class NotificationWorker {
         }
     }
 
-    /** Mot vong quet: lay batch due va dispatch song song cho sendPool. */
+    /** Mot vong quet: lay batch due (LIMIT trong DB) va dispatch song song cho sendPool. */
     int pollOnce() {
-        List<NotificationRequest> due = requests.findDueBatch(Instant.now(), props.getWorker().getBatchSize());
-        // Gioi han batch tai Java de tranh doc qua nhieu (findDueBatch khong limit trong SQL de don gian)
-        if (due.size() > props.getWorker().getBatchSize()) {
-            due = due.subList(0, props.getWorker().getBatchSize());
-        }
+        List<NotificationRequest> due = requests.findDueBatch(Instant.now(),
+                org.springframework.data.domain.PageRequest.of(0, props.getWorker().getBatchSize()));
         if (due.isEmpty()) return 0;
         log.debug("Quet duoc {} request due", due.size());
         for (NotificationRequest request : due) {
