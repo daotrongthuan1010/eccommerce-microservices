@@ -117,7 +117,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        service: [inventory-service, order-service, payment-service]
+        service: [inventory-service, order-service, payment-service, shipping-service, fake-gateway-service]
     steps:
       - uses: actions/checkout@v4
         with:

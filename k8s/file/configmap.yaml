@@ -13,7 +13,7 @@ data:
   EUREKA_HOSTNAME: "file-service"
   EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
   MINIO_ENDPOINT: "http://minio:9000"
-  MINIO_PUBLIC_ENDPOINT: "http://162.4.177.91:9000"
+  MINIO_PUBLIC_ENDPOINT: "https://files.shop-hatd.online"
   MINIO_BUCKET: "ecommerce-files"
   CLAMAV_HOST: "clamav"
   CLAMAV_PORT: "3310"

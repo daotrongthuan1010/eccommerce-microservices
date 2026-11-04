@@ -247,6 +247,21 @@
             <scope>compile</scope>
         </dependency>
 
+        <dependency>
+            <groupId>com.dtthuan3.ecommerce</groupId>
+            <artifactId>common</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <!-- JwtRoleConverter + SecurityFilterChain mặc định + @EnableMethodSecurity -->
+        <dependency>
+            <groupId>com.dtthuan3.ecommerce</groupId>
+            <artifactId>common-security</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+
 
         <!--
             KHÔNG dependency trực tiếp tới file-service.

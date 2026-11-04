@@ -3,6 +3,7 @@ package com.dtthuan3.ecommerce.reviewservice.entity;
 import com.dtthuan3.ecommerce.reviewservice.enums.ReviewStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.OptimisticLock;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -49,16 +50,27 @@ public class Review {
     @Column(length = 30, nullable = false)
     private ReviewStatus status;
 
+    /** Hiển thị ẩn danh (che tên) hay không. */
+    @Column(name = "anonymous")
+    private Boolean anonymous;
+
+    /** Số sao của bản ĐÃ CÔNG KHAI (hoặc bản chờ duyệt nếu chưa từng công khai). */
     @Column(name = "rating")
     private Integer rating;
+    /** Có ảnh/video (bản đang công khai) - phục vụ bộ lọc "Có hình ảnh / video". */
     @Column(name = "has_photo", nullable = false)
     private Boolean hasPhoto;
+    /** Có nội dung chữ (bản đang công khai) - phục vụ bộ lọc "Có bình luận". */
+    @Column(name = "has_comment")
+    private Boolean hasComment;
 
     @Column(name = "published_revision_id", columnDefinition = "CHAR(36)")
     private String publishedRevisionId;
 
     @Column(name = "latest_revision_no", nullable = false)
     private Integer latestRevisionNo;
+    /** Cập nhật bằng UPDATE nguyên tử, KHÔNG được làm tăng @Version của review. */
+    @OptimisticLock(excluded = true)
     @Column(name = "helpful_count", nullable = false)
     private Integer helpfulCount;
 

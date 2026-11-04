@@ -3,6 +3,8 @@ package com.dtthuan3.ecommerce.reviewservice.entity;
 import com.dtthuan3.ecommerce.reviewservice.enums.OutboxStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -33,9 +35,15 @@ public class OutboxEvent {
     @Column(name = "aggregate_version", nullable = false) private Long aggregateVersion;
     @Column(name = "event_type", nullable = false) private String eventType;
     @Column(name = "schema_version", nullable = false) private Integer schemaVersion;
-    @Column(columnDefinition = "JSON", nullable = false) private String payload;
+    /** jsonb + JdbcTypeCode: nếu để String thường Postgres báo "column is of type json but expression is of type varchar". */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb", nullable = false) private String payload;
 
     @Enumerated(EnumType.STRING) @Column(length = 20, nullable = false) private OutboxStatus status;
+    @Column(name = "correlation_id", length = 64) private String correlationId;
+    @Column(name = "causation_id", length = 64) private String causationId;
+    @Column(name = "retry_count") private Integer retryCount;
+    @Column(name = "sent_at") private LocalDateTime sentAt;
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false) private LocalDateTime createdAt;
 }

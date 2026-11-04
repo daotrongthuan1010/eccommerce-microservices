@@ -57,6 +57,8 @@ runs:
             inputs.service == 'inventory-service' && 'k8s/inventory/' || '' }}${{
             inputs.service == 'order-service' && 'k8s/order/' || '' }}${{
             inputs.service == 'payment-service' && 'k8s/payment/' || '' }}${{
+            inputs.service == 'shipping-service' && 'k8s/shipping/' || '' }}${{
+            inputs.service == 'fake-gateway-service' && 'k8s/fake-gateway/' || '' }}${{
             inputs.service == 'notification-service' && 'k8s/notification/' || '' }}${{
             inputs.service == 'search-service' && 'k8s/search/' || '' }}${{
             inputs.service == 'product-service' && 'k8s/product/' || '' }}${{
@@ -89,6 +91,7 @@ runs:
           INVENTORY_DB_PASSWORD=local_inventory_change_me
           ORDER_DB_PASSWORD=local_order_change_me
           PAYMENT_DB_PASSWORD=local_payment_change_me
+          SHIPPING_DB_PASSWORD=local_shipping_change_me
           NOTIFICATION_DB_PASSWORD=local_notification_change_me
           PRODUCT_DB_PASSWORD=local_product_change_me
           REVIEW_DB_PASSWORD=local_review_change_me
@@ -132,6 +135,7 @@ runs:
             inventory-service)  DBPW="$INVENTORY_DB_PASSWORD"    ; NEEDS_DB=yes; NEEDS_REDIS=yes; NEEDS_MINIO=no ;;
             order-service)      DBPW="$ORDER_DB_PASSWORD"        ; NEEDS_DB=yes; NEEDS_REDIS=yes; NEEDS_MINIO=no ;;
             payment-service)    DBPW="$PAYMENT_DB_PASSWORD"      ; NEEDS_DB=yes; NEEDS_REDIS=yes; NEEDS_MINIO=no ;;
+            shipping-service)   DBPW="$SHIPPING_DB_PASSWORD"     ; NEEDS_DB=yes; NEEDS_REDIS=yes; NEEDS_MINIO=no ;;
             notification-service) DBPW="$NOTIFICATION_DB_PASSWORD"; NEEDS_DB=yes; NEEDS_REDIS=yes; NEEDS_MINIO=no ;;
             product-service)    DBPW="$PRODUCT_DB_PASSWORD"      ; NEEDS_DB=yes; NEEDS_REDIS=yes; NEEDS_MINIO=yes ;;
             review-service)     DBPW="$REVIEW_DB_PASSWORD"       ; NEEDS_DB=yes; NEEDS_REDIS=yes; NEEDS_MINIO=no ;;

@@ -1,5 +1,6 @@
 package com.dtthuan3.ecommerce.reviewservice.dto.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.*;
 import java.util.List;
@@ -24,8 +25,8 @@ public class ReviewRequest {
     @Size(max = 3000, message = "Nội dung không được vượt quá 3000 ký tự")
     private String content;
 
-    @Size(max = 5, message = "Chỉ được đính kèm tối đa 5 ảnh")
-    private List<String> fileIds;
+    @Valid
+    private List<ReviewMediaRequest> media;
 
     // Tùy chọn ẩn danh (true = che tên, false = hiện tên thật)
     private Boolean isAnonymous;
