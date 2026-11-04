@@ -79,9 +79,10 @@ notification:
     max-backoff: 10m
   worker:
     poll-interval-ms: 2000
-    batch-size: 100
-    # 4 threads thay vi 8: moi thread giu JPA + Keycloak client + SMTP connection;
-    # 8 threads da gay OOM khi don backlog trong limit 768Mi.
+    # 30 x 4 threads = 120 tx toi da dang mo (hikari pool 5) — batch 100 da gay
+    # RAM phinh khi drain (400 tx/giay xep hang, entity snapshot dongs trong heap).
+    batch-size: 30
+    # 4 threads thay vi 8: moi thread giu JPA + Keycloak client + SMTP connection.
     concurrency: 4
 
 auth:

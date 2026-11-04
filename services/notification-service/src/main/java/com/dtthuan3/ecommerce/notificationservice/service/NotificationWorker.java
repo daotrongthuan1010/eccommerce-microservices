@@ -86,21 +86,35 @@ public class NotificationWorker {
 
     /** Mot vong quet: lay batch due (LIMIT trong DB) va dispatch song song cho sendPool.
      *  Kem recovery: request SENDING "ma" (pod crash giu transaction) duoc
-     *  chuyen lai QUEUED de xu ly lai — chong kec vinh vien. */
+     *  chuyen lai QUEUED de xu ly lai — chong kec vinh vien.
+     *  BACKPRESSURE: doi batch nay xu ly xong (CompletableFuture.allOf) truoc khi
+     *  poll batch sau — khong submit 400 tx/giay vao 5 connection hikari lam
+     *  RAM phinh (da gay OOMKilled 4 lan: 384/512/768/1024Mi). */
     int pollOnce() {
         int processed = recoverStaleSending();
         List<NotificationRequest> due = requests.findDueBatch(Instant.now(),
                 PageRequest.of(0, props.getWorker().getBatchSize()));
         if (due.isEmpty()) return processed;
         log.debug("Quet duoc {} request due", due.size());
+        List<java.util.concurrent.CompletableFuture<Void>> futures = new java.util.ArrayList<>(due.size());
         for (NotificationRequest request : due) {
-            sendPool.submit(() -> {
+            futures.add(java.util.concurrent.CompletableFuture.runAsync(() -> {
                 try {
                     processor.processOne(request.getId());
                 } catch (Exception e) {
                     log.error("Xu ly request {} loi: {}", request.getId(), e.getMessage(), e);
                 }
-            });
+            }, sendPool));
+        }
+        // Cho batch xong het (co timeout de khong keo vinh vien) roi moi poll tiep —
+        // han che so transaction dang mo dong thoi = han che RAM
+        try {
+            java.util.concurrent.CompletableFuture.allOf(futures.toArray(new java.util.concurrent.CompletableFuture[0]))
+                    .get(5, TimeUnit.MINUTES);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            log.warn("Cho batch xong bi gian doan: {}", e.getMessage());
         }
         return processed + due.size();
     }
