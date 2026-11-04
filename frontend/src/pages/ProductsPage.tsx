@@ -1,124 +1,109 @@
+import { Input, Pagination, Segmented, Select, Space, Typography } from 'antd';
 import { useEffect, useState } from 'react';
-import { App, Button, Card, Form, Input, Space } from 'antd';
-import { Link } from 'react-router-dom';
-import {
-  useCreateProductDraftMutation,
-  useGetProductQuery,
-  type Product,
-} from '../features/product/productApi';
-import {
-  PageHeader,
-  FilterBar,
-  DataTable,
-  ApiErrorAlert,
-  StatusTag,
-} from '../components/ui';
+import { useSearchParams } from 'react-router-dom';
+import { useBrowseProductsQuery } from '../features/marketplace/browseApi';
+import { useGetCategoriesQuery } from '../features/catalog/catalogApi';
+import { ProductCardGrid } from '../components/marketplace/ProductCardGrid';
+import { ApiErrorAlert } from '../components/ui';
 
-// Wave 2 task 2.2 — ProductsPage. Backend chưa có GET list product
-// (contract §5 chỉ có draft-create + detail) nên page tra cứu detail theo
-// ID, tạo draft (→ 201 CREATED) và giữ session list hiển thị qua DataTable.
+// Marketplace ProductsPage (2026-11-05 fe-marketplace D2, spec customer/02):
+// tim kiem + loc danh muc + sort + paging — kieu trang search Shopee/Tiki.
+// Query nam tren URL (?q=&categoryId=&sort=&page=) de share duoc link.
 const PAGE_SIZE = 20;
 
 export function ProductsPage() {
-  const { message } = App.useApp();
-  const [form] = Form.useForm();
-  const [lookupId, setLookupId] = useState('');
-  const [submittedId, setSubmittedId] = useState('');
-  const [items, setItems] = useState<Product[]>([]);
-  const [page, setPage] = useState(0);
-  const [createDraft, createState] = useCreateProductDraftMutation();
-  const fetchState = useGetProductQuery(submittedId, { skip: !submittedId });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [keywordInput, setKeywordInput] = useState(searchParams.get('q') ?? '');
 
-  const err =
-    (createState.error as { message?: string } | undefined)?.message ??
-    (fetchState.error as { message?: string } | undefined)?.message;
+  const q = searchParams.get('q') ?? undefined;
+  const categoryId = searchParams.get('categoryId') ?? undefined;
+  const sort = (searchParams.get('sort') ?? 'newest') as 'newest' | 'price_asc' | 'price_desc';
+  const page = Math.max(0, Number(searchParams.get('page') ?? 0));
 
-  const upsert = (p: Product) =>
-    setItems((prev) => (prev.some((x) => x.id === p.id) ? prev.map((x) => (x.id === p.id ? p : x)) : [p, ...prev]));
+  const browseQ = useBrowseProductsQuery({
+    page,
+    size: PAGE_SIZE,
+    keyword: q,
+    categoryId,
+    sort,
+  });
+  const categoriesQ = useGetCategoriesQuery();
 
-  const onLookup = () => {
-    if (lookupId.trim()) setSubmittedId(lookupId.trim());
-  };
-
+  // Dong bo o search header (MarketplaceLayout) khi user sua URL tay.
   useEffect(() => {
-    if (fetchState.data?.data) upsert(fetchState.data.data);
-  }, [fetchState.data]);
+    setKeywordInput(q ?? '');
+  }, [q]);
 
-  const onCreateDraft = async (values: { name: string }) => {
-    try {
-      const res = await createDraft({ name: values.name, status: 'DRAFT' }).unwrap();
-      upsert(res.data);
-      form.resetFields();
-      message.success(`Đã tạo draft (201 ${res.code ?? 'CREATED'})`);
-    } catch {
-      message.error('Tạo draft thất bại');
-    }
+  const products = browseQ.data?.data?.content ?? [];
+  const total = browseQ.data?.data?.totalElements ?? 0;
+
+  const setParam = (key: string, value?: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    if (key !== 'page') next.delete('page'); // doi filter ve trang 1
+    setSearchParams(next, { replace: true });
   };
 
-  const visible = items.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  const err = (browseQ.error as { message?: string } | undefined)?.message;
+  const activeCategory = categoryId ?? '';
 
   return (
     <div>
-      <PageHeader title="Sản phẩm" subTitle="Tra cứu theo ID + tạo draft (chưa có API list)" />
-      <ApiErrorAlert message={err ?? null} />
-      <FilterBar>
-        <Input
-          placeholder="Nhập productId để tra cứu"
-          value={lookupId}
-          onChange={(e) => setLookupId(e.target.value)}
-          onPressEnter={onLookup}
-          style={{ width: 320 }}
+      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+        <Space wrap style={{ justifyContent: 'space-between', width: '100%' }}>
+          <Input.Search
+            placeholder="Tìm trong kết quả..."
+            defaultValue={q}
+            onSearch={(v) => setParam('q', v || undefined)}
+            style={{ maxWidth: 360 }}
+            allowClear
+            value={keywordInput}
+            onChange={(e) => setKeywordInput(e.target.value)}
+          />
+          <Segmented
+            value={sort}
+            onChange={(v) => setParam('sort', String(v))}
+            options={[
+              { label: 'Mới nhất', value: 'newest' },
+              { label: 'Giá ↑', value: 'price_asc' },
+              { label: 'Giá ↓', value: 'price_desc' },
+            ]}
+          />
+        </Space>
+
+        <Select
+          style={{ minWidth: 220 }}
+          placeholder="Tất cả danh mục"
+          value={activeCategory || undefined}
+          onChange={(v) => setParam('categoryId', v || undefined)}
+          allowClear
+          options={(categoriesQ.data?.data ?? []).map((c) => ({
+            value: String(c.id),
+            label: String(c.name),
+          }))}
         />
-        <Button type="primary" onClick={onLookup} loading={fetchState.isFetching}>
-          Tra cứu detail
-        </Button>
-      </FilterBar>
-      <Card size="small" title="Tạo draft (POST /api/product/products → 201 CREATED)" style={{ marginBottom: 16 }}>
-        <Form form={form} layout="inline" onFinish={onCreateDraft}>
-          <Form.Item name="name" rules={[{ required: true, message: 'Nhập tên sản phẩm' }]}>
-            <Input placeholder="Tên sản phẩm" style={{ width: 280 }} />
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit" loading={createState.isLoading}>
-              Tạo draft
-            </Button>
-          </Form.Item>
-        </Form>
-      </Card>
-      <DataTable
-        columns={[
-          { title: 'ID', dataIndex: 'id', key: 'id', width: 160 },
-          {
-            title: 'Tên',
-            dataIndex: 'name',
-            key: 'name',
-            render: (v: unknown, r: Product) => <Link to={`/products/${String(r.id)}`}>{String(v ?? r.id)}</Link>,
-          },
-          {
-            title: 'Trạng thái',
-            dataIndex: 'status',
-            key: 'status',
-            width: 140,
-            render: (v: string) => (v ? <StatusTag status={v} /> : '-'),
-          },
-          {
-            title: 'Thao tác',
-            key: 'action',
-            width: 140,
-            render: (_: unknown, r: Product) => (
-              <Space>
-                <Link to={`/products/${String(r.id)}`}>Chi tiết</Link>
-              </Space>
-            ),
-          },
-        ]}
-        data={visible}
-        loading={fetchState.isFetching}
-        total={items.length}
-        page={page}
-        onPageChange={setPage}
-        rowKey="id"
-      />
+
+        <ApiErrorAlert message={err ?? null} />
+        {q && (
+          <Typography.Text type="secondary">
+            Kết quả cho “{q}” — {total} sản phẩm
+          </Typography.Text>
+        )}
+
+        <ProductCardGrid products={products} loading={browseQ.isLoading} />
+
+        {total > PAGE_SIZE && (
+          <Pagination
+            current={page + 1}
+            pageSize={PAGE_SIZE}
+            total={total}
+            showSizeChanger={false}
+            onChange={(p) => setParam('page', String(p - 1))}
+            style={{ justifyContent: 'center', display: 'flex' }}
+          />
+        )}
+      </Space>
     </div>
   );
 }

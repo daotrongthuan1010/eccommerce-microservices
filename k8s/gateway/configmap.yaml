@@ -25,6 +25,10 @@ data:
   FILE_SERVICE_URL: "lb://file-service"
   KEYCLOAK_JWK_SET_URI: "https://auth.shop-hatd.online/realms/ecommerce/protocol/openid-connect/certs"
   KEYCLOAK_ISSUER_URI: "https://auth.shop-hatd.online/realms/ecommerce"
+  # 2026-11-05 fe-marketplace: FE chinh thuc chay tai https://shop-hatd.online
+  # (cung origin voi gateway → browser khong con goi cross-origin, nhung giu
+  # cac origin DEV cho local). Truoc day chi co http://162.4.177.91:8096.
+  GATEWAY_CORS_ALLOWED_ORIGINS: "https://shop-hatd.online,http://162.4.177.91:8096,http://localhost:5173,http://localhost:3000"
   IAM_ENRICHMENT_ENABLED: "true"
   IAM_ENRICHMENT_TIMEOUT_MS: "800"
   ZIPKIN_ENDPOINT: "http://tempo:9411/api/v2/spans"
