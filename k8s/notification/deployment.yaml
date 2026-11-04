@@ -45,6 +45,13 @@ spec:
                 secretKeyRef:
                   name: notification-secrets
                   key: redis-password
+            # Dung lai secret keycloak-admin-client-secret cua auth-secrets
+            # (service account ecommerce-admin, role view-users) de resolve email.
+            - name: KEYCLOAK_ADMIN_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-secrets
+                  key: keycloak-admin-client-secret
           resources:
             requests:
               cpu: 50m

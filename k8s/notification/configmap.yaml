@@ -23,6 +23,8 @@ data:
   MAILPIT_SMTP_HOST: "mailpit"
   MAILPIT_SMTP_PORT: "1025"
   NOTIFICATION_FROM: "shop@shop-hatd.online"
-  # Resolve userId -> email qua Keycloak Admin API (service account view-users).
-  # Secret KEYCLOAK_ADMIN_CLIENT_ID/SECRET nam trong notification-secrets.
+  # Resolve userId -> email qua Keycloak Admin API (dung lai service account
+  # ecommerce-admin cua auth-service, role view-users).
   KEYCLOAK_SERVER_URL: "http://162.4.177.91:7080"
+  KEYCLOAK_ADMIN_CLIENT_ID: "ecommerce-admin"
+  KEYCLOAK_ADMIN_REALM: "master"
