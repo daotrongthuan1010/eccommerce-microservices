@@ -1,5 +1,4 @@
-package com.dtthuan3.ecommerce.reviewservice.util;
-
+package com.dtthuan3.ecommerce.reviewservice.Util;
 
 import com.dtthuan3.ecommerce.common.exception.BusinessException;
 import com.dtthuan3.ecommerce.common.exception.ErrorCode;

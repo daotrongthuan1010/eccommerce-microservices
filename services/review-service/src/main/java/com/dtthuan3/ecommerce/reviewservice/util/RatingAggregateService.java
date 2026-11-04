@@ -1,5 +1,6 @@
-package com.dtthuan3.ecommerce.reviewservice.util;
+package com.dtthuan3.ecommerce.reviewservice.Util;
 
+import com.dtthuan3.ecommerce.reviewservice.Util.OutboxWriter;
 import com.dtthuan3.ecommerce.reviewservice.entity.RatingAggregate;
 import com.dtthuan3.ecommerce.reviewservice.repository.RatingAggregateRepository;
 import lombok.RequiredArgsConstructor;
