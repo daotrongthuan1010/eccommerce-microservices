@@ -1,6 +1,10 @@
 package com.dtthuan3.ecommerce.inventoryservice.entity;
 
-/** Các loại nghiệp vụ được lưu trong lịch sử StockMovement của Inventory. */
+/**
+ * Các loại nghiệp vụ được lưu trong lịch sử StockMovement của Inventory.
+ * Enum này giới hạn các giá trị nghiệp vụ hợp lệ để entity, repository và service dùng chung một tập giá
+ * trị thay vì truyền chuỗi tùy ý.
+ */
 public enum MovementType {
 
     /** Hàng được nhập vào tồn vật lý. */

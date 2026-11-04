@@ -64,6 +64,30 @@ public class StockMovement {
     @Column(name = "reserved_after", nullable = false, precision = 19, scale = 4)
     private BigDecimal reservedAfter;
 
+    /** Số lượng defective trước/sau movement; null chỉ có thể xuất hiện ở bản ghi lịch sử cũ. */
+    @Column(name = "defective_before", precision = 19, scale = 4)
+    private BigDecimal defectiveBefore;
+    @Column(name = "defective_after", precision = 19, scale = 4)
+    private BigDecimal defectiveAfter;
+
+    /** Số lượng pending trước/sau movement; giúp kiểm toán hàng trả và phân loại chất lượng. */
+    @Column(name = "pending_before", precision = 19, scale = 4)
+    private BigDecimal pendingBefore;
+    @Column(name = "pending_after", precision = 19, scale = 4)
+    private BigDecimal pendingAfter;
+
+    /** Số lượng in-transit trước/sau movement; dùng đối soát hai đầu điều chuyển. */
+    @Column(name = "in_transit_before", precision = 19, scale = 4)
+    private BigDecimal inTransitBefore;
+    @Column(name = "in_transit_after", precision = 19, scale = 4)
+    private BigDecimal inTransitAfter;
+
+    /** Version dòng tồn trước/sau; versionAfter là mốc snapshot để đối soát với inventory hiện tại. */
+    @Column(name = "inventory_version_before")
+    private Long inventoryVersionBefore;
+    @Column(name = "inventory_version_after")
+    private Long inventoryVersionAfter;
+
     /** Thông tin đối soát với đơn hàng, phiếu nhập hoặc mã giao dịch chuyển kho. */
     /** Loại đối tượng tham chiếu, ví dụ đơn hàng, phiếu nhập hoặc giao dịch chuyển kho. */
     @Column(name = "reference_type", length = 50)
@@ -90,4 +114,17 @@ public class StockMovement {
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    /** Điền snapshot đầy đủ từ hai dòng tồn đã được khóa trước khi ghi movement. */
+    public StockMovement withBalanceSnapshot(Inventory before, Inventory after) {
+        this.defectiveBefore = before.getDefectiveQuantity();
+        this.defectiveAfter = after.getDefectiveQuantity();
+        this.pendingBefore = before.getPendingQuantity();
+        this.pendingAfter = after.getPendingQuantity();
+        this.inTransitBefore = before.getInTransitQuantity();
+        this.inTransitAfter = after.getInTransitQuantity();
+        this.inventoryVersionBefore = before.getVersion();
+        this.inventoryVersionAfter = after.getVersion();
+        return this;
+    }
 }

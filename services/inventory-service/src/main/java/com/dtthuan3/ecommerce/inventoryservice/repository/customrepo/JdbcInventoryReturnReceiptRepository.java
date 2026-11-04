@@ -11,31 +11,79 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-/** Adapter JDBC khóa hạn mức theo dòng trả để chống nhận vượt lượng duyệt khi có request đồng thời. */
+/**
+ * Adapter JDBC khóa hạn mức theo dòng trả để chống nhận vượt lượng duyệt khi có request đồng thời.
+ * Class/interface này chứa hợp đồng hoặc phần thực thi truy vấn SQL/JDBC tùy chỉnh như khóa dòng, cập nhật có điều kiện và phân trang; repository tập trung thao tác dữ liệu, không điều phối toàn bộ use case.
+ */
 @Repository
 @RequiredArgsConstructor
 public class JdbcInventoryReturnReceiptRepository implements InventoryReturnReceiptRepository {
     private final JdbcTemplate jdbcTemplate;
 
     @Override
-    public ReturnLineProgress lockOrCreateProgress(String returnRequestId, String orderLineId,
-                                                   BigDecimal approvedQuantity) {
-        jdbcTemplate.update("""
-                INSERT INTO inventory_return_line_progress (
-                    id, return_request_id, order_line_id, approved_quantity, received_quantity,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                ON CONFLICT (return_request_id, order_line_id) DO NOTHING
-                """, UUID.randomUUID().toString(), returnRequestId, orderLineId, approvedQuantity);
-
-        return jdbcTemplate.queryForObject("""
-                SELECT approved_quantity, received_quantity
+    public Optional<ReturnLineProgress> lockProgress(String returnRequestId, String orderLineId) {
+        List<ReturnLineProgress> rows = jdbcTemplate.query("""
+                SELECT enterprise_id, sku, approved_quantity, received_quantity, source_version, approval_event_id
                 FROM inventory_return_line_progress
                 WHERE return_request_id = ? AND order_line_id = ?
                 FOR UPDATE
-                """, (resultSet, rowNumber) -> new ReturnLineProgress(
-                resultSet.getBigDecimal("approved_quantity"),
-                resultSet.getBigDecimal("received_quantity")), returnRequestId, orderLineId);
+                """, (rs, row) -> new ReturnLineProgress(rs.getString("enterprise_id"), rs.getString("sku"),
+                rs.getBigDecimal("approved_quantity"), rs.getBigDecimal("received_quantity"),
+                (Long) rs.getObject("source_version"), rs.getString("approval_event_id")),
+                returnRequestId, orderLineId);
+        return rows.stream().findFirst();
+    }
+
+    /** Áp dụng projection phê duyệt theo version, khóa dòng để serialize event đến cùng order line. */
+    @Override
+    public ApprovalApplyResult applyApproval(ApprovedReturnLine approval) {
+        jdbcTemplate.update("""
+                INSERT INTO inventory_return_line_progress (
+                    id, return_request_id, order_line_id, enterprise_id, sku, approved_quantity,
+                    received_quantity, source_version, approval_event_id, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT (return_request_id, order_line_id) DO NOTHING
+                """, UUID.randomUUID().toString(), approval.returnRequestId(), approval.orderLineId(),
+                approval.enterpriseId(), approval.sku(), approval.approvedQuantity(),
+                approval.sourceVersion(), approval.approvalEventId());
+
+        ReturnLineProgress current = lockProgress(approval.returnRequestId(), approval.orderLineId()).orElse(null);
+        if (current == null) return ApprovalApplyResult.CONFLICT;
+
+        // Bản ghi legacy từng được khởi tạo từ request chỉ được thay bằng nguồn phê duyệt thật khi chưa nhận hàng.
+        if (current.sourceVersion() == null || current.approvalEventId() == null) {
+            if (current.receivedQuantity().signum() > 0) return ApprovalApplyResult.CONFLICT;
+            updateApproval(approval);
+            return ApprovalApplyResult.APPLIED;
+        }
+        if (approval.sourceVersion() < current.sourceVersion()) return ApprovalApplyResult.STALE;
+        if (approval.sourceVersion() == current.sourceVersion()) {
+            return sameApproval(current, approval) ? ApprovalApplyResult.DUPLICATE : ApprovalApplyResult.CONFLICT;
+        }
+        if (!current.enterpriseId().equals(approval.enterpriseId())
+                || !current.sku().equals(approval.sku())
+                || approval.approvedQuantity().compareTo(current.receivedQuantity()) < 0) {
+            return ApprovalApplyResult.CONFLICT;
+        }
+        updateApproval(approval);
+        return ApprovalApplyResult.APPLIED;
+    }
+
+    private boolean sameApproval(ReturnLineProgress current, ApprovedReturnLine approval) {
+        return current.enterpriseId().equals(approval.enterpriseId())
+                && current.sku().equals(approval.sku())
+                && current.approvedQuantity().compareTo(approval.approvedQuantity()) == 0;
+    }
+
+    private void updateApproval(ApprovedReturnLine approval) {
+        jdbcTemplate.update("""
+                UPDATE inventory_return_line_progress
+                SET enterprise_id = ?, sku = ?, approved_quantity = ?, source_version = ?,
+                    approval_event_id = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE return_request_id = ? AND order_line_id = ?
+                """, approval.enterpriseId(), approval.sku(), approval.approvedQuantity(),
+                approval.sourceVersion(), approval.approvalEventId(),
+                approval.returnRequestId(), approval.orderLineId());
     }
 
     @Override

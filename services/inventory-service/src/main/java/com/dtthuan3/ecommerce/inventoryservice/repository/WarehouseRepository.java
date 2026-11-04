@@ -17,8 +17,17 @@ public interface WarehouseRepository {
     /** Đọc và khóa chia sẻ dòng kho trong transaction trước thao tác ghi tồn. */
     Optional<WarehouseRecord> findByIdForShare(String warehouseId);
 
-    /** Liệt kê kho theo enterprise, sắp xếp ổn định theo mã để hiển thị. */
-    List<WarehouseRecord> findByEnterpriseId(String enterpriseId);
+    /** Đọc danh sách nhỏ có giới hạn để tránh tải toàn bộ kho vào bộ nhớ. */
+    List<WarehouseRecord> findByEnterpriseId(String enterpriseId, int limit);
+
+    /** Đọc một trang kho; offset/limit được ràng buộc ở lớp service/controller. */
+    List<WarehouseRecord> findPageByEnterpriseId(String enterpriseId, int limit, long offset);
+
+    /** Đếm số kho của một enterprise để tạo metadata phân trang. */
+    long countByEnterpriseId(String enterpriseId);
+
+    /** Keyset pagination theo thứ tự code/id, không phụ thuộc offset lớn hoặc COUNT(*). */
+    List<WarehouseRecord> findAfterByEnterpriseId(String enterpriseId, String afterCode, String afterId, int limit);
 
     /** Tạo bản ghi kho; unique constraint của database chặn trùng ID hoặc mã trong enterprise. */
     void insert(WarehouseRecord warehouse);

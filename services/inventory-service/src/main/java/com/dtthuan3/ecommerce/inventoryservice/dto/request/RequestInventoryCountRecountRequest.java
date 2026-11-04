@@ -5,7 +5,12 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
-/** Thông tin người duyệt yêu cầu nhân viên xác minh và đếm lại phiên kiểm kê. */
+/**
+ * Thông tin người duyệt yêu cầu nhân viên xác minh và đếm lại phiên kiểm kê.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record RequestInventoryCountRecountRequest(
         /** Khóa chống gửi lại cùng thao tác; mỗi yêu cầu đếm lại phải có operationId riêng. */
         @NotBlank(message = "operationId là bắt buộc")

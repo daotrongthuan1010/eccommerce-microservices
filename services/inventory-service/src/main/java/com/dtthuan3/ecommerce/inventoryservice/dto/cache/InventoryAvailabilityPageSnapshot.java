@@ -7,7 +7,11 @@ import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
-/** Dữ liệu trang tồn khả dụng có cấu trúc ổn định để Redis không phải serialize PageImpl. */
+/**
+ * Dữ liệu trang tồn khả dụng có cấu trúc ổn định để Redis không phải serialize PageImpl.
+ * Snapshot này giữ dữ liệu trang ở dạng ổn định để ghi/đọc Redis, tránh serialize trực tiếp PageImpl và
+ * giảm phụ thuộc cache vào implementation nội bộ của Spring Data.
+ */
 public record InventoryAvailabilityPageSnapshot(
         List<InventoryResponse> content,
         long totalElements

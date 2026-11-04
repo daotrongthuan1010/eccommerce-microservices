@@ -23,7 +23,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
-/** Adapter JDBC của phiếu điều chuyển; dùng SQL trực tiếp cho thao tác nghiệp vụ và batch dòng hàng. */
+/**
+ * Adapter JDBC của phiếu điều chuyển; dùng SQL trực tiếp cho thao tác nghiệp vụ và batch dòng hàng.
+ * Class/interface này chứa hợp đồng hoặc phần thực thi truy vấn SQL/JDBC tùy chỉnh như khóa dòng, cập nhật có điều kiện và phân trang; repository tập trung thao tác dữ liệu, không điều phối toàn bộ use case.
+ */
 @Repository
 @RequiredArgsConstructor
 public class JdbcInventoryTransferRepository implements InventoryTransferRepository {

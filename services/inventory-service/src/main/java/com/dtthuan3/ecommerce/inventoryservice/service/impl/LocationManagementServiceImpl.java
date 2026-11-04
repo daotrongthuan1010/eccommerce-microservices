@@ -25,7 +25,11 @@ import org.springframework.data.domain.Pageable;
 import java.util.Locale;
 import java.util.UUID;
 
-/** Xử lý nghiệp vụ Location và đồng bộ cache sau khi dữ liệu PostgreSQL thay đổi. */
+/**
+ * Xử lý nghiệp vụ Location và đồng bộ cache sau khi dữ liệu PostgreSQL thay đổi.
+ * Class này hiện thực use case hoặc tác vụ nền của Inventory, phối hợp kiểm tra nghiệp vụ, repository và
+ * tích hợp cần thiết để hoàn tất một bước xử lý; adapter bên ngoài không tự thao tác dữ liệu.
+ */
 @Service
 @RequiredArgsConstructor
 public class LocationManagementServiceImpl implements LocationManagementService {
@@ -59,6 +63,8 @@ public class LocationManagementServiceImpl implements LocationManagementService 
             throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE,
                     "ID hoặc mã Location đã tồn tại trong Warehouse này");
         }
+        // Lệnh invalidation cùng transaction với INSERT: commit thành công thì poller mới nhìn thấy lệnh để xóa
+        // Redis.
         scheduleLocationListInvalidation(warehouseId);
         return created;
     }
@@ -121,6 +127,8 @@ public class LocationManagementServiceImpl implements LocationManagementService 
     }
 
     private void scheduleLocationInvalidation(String locationId, String warehouseId) {
+        // Xóa entry chi tiết theo ID và toàn bộ các trang danh sách vì code/name/active có thể ảnh hưởng mọi
+        // trang.
         invalidationOutboxRepository.save(new CacheInvalidationOutboxEvent(
                 "inventory-location-by-id-v2", "id:" + locationId));
         scheduleLocationListInvalidation(warehouseId);
@@ -128,6 +136,7 @@ public class LocationManagementServiceImpl implements LocationManagementService 
 
     /** Page cache có nhiều key phân trang nên xóa riêng cache danh sách sau mutation. */
     private void scheduleLocationListInvalidation(String warehouseId) {
+        // Key * biểu thị namespace của cache phân trang; processor sẽ clear cache này bằng SCAN theo batch.
         invalidationOutboxRepository.save(new CacheInvalidationOutboxEvent(
                 "inventory-location-list-v1", "*"));
     }

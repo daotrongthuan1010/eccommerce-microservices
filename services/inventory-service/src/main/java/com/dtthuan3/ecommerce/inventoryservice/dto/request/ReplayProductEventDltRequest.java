@@ -6,7 +6,12 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
-/** Chỉ rõ đúng một record DLT cần phát lại; payload không nhận từ client để tránh bị sửa khi replay. */
+/**
+ * Chỉ rõ đúng một record DLT cần phát lại; payload không nhận từ client để tránh bị sửa khi replay.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record ReplayProductEventDltRequest(
         /** Partition của product-events.DLT; giữ nguyên partition nguồn tương ứng. */
         @NotNull(message = "partition là bắt buộc")

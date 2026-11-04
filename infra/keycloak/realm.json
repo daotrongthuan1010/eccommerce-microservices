@@ -37,7 +37,9 @@
         "http://localhost:5173/*",
         "http://162.4.177.91/*",
         "http://162.4.177.91:80/*",
-        "http://162.4.177.91:8096/*"
+        "http://162.4.177.91:8096/*",
+        "https://shop-hatd.online/*",
+        "https://www.shop-hatd.online/*"
       ],
       "webOrigins": ["*"],
       "fullScopeAllowed": true

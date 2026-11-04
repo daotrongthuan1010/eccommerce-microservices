@@ -4,7 +4,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-/** Các trường được phép cập nhật; warehouseId và trạng thái được quản lý qua API riêng. */
+/**
+ * Các trường được phép cập nhật; warehouseId và trạng thái được quản lý qua API riêng.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record UpdateLocationRequest(
         /** Mã Location mới, vẫn phải duy nhất trong Warehouse hiện tại. */
         @NotBlank(message = "code là bắt buộc")

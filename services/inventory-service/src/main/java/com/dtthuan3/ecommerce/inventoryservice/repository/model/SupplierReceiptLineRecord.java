@@ -2,7 +2,11 @@ package com.dtthuan3.ecommerce.inventoryservice.repository.model;
 
 import java.math.BigDecimal;
 
-/** Bản ghi đọc/ghi của một dòng phiếu nhập, ánh xạ trực tiếp với các cột cần thiết trong SQL. */
+/**
+ * Bản ghi đọc/ghi của một dòng phiếu nhập, ánh xạ trực tiếp với các cột cần thiết trong SQL.
+ * Model này biểu diễn kết quả truy vấn/projection nội bộ với các cột cần thiết, giúp service đọc dữ liệu mà
+ * không phải tải toàn bộ entity hoặc quan hệ.
+ */
 public record SupplierReceiptLineRecord(
         /** UUID của dòng phiếu, do Inventory tạo. */
         String lineId,

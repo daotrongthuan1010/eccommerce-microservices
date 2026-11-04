@@ -13,7 +13,11 @@ import lombok.Setter;
 
 import java.time.Instant;
 
-/** Phiếu giữ hàng theo đơn; các dòng và ID liên quan lưu dạng scalar, khóa ngoại do database kiểm soát. */
+/**
+ * Phiếu giữ hàng theo đơn; các dòng và ID liên quan lưu dạng scalar, khóa ngoại do database kiểm soát.
+ * Class này biểu diễn trạng thái được lưu bền vững của Inventory service. Hibernate ánh xạ class với bảng
+ * tương ứng; ID tham chiếu service/bản ghi khác được lưu dạng scalar và khóa ngoại do database bảo đảm.
+ */
 @Entity
 @Table(name = "inventory_reservation",
         uniqueConstraints = @UniqueConstraint(name = "uk_inventory_reservation_operation",
@@ -49,4 +53,6 @@ public class InventoryReservation {
     @Column(name = "created_at", nullable = false) private Instant createdAt;
     /** Thời điểm commit nếu đã xác nhận thanh toán. */
     @Column(name = "committed_at") private Instant committedAt;
+    /** Lease của worker expire; hết lease thì instance khác có thể nhận xử lý lại nếu worker chết giữa chừng. */
+    @Column(name = "expiry_claim_until") private Instant expiryClaimUntil;
 }

@@ -19,7 +19,11 @@ import java.math.BigDecimal;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
-/** Cache lượt tra cứu tồn theo SKU cho trang sản phẩm; dữ liệu chỉ mang tính hiển thị tức thời. */
+/**
+ * Cache lượt tra cứu tồn theo SKU cho trang sản phẩm; dữ liệu chỉ mang tính hiển thị tức thời.
+ * Class này hiện thực use case hoặc tác vụ nền của Inventory, phối hợp kiểm tra nghiệp vụ, repository và
+ * tích hợp cần thiết để hoàn tất một bước xử lý; adapter bên ngoài không tự thao tác dữ liệu.
+ */
 @Service
 @RequiredArgsConstructor
 public class InventoryAvailabilityReadCache {
@@ -27,10 +31,10 @@ public class InventoryAvailabilityReadCache {
     private final MeterRegistry meterRegistry;
 
     // Mặc định để dành 1 kết nối trong pool Hikari 5 kết nối cho các nghiệp vụ ghi/đọc khác.
-    @Value("${inventory.cache.availability-db-max-concurrency:4}")
+    @Value("${inventory.cache.availability-db-max-concurrency}")
     private int maxDatabaseConcurrency;
 
-    @Value("${inventory.cache.availability-db-wait-ms:100}")
+    @Value("${inventory.cache.availability-db-wait-ms}")
     private long databaseWaitMillis;
 
     private Semaphore databaseReadPermits;
@@ -58,6 +62,8 @@ public class InventoryAvailabilityReadCache {
     @Transactional(readOnly = true)
     public InventoryAvailabilityPageSnapshot findAvailable(String sku, String warehouseId,
                                                             String locationId, Pageable pageable) {
+        // sync=true gom cache miss cùng key trong một JVM; nó không khóa instance khác nên semaphore vẫn cần
+        // thiết.
         boolean acquired;
         try {
             acquired = databaseReadPermits.tryAcquire(databaseWaitMillis, TimeUnit.MILLISECONDS);
@@ -68,12 +74,15 @@ public class InventoryAvailabilityReadCache {
                     "Hệ thống đang xử lý nhiều yêu cầu tồn kho, vui lòng thử lại sau");
         }
         if (!acquired) {
+            // Từ chối có kiểm soát thay vì để cache miss làm cạn pool DB và khiến cả lệnh ghi tồn bị đói kết nối.
             meterRegistry.counter("inventory.availability.db.read.rejected", "reason", "capacity").increment();
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE,
                     "Hệ thống đang xử lý nhiều yêu cầu tồn kho, vui lòng thử lại sau");
         }
 
         try {
+            // Đây chỉ là snapshot đọc phục vụ hiển thị; reserve/issue vẫn kiểm tra số dư mới nhất bằng UPDATE có điều
+            // kiện.
             var page = inventoryRepository.findAvailable(sku, warehouseId, locationId, pageable);
             return new InventoryAvailabilityPageSnapshot(page.getContent().stream()
                     .map(this::toResponse).toList(), page.getTotalElements());

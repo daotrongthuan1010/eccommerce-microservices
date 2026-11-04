@@ -4,7 +4,11 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.response.LocationResponse;
 import com.dtthuan3.ecommerce.inventoryservice.entity.InventoryLocation;
 import org.springframework.stereotype.Component;
 
-/** Tập trung chuyển đổi entity sang response để controller/service không tự dựng DTO thủ công. */
+/**
+ * Tập trung chuyển đổi entity sang response để controller/service không tự dựng DTO thủ công.
+ * Class này tập trung ánh xạ giữa dữ liệu persistence và DTO nghiệp vụ/API, tránh lặp logic chuyển đổi ở
+ * controller và service.
+ */
 @Component
 public class InventoryLocationMapper {
 

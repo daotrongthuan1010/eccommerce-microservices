@@ -7,7 +7,11 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-/** Cổng lưu phiếu điều chuyển; service chỉ biết interface, SQL được đặt trong adapter JDBC. */
+/**
+ * Cổng lưu phiếu điều chuyển; service chỉ biết interface, SQL được đặt trong adapter JDBC.
+ * Interface này là ranh giới truy cập dữ liệu cho service, gom các thao tác đọc/ghi cần thiết. Cách thực
+ * thi bằng JPA hay JDBC nằm trong repository/adapter, không đặt trong controller.
+ */
 public interface InventoryTransferRepository {
     /** Tìm phiếu theo khóa idempotency để trả kết quả cũ hoặc phát hiện payload không khớp. */
     Optional<TransferHeaderRecord> findByOperationId(String operationId);
@@ -62,7 +66,11 @@ public interface InventoryTransferRepository {
     /** Đọc lại chi tiết đã lưu để trả đúng response gốc khi retry operationId. */
     List<TransferReceiptOperationLineRecord> findReceiptOperationLines(String operationId);
 
-    /** Dữ liệu header tối thiểu truyền giữa adapter JDBC và service. */
+    /**
+     * Dữ liệu header tối thiểu truyền giữa adapter JDBC và service.
+     * Record này là projection/value object mang đúng các cột cần thiết giữa repository và service. Nó không
+     * tạo quan hệ JPA; việc khóa, lưu và cập nhật dữ liệu vẫn được thực hiện bởi repository.
+     */
     record TransferHeaderRecord(String id, String enterpriseId,
                                 String sourceWarehouseId, String sourceLocationId,
                                 String destinationWarehouseId, String destinationLocationId,
@@ -71,28 +79,48 @@ public interface InventoryTransferRepository {
                                 String createdBy, Instant createdAt, String dispatchOperationId,
                                 Long dispatchExpectedVersion, String dispatchedBy, Instant dispatchedAt) {}
 
-    /** Thông tin audit tối thiểu của thao tác duyệt phiếu. */
+    /**
+     * Thông tin audit tối thiểu của thao tác duyệt phiếu.
+     * Record này là projection/value object mang đúng các cột cần thiết giữa repository và service. Nó không
+     * tạo quan hệ JPA; việc khóa, lưu và cập nhật dữ liệu vẫn được thực hiện bởi repository.
+     */
     record ApprovalRecord(String operationId, Long expectedVersion, String payloadHash,
                           String approvedBy, Instant approvedAt) {}
 
-    /** Dữ liệu một dòng hàng đã lưu. */
+    /**
+     * Dữ liệu một dòng hàng đã lưu.
+     * Record này là projection/value object mang đúng các cột cần thiết giữa repository và service. Nó không
+     * tạo quan hệ JPA; việc khóa, lưu và cập nhật dữ liệu vẫn được thực hiện bởi repository.
+     */
     record TransferLineRecord(String lineId, int lineNumber, String sku, BigDecimal plannedQuantity,
                               String sourceInventoryId, BigDecimal dispatchedQuantity,
                               Long sourceInventoryVersionAfter, BigDecimal receivedGoodQuantity,
                               BigDecimal receivedDamagedQuantity, BigDecimal missingQuantity) {}
 
-    /** Cộng dồn số liệu nhận theo dòng với điều kiện database vẫn còn đủ lượng chưa đối soát. */
+    /**
+     * Cộng dồn số liệu nhận theo dòng với điều kiện database vẫn còn đủ lượng chưa đối soát.
+     * Record này là projection/value object mang đúng các cột cần thiết giữa repository và service. Nó không
+     * tạo quan hệ JPA; việc khóa, lưu và cập nhật dữ liệu vẫn được thực hiện bởi repository.
+     */
     record ReceiptProgressUpdate(String lineId, BigDecimal receivedGoodQuantity,
                                  BigDecimal receivedDamagedQuantity, BigDecimal missingQuantity,
                                  BigDecimal accountedQuantity) {}
 
-    /** Snapshot của một operation nhận, gồm trạng thái/version đã trả về lần đầu. */
+    /**
+     * Snapshot của một operation nhận, gồm trạng thái/version đã trả về lần đầu.
+     * Record này là projection/value object mang đúng các cột cần thiết giữa repository và service. Nó không
+     * tạo quan hệ JPA; việc khóa, lưu và cập nhật dữ liệu vẫn được thực hiện bởi repository.
+     */
     record TransferReceiptOperationRecord(String id, String transferId, String operationId,
                                           String payloadHash, String statusAfter,
                                           Long transferVersionAfter, String receivedBy,
                                           Instant receivedAt) {}
 
-    /** Kết quả từng dòng đã lưu để retry không đọc số dư có thể đã thay đổi về sau. */
+    /**
+     * Kết quả từng dòng đã lưu để retry không đọc số dư có thể đã thay đổi về sau.
+     * Record này là projection/value object mang đúng các cột cần thiết giữa repository và service. Nó không
+     * tạo quan hệ JPA; việc khóa, lưu và cập nhật dữ liệu vẫn được thực hiện bởi repository.
+     */
     record TransferReceiptOperationLineRecord(String id, String operationId, String transferLineId,
                                                String sku, BigDecimal goodQuantity,
                                                BigDecimal damagedQuantity, BigDecimal missingQuantity,

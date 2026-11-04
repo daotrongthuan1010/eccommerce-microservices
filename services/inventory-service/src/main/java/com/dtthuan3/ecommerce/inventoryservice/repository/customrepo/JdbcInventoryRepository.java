@@ -377,6 +377,8 @@ public class JdbcInventoryRepository implements InventoryRepository {
             BigDecimal quantity
     ) {
 
+        // PostgreSQL cộng số lượng và tăng version trong cùng UPDATE; các lần nhận song song không ghi đè snapshot
+        // của nhau.
         String sql = """
             UPDATE inventory
             SET
@@ -489,6 +491,9 @@ public class JdbcInventoryRepository implements InventoryRepository {
             BigDecimal quantity
     ) {
 
+        // Điều kiện available nằm trong UPDATE nên quyết định giữ hàng được đưa ra tại DB, không dựa trên SELECT
+        // cũ.
+        // Khi có tranh chấp, chỉ request còn đủ available mới UPDATE được và nhận lại dòng qua RETURNING.
         String sql = """
             UPDATE inventory
             SET
@@ -539,6 +544,7 @@ public class JdbcInventoryRepository implements InventoryRepository {
             BigDecimal quantity
     ) {
 
+        // Kiểm tra reserved_quantity >= quantity cùng lúc trừ lượng giữ; không đủ thì UPDATE không đổi dòng nào.
         String sql = """
             UPDATE inventory
             SET

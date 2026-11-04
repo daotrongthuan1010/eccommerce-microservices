@@ -13,7 +13,11 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/** Shortage case phát sinh khi kho không tìm thấy đủ lượng đã cam kết trong bước soạn hàng. */
+/**
+ * Shortage case phát sinh khi kho không tìm thấy đủ lượng đã cam kết trong bước soạn hàng.
+ * Class này biểu diễn trạng thái được lưu bền vững của Inventory service. Hibernate ánh xạ class với bảng
+ * tương ứng; ID tham chiếu service/bản ghi khác được lưu dạng scalar và khóa ngoại do database bảo đảm.
+ */
 @Entity
 @Table(name = "inventory_shortage_case",
         uniqueConstraints = @UniqueConstraint(name = "uk_inventory_shortage_operation",

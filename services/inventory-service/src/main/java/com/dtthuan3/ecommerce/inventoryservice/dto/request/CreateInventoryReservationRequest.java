@@ -12,7 +12,12 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
-/** Lệnh giữ hàng cho đơn; cả danh sách dòng được giữ toàn bộ hoặc rollback toàn bộ. */
+/**
+ * Lệnh giữ hàng cho đơn; cả danh sách dòng được giữ toàn bộ hoặc rollback toàn bộ.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record CreateInventoryReservationRequest(
         /** ID reservation ổn định do Order cấp; giữ nguyên khi caller retry. */
         @NotBlank @Size(max = 100) String reservationId,
@@ -25,7 +30,12 @@ public record CreateInventoryReservationRequest(
         /** Các vị trí tồn được yêu cầu giữ; không cho phép lặp inventoryId trong một request. */
         @NotEmpty @Size(max = 200) List<@NotNull @Valid Line> lines
 ) {
-    /** Một dòng hàng cần giữ từ đúng một inventory position. */
+    /**
+     * Một dòng hàng cần giữ từ đúng một inventory position.
+     * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+     * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+     * bảng database.
+     */
     public record Line(@NotBlank String inventoryId,
                        @NotNull @Positive BigDecimal quantity) {}
 }

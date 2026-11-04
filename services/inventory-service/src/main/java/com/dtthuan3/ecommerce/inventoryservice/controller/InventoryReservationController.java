@@ -7,6 +7,8 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.request.DispatchInventoryRese
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.ReleaseInventoryReservationRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.InventoryReservationResponse;
 import com.dtthuan3.ecommerce.inventoryservice.service.InventoryReservationService;
+import com.dtthuan3.ecommerce.inventoryservice.service.InventoryService;
+import com.dtthuan3.ecommerce.inventoryservice.service.InventoryWarehouseAuthorizationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -20,17 +22,23 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** REST endpoints cho reservation; controller xác thực/validate rồi chuyển nghiệp vụ cho service. */
+/**
+ * REST endpoints cho reservation; controller xác thực/validate rồi chuyển nghiệp vụ cho service.
+ * Class này là ranh giới HTTP của Inventory: nhận path/query/body, áp dụng xác thực và kiểm tra đầu vào,
+ * gọi service nghiệp vụ rồi đóng gói HTTP response; không tự thực hiện truy vấn SQL hay cập nhật tồn.
+ */
 @RestController
 @RequestMapping("/inventory/reservations")
 @RequiredArgsConstructor
 @PreAuthorize("isAuthenticated()")
 public class InventoryReservationController {
     private final InventoryReservationService reservationService;
+    private final InventoryService inventoryService;
+    private final InventoryWarehouseAuthorizationService warehouseAuthorizationService;
 
     /** Tạo reservation atomically; request phải giữ nguyên reservationId và operationId khi retry. */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INVENTORY_FULFILLMENT')")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<InventoryReservationResponse> reserve(
             @Valid @RequestBody CreateInventoryReservationRequest request, Authentication authentication) {
@@ -40,47 +48,61 @@ public class InventoryReservationController {
 
     /** Đọc trạng thái và tiến độ từng dòng bằng ID ổn định để caller tra cứu sau timeout. */
     @GetMapping("/{reservationId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INVENTORY_READ_ALL')")
     public ApiResponse<InventoryReservationResponse> getById(@PathVariable String reservationId) {
-        return ApiResponse.ok("Lấy reservation thành công", reservationService.getById(reservationId));
+        InventoryReservationResponse response = reservationService.getById(reservationId);
+        response.lines().forEach(line -> warehouseAuthorizationService.requireWarehouseAccess(
+                inventoryService.getById(line.inventoryId()).warehouseId()));
+        return ApiResponse.ok("Lấy reservation thành công", response);
     }
 
     /** Kết thúc reservation HELD đã quá hạn và nhả toàn bộ lượng đang giữ về tồn khả dụng. */
     @PostMapping("/{reservationId}/expire")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INVENTORY_FULFILLMENT')")
     public ApiResponse<InventoryReservationResponse> expire(@PathVariable String reservationId,
                                                                Authentication authentication) {
+        requireReservationWarehouseAccess(reservationId);
         return ApiResponse.ok("Đã xử lý hết hạn reservation", reservationService.expire(reservationId,
                 authentication == null ? null : authentication.getName()));
     }
 
     /** Chuyển HELD sang COMMITTED sau khi Order xác nhận payment reference đã được kiểm chứng. */
     @PostMapping("/{reservationId}/commit")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INVENTORY_FULFILLMENT')")
     public ApiResponse<InventoryReservationResponse> commit(
             @PathVariable String reservationId,
             @Valid @RequestBody CommitInventoryReservationRequest request, Authentication authentication) {
+        requireReservationWarehouseAccess(reservationId);
         return ApiResponse.ok("Đã commit reservation", reservationService.commit(reservationId, request,
                 authentication == null ? null : authentication.getName()));
     }
 
     /** Nhả toàn bộ hoặc một phần lượng chưa dispatch; operationId giúp retry không nhả lặp. */
     @PostMapping("/{reservationId}/release")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INVENTORY_FULFILLMENT')")
     public ApiResponse<InventoryReservationResponse> release(
             @PathVariable String reservationId,
             @Valid @RequestBody ReleaseInventoryReservationRequest request, Authentication authentication) {
+        requireReservationWarehouseAccess(reservationId);
         return ApiResponse.ok("Đã release lượng reservation được yêu cầu", reservationService.release(
                 reservationId, request, authentication == null ? null : authentication.getName()));
     }
 
     /** Dispatch số lượng theo reservation line; không thể xuất vượt lượng đã commit còn lại. */
     @PostMapping("/{reservationId}/dispatch")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INVENTORY_FULFILLMENT')")
     public ApiResponse<InventoryReservationResponse> dispatch(
             @PathVariable String reservationId,
             @Valid @RequestBody DispatchInventoryReservationRequest request, Authentication authentication) {
+        requireReservationWarehouseAccess(reservationId);
         return ApiResponse.ok("Đã dispatch hàng theo reservation", reservationService.dispatch(
                 reservationId, request, authentication == null ? null : authentication.getName()));
+    }
+
+    /** Xác minh grant trên tất cả kho có hàng trong phiếu trước khi thay đổi reservation. */
+    private void requireReservationWarehouseAccess(String reservationId) {
+        InventoryReservationResponse response = reservationService.getById(reservationId);
+        response.lines().forEach(line -> warehouseAuthorizationService.requireWarehouseAccess(
+                inventoryService.getById(line.inventoryId()).warehouseId()));
     }
 }

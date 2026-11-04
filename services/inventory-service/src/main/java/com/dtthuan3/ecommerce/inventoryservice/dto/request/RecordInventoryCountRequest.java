@@ -12,7 +12,12 @@ import jakarta.validation.constraints.Min;
 import java.math.BigDecimal;
 import java.util.List;
 
-/** Gửi một lô số đếm vật lý cho các dòng baseline thuộc cùng phiên kiểm kê. */
+/**
+ * Gửi một lô số đếm vật lý cho các dòng baseline thuộc cùng phiên kiểm kê.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record RecordInventoryCountRequest(
         @NotBlank(message = "operationId không được để trống")
         @Size(max = 100, message = "operationId tối đa 100 ký tự") String operationId,
@@ -22,7 +27,12 @@ public record RecordInventoryCountRequest(
         @Size(max = 200, message = "Mỗi lô tối đa 200 dòng kiểm đếm")
         List<@NotNull(message = "Dòng kiểm đếm không được để trống") @Valid Line> lines
 ) {
-    /** Số đếm vật lý được chia thành hàng tốt, hàng hỏng và hàng đang chờ kiểm tra. */
+    /**
+     * Số đếm vật lý được chia thành hàng tốt, hàng hỏng và hàng đang chờ kiểm tra.
+     * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+     * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+     * bảng database.
+     */
     public record Line(
             @NotBlank(message = "inventoryId không được để trống")
             @Size(max = 36, message = "inventoryId tối đa 36 ký tự") String inventoryId,

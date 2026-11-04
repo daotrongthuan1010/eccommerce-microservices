@@ -21,7 +21,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.UUID;
 
-/** Phân loại parcel đã nhận, cập nhật bucket tồn và ghi audit trong cùng transaction. */
+/**
+ * Phân loại parcel đã nhận, cập nhật bucket tồn và ghi audit trong cùng transaction.
+ * Class này hiện thực use case hoặc tác vụ nền của Inventory, phối hợp kiểm tra nghiệp vụ, repository và
+ * tích hợp cần thiết để hoàn tất một bước xử lý; adapter bên ngoài không tự thao tác dữ liệu.
+ */
 @Service
 @RequiredArgsConstructor
 public class InventoryReturnInspectionServiceImpl implements InventoryReturnInspectionService {
@@ -109,7 +113,7 @@ public class InventoryReturnInspectionServiceImpl implements InventoryReturnInsp
                 .reason(request.reason())
                 .performedBy(inspectedBy)
                 .performedBySubject(inspectedBy)
-                .build());
+                .build().withBalanceSnapshot(before, after));
 
         InspectionRecord saved = inspectionRepository.insert(new InspectionRecord(
                 UUID.randomUUID().toString(), receipt.id(), request.operationId(), after.getId(), after.getSku(),

@@ -9,7 +9,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-/** Adapter JDBC cho bảng kết quả kiểm tra hàng trả; mọi câu lệnh nằm trong transaction service. */
+/**
+ * Adapter JDBC cho bảng kết quả kiểm tra hàng trả; mọi câu lệnh nằm trong transaction service.
+ * Class/interface này chứa hợp đồng hoặc phần thực thi truy vấn SQL/JDBC tùy chỉnh như khóa dòng, cập nhật có điều kiện và phân trang; repository tập trung thao tác dữ liệu, không điều phối toàn bộ use case.
+ */
 @Repository
 @RequiredArgsConstructor
 public class JdbcInventoryReturnInspectionRepository implements InventoryReturnInspectionRepository {

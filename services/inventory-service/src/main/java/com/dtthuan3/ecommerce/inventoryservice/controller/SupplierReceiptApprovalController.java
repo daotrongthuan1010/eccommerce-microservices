@@ -5,6 +5,7 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.request.ApproveSupplierReceip
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.RejectSupplierReceiptRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptResponse;
 import com.dtthuan3.ecommerce.inventoryservice.service.SupplierReceiptService;
+import com.dtthuan3.ecommerce.inventoryservice.service.InventoryWarehouseAuthorizationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -18,35 +19,42 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** REST adapter duyệt phiếu nhập đã được gửi sang trạng thái chờ duyệt. */
+/**
+ * REST adapter duyệt phiếu nhập đã được gửi sang trạng thái chờ duyệt.
+ * Class này là ranh giới HTTP của Inventory: nhận path/query/body, áp dụng xác thực và kiểm tra đầu vào,
+ * gọi service nghiệp vụ rồi đóng gói HTTP response; không tự thực hiện truy vấn SQL hay cập nhật tồn.
+ */
 @RestController
 @RequestMapping("/receipts")
 @RequiredArgsConstructor
 @Validated
 public class SupplierReceiptApprovalController {
     private final SupplierReceiptService receiptService;
+    private final InventoryWarehouseAuthorizationService warehouseAuthorizationService;
 
     /**
      * Chuyển phiếu SUBMITTED sang APPROVED, ghi nhận người duyệt và thời điểm duyệt.
      * Thao tác này chưa cộng tồn kho; bước ghi sổ được thực hiện riêng sau đó.
      */
     @PostMapping("/{receiptId}/approve")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INVENTORY_APPROVE')")
     public ApiResponse<SupplierReceiptResponse> approve(
             @PathVariable @NotBlank @Size(max = 36) String receiptId,
             @Valid @RequestBody ApproveSupplierReceiptRequest request,
             Authentication authentication) {
+        warehouseAuthorizationService.requireWarehouseAccess(receiptService.getById(receiptId).warehouseId());
         return ApiResponse.ok("Duyệt phiếu nhập thành công",
                 receiptService.approve(receiptId, request, authentication.getName()));
     }
 
     /** Từ chối phiếu SUBMITTED; tài khoản xử lý được lấy từ JWT, không nhận từ request body. */
     @PostMapping("/{receiptId}/reject")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INVENTORY_APPROVE')")
     public ApiResponse<SupplierReceiptResponse> reject(
             @PathVariable @NotBlank @Size(max = 36) String receiptId,
             @Valid @RequestBody RejectSupplierReceiptRequest request,
             Authentication authentication) {
+        warehouseAuthorizationService.requireWarehouseAccess(receiptService.getById(receiptId).warehouseId());
         return ApiResponse.ok("Từ chối phiếu nhập thành công",
                 receiptService.reject(receiptId, request, authentication.getName()));
     }

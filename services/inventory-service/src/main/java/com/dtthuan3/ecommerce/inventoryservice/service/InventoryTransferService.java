@@ -10,7 +10,11 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.response.InventoryTransferRec
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-/** Use case phiếu điều chuyển; giao diện không phụ thuộc controller hoặc adapter lưu trữ. */
+/**
+ * Use case phiếu điều chuyển; giao diện không phụ thuộc controller hoặc adapter lưu trữ.
+ * Interface này công bố các use case Inventory cho controller, worker và adapter gọi tới. Class triển khai
+ * nằm ở service/impl, vì vậy bên gọi phụ thuộc vào hợp đồng thay vì chi tiết xử lý.
+ */
 public interface InventoryTransferService {
     /** Đọc phiếu và danh sách dòng để client lấy trạng thái/version mới nhất trước thao tác tiếp theo. */
     InventoryTransferResponse getById(String transferId);

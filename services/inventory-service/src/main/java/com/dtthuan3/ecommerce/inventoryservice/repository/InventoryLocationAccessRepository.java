@@ -18,9 +18,17 @@ public interface InventoryLocationAccessRepository {
     /** Đọc và khóa SHARE một Warehouse khi workflow cần xác thực kho bắt buộc tồn tại. */
     Optional<WarehouseSnapshot> findWarehouseForShare(String warehouseId);
 
-    /** Dữ liệu tối thiểu của Location cần để kiểm tra warehouse ownership và trạng thái hoạt động. */
+    /**
+     * Dữ liệu tối thiểu của Location cần để kiểm tra warehouse ownership và trạng thái hoạt động.
+     * Record này là projection/value object mang đúng các cột cần thiết giữa repository và service. Nó không
+     * tạo quan hệ JPA; việc khóa, lưu và cập nhật dữ liệu vẫn được thực hiện bởi repository.
+     */
     record LocationSnapshot(String id, String warehouseId, boolean active) {}
 
-    /** Dữ liệu Warehouse tối thiểu dùng để xác minh trạng thái kho và enterprise sở hữu. */
+    /**
+     * Dữ liệu Warehouse tối thiểu dùng để xác minh trạng thái kho và enterprise sở hữu.
+     * Record này là projection/value object mang đúng các cột cần thiết giữa repository và service. Nó không
+     * tạo quan hệ JPA; việc khóa, lưu và cập nhật dữ liệu vẫn được thực hiện bởi repository.
+     */
     record WarehouseSnapshot(String warehouseId, String enterpriseId, String status) {}
 }

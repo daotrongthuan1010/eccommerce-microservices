@@ -17,7 +17,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-/** Adapter JDBC để chụp snapshot theo lô, tránh tải toàn bộ balance lên heap của ứng dụng. */
+/**
+ * Adapter JDBC để chụp snapshot theo lô, tránh tải toàn bộ balance lên heap của ứng dụng.
+ * Class/interface này chứa hợp đồng hoặc phần thực thi truy vấn SQL/JDBC tùy chỉnh như khóa dòng, cập nhật có điều kiện và phân trang; repository tập trung thao tác dữ liệu, không điều phối toàn bộ use case.
+ */
 @Repository
 @RequiredArgsConstructor
 public class JdbcInventoryCountSessionRepository implements InventoryCountSessionRepository {
@@ -58,6 +61,23 @@ public class JdbcInventoryCountSessionRepository implements InventoryCountSessio
                     Long.class, filters.toArray());
             return total == null ? 0 : total;
         });
+    }
+
+    @Override
+    public Optional<InventoryCountSessionResponse> findSessionById(String sessionId) {
+        List<InventoryCountSessionResponse> rows = jdbcTemplate.query("""
+                SELECT s.id, s.enterprise_id, s.warehouse_id, s.location_id, s.sku,
+                       s.status, s.reason, s.opened_by, s.snapshot_at, s.version,
+                       (SELECT COUNT(*) FROM inventory_count_session_line l WHERE l.session_id = s.id)
+                           AS snapshot_line_count
+                FROM inventory_count_session s
+                WHERE s.id = ?
+                """, (rs, row) -> new InventoryCountSessionResponse(
+                rs.getString("id"), rs.getString("enterprise_id"), rs.getString("warehouse_id"),
+                rs.getString("location_id"), rs.getString("sku"), rs.getString("status"),
+                rs.getString("reason"), rs.getString("opened_by"), rs.getTimestamp("snapshot_at").toLocalDateTime(),
+                rs.getLong("snapshot_line_count"), rs.getLong("version")), sessionId);
+        return rows.stream().findFirst();
     }
 
     @Override
@@ -287,7 +307,8 @@ public class JdbcInventoryCountSessionRepository implements InventoryCountSessio
                 SELECT l.inventory_id, l.inventory_version AS snapshot_version,
                        i.version AS current_version, i.physical_quantity AS current_physical,
                        i.reserved_quantity AS current_reserved, i.defective_quantity AS current_defective,
-                       i.pending_quantity AS current_pending, c.counted_good_quantity,
+                       i.pending_quantity AS current_pending, i.in_transit_quantity AS current_in_transit,
+                       c.counted_good_quantity,
                        c.counted_defective_quantity, c.counted_pending_quantity, c.count_reason
                 FROM inventory_count_session_line l
                 JOIN inventory i ON i.id = l.inventory_id
@@ -299,6 +320,7 @@ public class JdbcInventoryCountSessionRepository implements InventoryCountSessio
                 rs.getLong("snapshot_version"), rs.getLong("current_version"),
                 rs.getBigDecimal("current_physical"), rs.getBigDecimal("current_reserved"),
                 rs.getBigDecimal("current_defective"), rs.getBigDecimal("current_pending"),
+                rs.getBigDecimal("current_in_transit"),
                 rs.getBigDecimal("counted_good_quantity"), rs.getBigDecimal("counted_defective_quantity"),
                 rs.getBigDecimal("counted_pending_quantity"), rs.getString("count_reason")), sessionId);
     }

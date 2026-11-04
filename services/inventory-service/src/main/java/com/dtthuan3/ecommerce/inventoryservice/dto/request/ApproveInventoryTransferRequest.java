@@ -5,7 +5,12 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
-/** Dữ liệu duyệt phiếu điều chuyển; caller phải giữ nguyên khóa khi gửi lại sau timeout. */
+/**
+ * Dữ liệu duyệt phiếu điều chuyển; caller phải giữ nguyên khóa khi gửi lại sau timeout.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record ApproveInventoryTransferRequest(
         /** Khóa idempotency riêng cho thao tác duyệt phiếu. */
         @NotBlank(message = "operationId là bắt buộc")

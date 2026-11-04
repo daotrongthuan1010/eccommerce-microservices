@@ -8,7 +8,12 @@ import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 
-/** Yêu cầu giữ một phần hoặc toàn bộ lượng thiếu tại Inventory thay thế. */
+/**
+ * Yêu cầu giữ một phần hoặc toàn bộ lượng thiếu tại Inventory thay thế.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record ReserveShortageReallocationRequest(
         /** Khóa idempotency riêng cho lần giữ kho thay thế này. */
         @NotBlank(message = "operationId là bắt buộc")

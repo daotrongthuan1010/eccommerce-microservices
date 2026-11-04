@@ -4,7 +4,7 @@ import keycloak from '../features/auth/keycloak';
 
 // FE_AUTH_GATEWAY §4 — axios instance duy nhat, memory tokens, single-flight refresh.
 export const apiBaseUrl: string =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://162.4.177.91/api';
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'https://shop-hatd.online/api';
 
 export const api = axios.create({ baseURL: apiBaseUrl });
 

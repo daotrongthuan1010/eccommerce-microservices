@@ -11,6 +11,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Cung cấp thao tác lưu, lấy và khóa các sự kiện outbox dùng để vô hiệu hóa cache sau commit.
+ * Interface này là ranh giới truy cập dữ liệu cho service, gom các thao tác đọc/ghi cần thiết. Cách thực
+ * thi bằng JPA hay JDBC nằm trong repository/adapter, không đặt trong controller.
+ */
 public interface CacheInvalidationOutboxRepository extends JpaRepository<CacheInvalidationOutboxEvent, String> {
     List<CacheInvalidationOutboxEvent> findTop100ByAvailableAtLessThanEqualOrderByCreatedAtAsc(Instant now);
 

@@ -9,7 +9,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Đọc và cache từng trang Location theo Warehouse; mọi thay đổi xóa cache qua transactional outbox. */
+/**
+ * Đọc và cache từng trang Location theo Warehouse; mọi thay đổi xóa cache qua transactional outbox.
+ * Class này hiện thực use case hoặc tác vụ nền của Inventory, phối hợp kiểm tra nghiệp vụ, repository và
+ * tích hợp cần thiết để hoàn tất một bước xử lý; adapter bên ngoài không tự thao tác dữ liệu.
+ */
 @Service
 @RequiredArgsConstructor
 public class InventoryLocationReadCache {
@@ -22,6 +26,8 @@ public class InventoryLocationReadCache {
             sync = true)
     @Transactional(readOnly = true)
     public LocationPageSnapshot findPage(String warehouseId, Pageable pageable) {
+        // Cache từng trang để màn hình quản trị đọc nhiều lần giảm truy vấn; thay đổi Location phát lệnh outbox
+        // xóa cache sau commit.
         var page = locationRepository.findAllByWarehouseIdOrderByCode(warehouseId, pageable);
         return new LocationPageSnapshot(page.getContent().stream().map(locationMapper::toResponse).toList(),
                 page.getNumber(), page.getSize(), page.getTotalElements());

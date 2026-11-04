@@ -29,6 +29,7 @@ import com.dtthuan3.ecommerce.inventoryservice.service.InventoryLocationAccessSe
 import com.dtthuan3.ecommerce.inventoryservice.service.InventoryLocationAccessService.Position;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -48,10 +49,17 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-/** Mở phiên kiểm kê, khóa phạm vi tồn trong thời gian snapshot ngắn và lưu baseline bất biến. */
+/**
+ * Mở phiên kiểm kê, khóa phạm vi tồn trong thời gian snapshot ngắn và lưu baseline bất biến.
+ * Class này hiện thực use case hoặc tác vụ nền của Inventory, phối hợp kiểm tra nghiệp vụ, repository và
+ * tích hợp cần thiết để hoàn tất một bước xử lý; adapter bên ngoài không tự thao tác dữ liệu.
+ */
 @Service
 @RequiredArgsConstructor
 public class InventoryCountSessionServiceImpl implements InventoryCountSessionService {
+
+    @Value("${inventory.api.max-page-size}")
+    private int maxPageSize;
     private final InventoryCountSessionRepository countSessionRepository;
     private final InventoryLocationAccessService locationAccessService;
     private final InventoryRepository inventoryRepository;
@@ -72,6 +80,15 @@ public class InventoryCountSessionServiceImpl implements InventoryCountSessionSe
                 normalizedStatus, pageable);
     }
 
+    /** Lấy header kiểm kê để API kiểm tra warehouse scope trước khi trả dữ liệu hoặc đổi trạng thái. */
+    @Override
+    @Transactional(readOnly = true)
+    public InventoryCountSessionResponse getById(String sessionId) {
+        return countSessionRepository.findSessionById(sessionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "Không tìm thấy phiên kiểm kê: " + sessionId));
+    }
+
     /** Lấy trang baseline theo sessionId; kiểm tra header trước để phân biệt session không tồn tại. */
     @Override
     @Transactional(readOnly = true)
@@ -80,7 +97,7 @@ public class InventoryCountSessionServiceImpl implements InventoryCountSessionSe
             throw new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy phiên kiểm kê: " + sessionId);
         }
         return countSessionRepository.findLines(sessionId,
-                PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 200))));
+                PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, maxPageSize))));
     }
 
     /** Ghi một lô observation bất biến; version phiên tuần tự hóa các lô và chống ghi trên snapshot cũ. */
@@ -253,6 +270,14 @@ public class InventoryCountSessionServiceImpl implements InventoryCountSessionSe
                     .physicalAfter(physicalAfter)
                     .reservedBefore(line.currentReserved())
                     .reservedAfter(line.currentReserved())
+                    .defectiveBefore(line.currentDefective())
+                    .defectiveAfter(updated.getDefectiveQuantity())
+                    .pendingBefore(line.currentPending())
+                    .pendingAfter(updated.getPendingQuantity())
+                    .inTransitBefore(line.currentInTransit())
+                    .inTransitAfter(updated.getInTransitQuantity())
+                    .inventoryVersionBefore(line.currentVersion())
+                    .inventoryVersionAfter(updated.getVersion())
                     .referenceType("INVENTORY_COUNT")
                     .referenceId(sessionId)
                     .reason(reason.length() > 500 ? reason.substring(0, 500) : reason)

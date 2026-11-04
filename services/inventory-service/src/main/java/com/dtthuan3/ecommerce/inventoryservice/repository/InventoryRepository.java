@@ -8,7 +8,11 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
-/** Cổng dữ liệu Inventory; service chỉ phụ thuộc interface, không phụ thuộc JPA hay JDBC. */
+/**
+ * Cổng dữ liệu Inventory; service chỉ phụ thuộc interface, không phụ thuộc JPA hay JDBC.
+ * Interface này là ranh giới truy cập dữ liệu cho service, gom các thao tác đọc/ghi cần thiết. Cách thực
+ * thi bằng JPA hay JDBC nằm trong repository/adapter, không đặt trong controller.
+ */
 public interface InventoryRepository {
 
     /** Đọc theo ID cho luồng chỉ đọc, không đặt khóa database. */
@@ -85,6 +89,10 @@ public interface InventoryRepository {
                                              BigDecimal defectiveQuantity, BigDecimal pendingQuantity,
                                              long expectedVersion);
 
-    /** ID tồn nguồn và lượng cần chuyển cho một dòng đã được khóa trước khi cập nhật. */
+    /**
+     * ID tồn nguồn và lượng cần chuyển cho một dòng đã được khóa trước khi cập nhật.
+     * Record này là projection/value object mang đúng các cột cần thiết giữa repository và service. Nó không
+     * tạo quan hệ JPA; việc khóa, lưu và cập nhật dữ liệu vẫn được thực hiện bởi repository.
+     */
     record TransferDispatchUpdate(String inventoryId, BigDecimal quantity) {}
 }
