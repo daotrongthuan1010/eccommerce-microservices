@@ -1,7 +1,12 @@
 package com.dtthuan3.ecommerce.reviewservice.service.impl;
 
+
+import com.dtthuan3.ecommerce.common.exception.BusinessException;
+import com.dtthuan3.ecommerce.common.exception.ErrorCode;
+import com.dtthuan3.ecommerce.common.exception.ResourceNotFoundException;
 import com.dtthuan3.ecommerce.common.response.PageResponse;
-import com.dtthuan3.ecommerce.reviewservice.Until.*;
+import com.dtthuan3.ecommerce.reviewservice.util.OutboxWriter;
+import com.dtthuan3.ecommerce.reviewservice.util.RatingAggregateService;
 import com.dtthuan3.ecommerce.reviewservice.dto.request.ModerationActionRequest;
 import com.dtthuan3.ecommerce.reviewservice.dto.request.ModerationRequest;
 import com.dtthuan3.ecommerce.reviewservice.dto.request.SellerReplyRequest;
@@ -10,13 +15,12 @@ import com.dtthuan3.ecommerce.reviewservice.dto.response.ReconcileResponse;
 import com.dtthuan3.ecommerce.reviewservice.dto.response.ReviewResponse;
 import com.dtthuan3.ecommerce.reviewservice.entity.*;
 import com.dtthuan3.ecommerce.reviewservice.enums.*;
-import com.dtthuan3.ecommerce.reviewservice.exception.BusinessException;
-import com.dtthuan3.ecommerce.reviewservice.exception.ConflictException;
-import com.dtthuan3.ecommerce.reviewservice.exception.NotFoundException;
 import com.dtthuan3.ecommerce.reviewservice.mapper.ReviewAssembler;
 import com.dtthuan3.ecommerce.reviewservice.mapper.ReviewMapper;
 import com.dtthuan3.ecommerce.reviewservice.repository.*;
 import com.dtthuan3.ecommerce.reviewservice.service.ReviewModerationService;
+import com.dtthuan3.ecommerce.reviewservice.util.ReviewPublisher;
+import com.dtthuan3.ecommerce.reviewservice.util.ReviewRules;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -46,7 +50,6 @@ public class ReviewModerationServiceImpl implements ReviewModerationService {
     private final ModerationDecisionRepository decisionRepository;
     private final ReviewPublisher publisher;
     private final RatingAggregateService aggregateService;
-    private final AggregateReconciler reconciler;
     private final OutboxWriter outbox;
     private final ReviewAssembler assembler;
     private final ReviewMapper mapper;
@@ -69,24 +72,25 @@ public class ReviewModerationServiceImpl implements ReviewModerationService {
     }
 
     @Override
+    @Transactional
     public void decideRevision(String moderatorId, String revisionId, ModerationRequest request) {
 // Lấy reviewId rồi KHÓA review trước khi đọc revision: tránh ghi đè khi chủ review đang sửa
         String reviewId = revisionRepository.findReviewIdById(revisionId)
-                .orElseThrow(() -> new NotFoundException("REVISION_NOT_FOUND: Không tìm thấy nội dung đánh giá"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nội dung đánh giá"));
         Review review = lockReview(reviewId);
         ReviewRevision revision = revisionRepository.findById(revisionId)
-                .orElseThrow(() -> new NotFoundException("REVISION_NOT_FOUND: Không tìm thấy nội dung đánh giá"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nội dung đánh giá"));
 
         if (review.getStatus() == ReviewStatus.DELETED || review.getStatus() == ReviewStatus.HIDDEN) {
-            throw new ConflictException("REVIEW_NOT_MODERATABLE: Đánh giá đã bị xóa hoặc đang bị ẩn");
+            throw new BusinessException("REVIEW_NOT_MODERATABLE", HttpStatus.CONFLICT, "Đánh giá đã bị xóa hoặc đang bị ẩn");
         }
         if (revision.getStatus() != RevisionStatus.PENDING_MODERATION) {
-            throw new ConflictException("REVISION_NOT_PENDING: Nội dung này không còn ở trạng thái chờ kiểm duyệt (có thể đã được xử lý hoặc bị thay thế)");
+            throw new BusinessException("REVISION_NOT_PENDING", HttpStatus.CONFLICT, "Nội dung này không còn ở trạng thái chờ kiểm duyệt (có thể đã được xử lý hoặc bị thay thế)");
         }
 
         boolean approved = Boolean.TRUE.equals(request.getIsApproved());
         if (!approved && !ReviewRules.hasText(request.getReasonCode())) {
-            throw new BusinessException( "VALIDATION_ERROR: Vui lòng nhập mã lý do từ chối",HttpStatus.BAD_REQUEST);
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Vui lòng nhập mã lý do từ chối");
         }
 
         if (approved) {
@@ -127,7 +131,7 @@ public class ReviewModerationServiceImpl implements ReviewModerationService {
     public void hideReview(String moderatorId, String reviewId, ModerationActionRequest request) {
         Review review = lockReview(reviewId);
         if (review.getStatus() != ReviewStatus.APPROVED || review.getPublishedRevisionId() == null) {
-            throw new ConflictException("REVIEW_NOT_APPROVED: Chỉ ẩn được đánh giá đang ở trạng thái APPROVED");
+            throw new BusinessException("REVIEW_NOT_APPROVED", HttpStatus.CONFLICT, "Chỉ ẩn được đánh giá đang ở trạng thái APPROVED");
         }
         Integer countedRating = review.getRating();
 
@@ -146,10 +150,11 @@ public class ReviewModerationServiceImpl implements ReviewModerationService {
     }
 
     @Override
+    @Transactional
     public void restoreReview(String moderatorId, String reviewId, ModerationActionRequest request) {
         Review review = lockReview(reviewId);
         if (review.getStatus() != ReviewStatus.HIDDEN || review.getPublishedRevisionId() == null) {
-            throw new ConflictException("REVIEW_NOT_HIDDEN: Chỉ khôi phục được đánh giá đang bị ẩn");
+            throw new BusinessException("REVIEW_NOT_HIDDEN", HttpStatus.CONFLICT, "Chỉ khôi phục được đánh giá đang bị ẩn");
         }
 
         review.setStatus(ReviewStatus.APPROVED);
@@ -175,7 +180,7 @@ public class ReviewModerationServiceImpl implements ReviewModerationService {
             reportStatus = status == null || status.isBlank() ? ReportStatus.OPEN
                     : ReportStatus.valueOf(status.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new BusinessException("VALIDATION_ERROR: status không hợp lệ",HttpStatus.BAD_REQUEST);
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "status không hợp lệ");
         }
         Page<AbuseReport> reports = reportRepository.findByStatusOrderByCreatedAtAsc(
                 reportStatus, PageRequest.of(safePage, safeSize));
@@ -188,7 +193,7 @@ public class ReviewModerationServiceImpl implements ReviewModerationService {
     @Transactional
     public void dismissReport(String moderatorId, String reportId) {
         AbuseReport report = reportRepository.findById(reportId)
-                .orElseThrow(() -> new NotFoundException("REPORT_NOT_FOUND: Không tìm thấy báo cáo"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy báo cáo"));
         if (report.getStatus() == ReportStatus.RESOLVED || report.getStatus() == ReportStatus.DISMISSED) {
             return; // idempotent
         }
@@ -202,9 +207,9 @@ public class ReviewModerationServiceImpl implements ReviewModerationService {
     @Transactional
     public ReviewResponse.ReviewReplyDto replyToReview(String staffId, String reviewId, SellerReplyRequest request) {
         Review review = reviewRepository.findById(reviewId)
-                .orElseThrow(() -> new NotFoundException("REVIEW_NOT_FOUND: Không tìm thấy đánh giá"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đánh giá"));
         if (review.getStatus() != ReviewStatus.APPROVED) {
-            throw new ConflictException("REVIEW_NOT_APPROVED: Chỉ phản hồi được đánh giá đang hiển thị");
+            throw new BusinessException("REVIEW_NOT_APPROVED", HttpStatus.CONFLICT, "Chỉ phản hồi được đánh giá đang hiển thị");
         }
         ReviewReply reply = replyRepository.save(ReviewReply.builder()
                 .reviewId(reviewId)
@@ -221,7 +226,7 @@ public class ReviewModerationServiceImpl implements ReviewModerationService {
     public void removeReply(String staffId, String reviewId, String replyId) {
         ReviewReply reply = replyRepository.findById(replyId)
                 .filter(r -> r.getReviewId().equals(reviewId))
-                .orElseThrow(() -> new NotFoundException("REPLY_NOT_FOUND: Không tìm thấy phản hồi"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phản hồi"));
         reply.setStatus(ReplyStatus.REMOVED);
         replyRepository.save(reply);
         log.info("Staff {} removed reply {} of review {}", staffId, replyId, reviewId);
@@ -233,7 +238,7 @@ public class ReviewModerationServiceImpl implements ReviewModerationService {
     }
     private Review lockReview(String reviewId) {
         return reviewRepository.findForUpdate(reviewId)
-                .orElseThrow(() -> new NotFoundException("REVIEW_NOT_FOUND: Không tìm thấy đánh giá"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đánh giá"));
     }
 
     private void recordDecision(String moderatorId, Review review, ModerationAction action,

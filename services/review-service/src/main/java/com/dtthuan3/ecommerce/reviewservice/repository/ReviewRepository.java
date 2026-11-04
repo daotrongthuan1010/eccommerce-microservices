@@ -30,10 +30,7 @@ public interface ReviewRepository extends JpaRepository<Review, String>, JpaSpec
             + "where r.productId = :productId and r.status = :status group by r.rating")
     List<Object[]> countByRating(@Param("productId") String productId, @Param("status") ReviewStatus status);
 
-    /**
-     * Khóa dòng review (SELECT ... FOR UPDATE) để tuần tự hóa sửa/duyệt/xóa/vote trên cùng một review.
-     * Khóa pessimistic KHÔNG làm tăng @Version.
-     */
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from Review r where r.id = :id")
     Optional<Review> findForUpdate(@Param("id") String id);

@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 public class ReviewController {
     private final ReviewService reviewService;
 
-    @PostMapping("/reviews")
+    @PostMapping
     public ResponseEntity<ApiResponse<ReviewResponse>> createReview(
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody ReviewCreateRequest request,

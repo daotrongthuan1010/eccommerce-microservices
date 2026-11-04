@@ -33,7 +33,6 @@ public class ReviewQueryController {
         return ResponseEntity.ok(ApiResponse.ok(queryService.getReviewDetail(reviewId, subjectOf(jwt))));
     }
 
-    /** Lọc: rating=1..5, hasMedia, hasComment; sort=newest|helpful|highest|lowest. Chỉ review APPROVED. */
     @GetMapping("/products/{productId}/reviews")
     public ResponseEntity<ApiResponse<PageResponse<ReviewListResponse>>> getProductReviews(
             @PathVariable String productId,
@@ -48,7 +47,6 @@ public class ReviewQueryController {
                 productId, page, size, rating, hasMedia, hasComment, sort, subjectOf(jwt))));
     }
 
-    /** Điểm trung bình + phân bố sao, đọc từ rating_aggregate. */
     @GetMapping("/products/{productId}/rating")
     public ResponseEntity<ApiResponse<ReviewSummaryResponse>> getProductRating(@PathVariable String productId) {
         return ResponseEntity.ok(ApiResponse.ok(queryService.getProductSummary(productId)));
@@ -58,14 +56,7 @@ public class ReviewQueryController {
         return jwt == null ? null : jwt.getSubject();
     }
 
-    private static String displayNameOf(Jwt jwt) {
-        if (jwt.hasClaim("name")) {
-            return jwt.getClaimAsString("name");
-        }
-        if (jwt.hasClaim("preferred_username")) {
-            return jwt.getClaimAsString("preferred_username");
-        }
-        return "Khách hàng";
-    }
+
 }
+
 

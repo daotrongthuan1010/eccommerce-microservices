@@ -1,7 +1,11 @@
 package com.dtthuan3.ecommerce.reviewservice.service.impl;
 
 
-import com.dtthuan3.ecommerce.reviewservice.Until.*;
+import com.dtthuan3.ecommerce.common.exception.BusinessException;
+import com.dtthuan3.ecommerce.common.exception.DuplicateResourceException;
+import com.dtthuan3.ecommerce.common.exception.ErrorCode;
+import com.dtthuan3.ecommerce.common.exception.ResourceNotFoundException;
+import com.dtthuan3.ecommerce.reviewservice.util.*;
 import com.dtthuan3.ecommerce.reviewservice.client.FileVerificationClient;
 import com.dtthuan3.ecommerce.reviewservice.client.OrderLineClient;
 import com.dtthuan3.ecommerce.reviewservice.dto.request.ReviewCreateRequest;
@@ -13,10 +17,6 @@ import com.dtthuan3.ecommerce.reviewservice.enums.EligibilityStatus;
 import com.dtthuan3.ecommerce.reviewservice.enums.IdempotencyStatus;
 import com.dtthuan3.ecommerce.reviewservice.enums.ReviewStatus;
 import com.dtthuan3.ecommerce.reviewservice.enums.RevisionStatus;
-import com.dtthuan3.ecommerce.reviewservice.exception.BusinessException;
-import com.dtthuan3.ecommerce.reviewservice.exception.ConflictException;
-import com.dtthuan3.ecommerce.reviewservice.exception.NotFoundException;
-import com.dtthuan3.ecommerce.reviewservice.exception.UnprocessableEntityException;
 import com.dtthuan3.ecommerce.reviewservice.mapper.ReviewAssembler;
 import com.dtthuan3.ecommerce.reviewservice.mapper.ReviewMapper;
 import com.dtthuan3.ecommerce.reviewservice.repository.*;
@@ -47,7 +47,6 @@ public class ReviewServiceImpl implements ReviewService {
     public static final int IDEMPOTENCY_TTL_HOURS = 72;
     public static final boolean AUTO_PUBLISH = false;       // false = mọi review đều chờ duyệt (theo tài liệu)
 
-    /** Còn được sửa thêm không, biết đã sửa {@code editsDone} lần. */
     public static boolean canEditMore(int editsDone) {
         return MAX_EDITS <= 0 || editsDone < MAX_EDITS;
     }
@@ -91,7 +90,7 @@ public class ReviewServiceImpl implements ReviewService {
             IdempotencyRecord record = existing.get();
             if (record.getExpiresAt().isAfter(now)) {
                 if (!record.getFingerprint().equals(fingerprint)) {
-                    throw new UnprocessableEntityException("IDEMPOTENCY_CONFLICT: Idempotency-Key này đã được dùng cho một yêu cầu khác");
+                    throw new BusinessException("IDEMPOTENCY_CONFLICT", HttpStatus.UNPROCESSABLE_ENTITY, "Idempotency-Key này đã được dùng cho một yêu cầu khác");
                 }
                 return replay(record);
             }
@@ -113,7 +112,7 @@ public class ReviewServiceImpl implements ReviewService {
         EligibilityProjection eligibility = resolveEligibility(request.getLineId(), userId, now);
         if (reviewRepository.findByLineId(request.getLineId()).isPresent()) {
             metrics.submitBlocked("already_exists");
-            throw new ConflictException("REVIEW_ALREADY_EXISTS: Sản phẩm này đã được đánh giá");
+            throw new DuplicateResourceException("Sản phẩm này đã được đánh giá");
         }
         fileClient.ensureReady(userId, media.stream().map(ReviewMediaRequest::getFileId).toList());
 
@@ -158,14 +157,14 @@ public class ReviewServiceImpl implements ReviewService {
 
         // Khóa review: tuần tự hóa với kiểm duyệt / xóa / sửa song song
         Review review = reviewRepository.findForUpdate(reviewId)
-                .orElseThrow(() -> new NotFoundException("REVIEW_NOT_FOUND: Không tìm thấy đánh giá"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đánh giá"));
         requireOwner(review, userId);
 
         if (review.getStatus() == ReviewStatus.DELETED) {
-            throw new UnprocessableEntityException("REVIEW_DELETED: Đánh giá đã bị xóa");
+            throw new BusinessException("REVIEW_DELETED", HttpStatus.UNPROCESSABLE_ENTITY, "Đánh giá đã bị xóa");
         }
         if (review.getStatus() == ReviewStatus.HIDDEN) {
-            throw new UnprocessableEntityException("REVIEW_LOCKED: Đánh giá đang bị ẩn, không thể chỉnh sửa");
+            throw new BusinessException("REVIEW_LOCKED", HttpStatus.UNPROCESSABLE_ENTITY, "Đánh giá đang bị ẩn, không thể chỉnh sửa");
         }
 
         ReviewRevision latest = revisionRepository
@@ -175,13 +174,13 @@ public class ReviewServiceImpl implements ReviewService {
         }
 
         if (review.getEditableUntil() == null || review.getEditableUntil().isBefore(now)) {
-            throw new UnprocessableEntityException("REVIEW_EDIT_WINDOW_EXPIRED: Đã quá " + EDIT_WINDOW_DAYS + " ngày, không thể sửa đánh giá");
+            throw new BusinessException("REVIEW_EDIT_WINDOW_EXPIRED", HttpStatus.UNPROCESSABLE_ENTITY, "Đã quá " + EDIT_WINDOW_DAYS + " ngày, không thể sửa đánh giá");
         }
         if (!canEditMore(review.getLatestRevisionNo() - 1)) {
-            throw new UnprocessableEntityException("REVIEW_EDIT_LIMIT_REACHED: Bạn chỉ có thể sửa đánh giá tối đa " + MAX_EDITS + " lần");
+            throw new BusinessException("REVIEW_EDIT_LIMIT_REACHED", HttpStatus.UNPROCESSABLE_ENTITY, "Bạn chỉ có thể sửa đánh giá tối đa " + MAX_EDITS + " lần");
         }
         if (!Objects.equals(review.getVersion(), request.getVersion())) {
-            throw new ConflictException("REVIEW_VERSION_CONFLICT: Đánh giá đã được cập nhật ở nơi khác, vui lòng tải lại");
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT, "Đánh giá đã được cập nhật ở nơi khác, vui lòng tải lại");
         }
         fileClient.ensureReady(userId, media.stream().map(ReviewMediaRequest::getFileId).toList());
 
@@ -225,7 +224,7 @@ public class ReviewServiceImpl implements ReviewService {
     @Transactional
     public void deleteReview(String userId, String reviewId) {
         Review review = reviewRepository.findForUpdate(reviewId)
-                .orElseThrow(() -> new NotFoundException("REVIEW_NOT_FOUND: Không tìm thấy đánh giá"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đánh giá"));
         requireOwner(review, userId);
         if (review.getStatus() == ReviewStatus.DELETED) {
             return; // xóa lặp lại không lỗi
@@ -267,11 +266,11 @@ public class ReviewServiceImpl implements ReviewService {
         }
         if (!e.getUserId().equals(userId) || e.getStatus() != EligibilityStatus.ELIGIBLE) {
             metrics.submitBlocked("not_eligible");
-            throw new UnprocessableEntityException("REVIEW_NOT_ELIGIBLE: Bạn chỉ có thể đánh giá sản phẩm đã nhận thành công");
+            throw new BusinessException("REVIEW_NOT_ELIGIBLE", HttpStatus.UNPROCESSABLE_ENTITY, "Bạn chỉ có thể đánh giá sản phẩm đã nhận thành công");
         }
         if (e.getEligibleUntil().isBefore(now)) {
             metrics.submitBlocked("expired");
-            throw new UnprocessableEntityException("REVIEW_WINDOW_EXPIRED: Đã quá hạn " + ELIGIBILITY_WINDOW_DAYS + " ngày để đánh giá sản phẩm này");
+            throw new BusinessException("REVIEW_WINDOW_EXPIRED", HttpStatus.UNPROCESSABLE_ENTITY, "Đã quá hạn " + ELIGIBILITY_WINDOW_DAYS + " ngày để đánh giá sản phẩm này");
         }
         return e;
     }
@@ -280,20 +279,20 @@ public class ReviewServiceImpl implements ReviewService {
         Optional<OrderLineClient.OrderLineInfo> info = orderClient.find(lineId);
         if (info.isEmpty()) {
             metrics.submitBlocked("syncing");
-            throw new ConflictException("ELIGIBILITY_SYNCING: Đơn hàng đang được đồng bộ, vui lòng thử lại sau ít phút");
+            throw new BusinessException("ELIGIBILITY_SYNCING", HttpStatus.CONFLICT, "Đơn hàng đang được đồng bộ, vui lòng thử lại sau ít phút");
         }
         OrderLineClient.OrderLineInfo line = info.get();
         boolean delivered = "DELIVERED".equalsIgnoreCase(line.status())
                 && line.deliveredAt() != null && !line.deliveredAt().isBlank();
         if (!userId.equals(line.userId()) || !delivered) {
             metrics.submitBlocked("not_eligible");
-            throw new UnprocessableEntityException("REVIEW_NOT_ELIGIBLE: Bạn chỉ có thể đánh giá sản phẩm đã nhận thành công");
+            throw new BusinessException("REVIEW_NOT_ELIGIBLE", HttpStatus.UNPROCESSABLE_ENTITY, "Bạn chỉ có thể đánh giá sản phẩm đã nhận thành công");
         }
         LocalDateTime deliveredAt;
         try {
             deliveredAt = Times.parseUtc(line.deliveredAt());
         } catch (DateTimeException ex) {
-            throw new ConflictException("ELIGIBILITY_SYNCING: Chưa xác định được thời điểm giao hàng");
+            throw new BusinessException("ELIGIBILITY_SYNCING", HttpStatus.CONFLICT, "Chưa xác định được thời điểm giao hàng");
         }
         return eligibilityRepository.save(mapper.toProjection(line, lineId, deliveredAt));
     }
@@ -318,10 +317,10 @@ public class ReviewServiceImpl implements ReviewService {
 
     private ReviewResponse replay(IdempotencyRecord record) {
         if (record.getResultRef() == null) {
-            throw new ConflictException("REQUEST_PROCESSING: Yêu cầu đang được xử lý, vui lòng thử lại sau");
+            throw new BusinessException("REQUEST_PROCESSING", HttpStatus.CONFLICT, "Yêu cầu đang được xử lý, vui lòng thử lại sau");
         }
         Review review = reviewRepository.findById(record.getResultRef())
-                .orElseThrow(() -> new NotFoundException("REVIEW_NOT_FOUND: Không tìm thấy đánh giá"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đánh giá"));
         return assembler.ownerView(review);
     }
 
@@ -331,14 +330,15 @@ public class ReviewServiceImpl implements ReviewService {
         }
     }
 
+
     private String requireIdempotencyKey(String key) {
         if (key == null || key.isBlank()) {
-            throw new BusinessException("IDEMPOTENCY_KEY_REQUIRED: Thiếu header Idempotency-Key", HttpStatus.BAD_REQUEST);
+            throw new BusinessException("IDEMPOTENCY_KEY_REQUIRED", HttpStatus.BAD_REQUEST, "Thiếu header Idempotency-Key");
         }
         String trimmed = key.trim();
         if (trimmed.length() > MAX_IDEMPOTENCY_KEY_LENGTH) {
-            throw new BusinessException("IDEMPOTENCY_KEY_INVALID: Idempotency-Key tối đa " + MAX_IDEMPOTENCY_KEY_LENGTH + " ký tự",
-                    HttpStatus.BAD_REQUEST);
+            throw new BusinessException("IDEMPOTENCY_KEY_INVALID", HttpStatus.BAD_REQUEST,
+                    "Idempotency-Key tối đa " + MAX_IDEMPOTENCY_KEY_LENGTH + " ký tự");
         }
         return trimmed;
     }

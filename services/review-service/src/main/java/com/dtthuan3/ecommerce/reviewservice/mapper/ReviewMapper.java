@@ -1,6 +1,6 @@
 package com.dtthuan3.ecommerce.reviewservice.mapper;
 
-import com.dtthuan3.ecommerce.reviewservice.Until.ReviewRules;
+import com.dtthuan3.ecommerce.reviewservice.util.ReviewRules;
 import com.dtthuan3.ecommerce.reviewservice.client.OrderLineClient;
 import com.dtthuan3.ecommerce.reviewservice.dto.request.ReviewCreateRequest;
 import com.dtthuan3.ecommerce.reviewservice.dto.request.ReviewMediaRequest;

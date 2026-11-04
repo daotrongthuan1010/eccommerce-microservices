@@ -1,9 +1,8 @@
 package com.dtthuan3.ecommerce.reviewservice.client;
 
 
-import com.dtthuan3.ecommerce.reviewservice.exception.BusinessException;
-import com.dtthuan3.ecommerce.reviewservice.exception.ServiceUnavailableException;
-import com.dtthuan3.ecommerce.reviewservice.exception.UnprocessableEntityException;
+import com.dtthuan3.ecommerce.common.exception.BusinessException;
+import com.dtthuan3.ecommerce.common.exception.ErrorCode;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -17,15 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Gọi File-service (REST) để: (1) kiểm file READY, đúng owner/purpose; (2) tạo binding khi review được duyệt.
- * Tắt mặc định (review.file-verification.enabled=false) vì File-service hiện CHƯA có các endpoint này.
- * Hợp đồng đề xuất:
- * <pre>
- * POST /internal/files/verify   { fileIds, ownerId, purpose } -> { files: [ {fileId, status, ownerId, purpose} ] }
- * POST /internal/files/bindings { ownerType:"REVIEW_REVISION", ownerId, fileIds } -> { bindings: [ {fileId, bindingId} ] }
- * </pre>
- */
+
 @Component
 public class FileVerificationClient {
 
@@ -74,8 +65,7 @@ public class FileVerificationClient {
                     .retrieve()
                     .body(VerifyResponse.class);
         } catch (RestClientException e) {
-            throw new ServiceUnavailableException("FILE_SERVICE_UNAVAILABLE",
-                    "Chưa kiểm tra được ảnh, vui lòng thử lại sau");
+            throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE, "Chưa kiểm tra được ảnh, vui lòng thử lại sau");
         }
         Map<String, FileState> byId = new HashMap<>();
         if (response != null && response.files() != null) {
@@ -84,10 +74,10 @@ public class FileVerificationClient {
         for (String fileId : fileIds) {
             FileState state = byId.get(fileId);
             if (state == null || !"READY".equalsIgnoreCase(state.status())) {
-                throw new UnprocessableEntityException("FILES_NOT_READY", "Ảnh " + fileId + " chưa sẵn sàng");
+                throw new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY, "Ảnh " + fileId + " chưa sẵn sàng");
             }
             if (!ownerId.equals(state.ownerId()) || !FILE_PURPOSE.equals(state.purpose())) {
-                throw new UnprocessableEntityException("FILE_NOT_OWNED", "Ảnh " + fileId + " không hợp lệ");
+                throw new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY, "Ảnh " + fileId + " không hợp lệ");
             }
         }
     }
@@ -108,8 +98,7 @@ public class FileVerificationClient {
                 response.bindings().forEach(b -> result.put(b.fileId(), b.bindingId()));
             }
         } catch (RestClientException e) {
-            throw new ServiceUnavailableException("FILE_SERVICE_UNAVAILABLE",
-                    "Chưa tạo được liên kết ảnh, vui lòng thử lại sau");
+            throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE, "Chưa tạo được liên kết ảnh, vui lòng thử lại sau");
         }
         return result;
     }

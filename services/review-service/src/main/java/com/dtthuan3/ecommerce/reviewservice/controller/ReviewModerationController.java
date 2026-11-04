@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/admin/reviews/moderation")
+@PreAuthorize("hasRole('ADMIN')")
 @RequiredArgsConstructor
 public class ReviewModerationController {
     private final ReviewModerationService moderationService;

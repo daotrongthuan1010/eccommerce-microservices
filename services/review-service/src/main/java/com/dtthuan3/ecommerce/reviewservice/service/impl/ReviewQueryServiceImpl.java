@@ -1,5 +1,6 @@
 package com.dtthuan3.ecommerce.reviewservice.service.impl;
 
+import com.dtthuan3.ecommerce.common.exception.ResourceNotFoundException;
 import com.dtthuan3.ecommerce.common.response.PageResponse;
 import com.dtthuan3.ecommerce.reviewservice.dto.response.ReviewListResponse;
 import com.dtthuan3.ecommerce.reviewservice.dto.response.ReviewResponse;
@@ -7,7 +8,6 @@ import com.dtthuan3.ecommerce.reviewservice.dto.response.ReviewSummaryResponse;
 import com.dtthuan3.ecommerce.reviewservice.entity.RatingAggregate;
 import com.dtthuan3.ecommerce.reviewservice.entity.Review;
 import com.dtthuan3.ecommerce.reviewservice.enums.ReviewStatus;
-import com.dtthuan3.ecommerce.reviewservice.exception.NotFoundException;
 import com.dtthuan3.ecommerce.reviewservice.mapper.ReviewAssembler;
 import com.dtthuan3.ecommerce.reviewservice.repository.RatingAggregateRepository;
 import com.dtthuan3.ecommerce.reviewservice.repository.ReviewRepository;
@@ -40,7 +40,7 @@ public class ReviewQueryServiceImpl implements ReviewQueryService {
     @Override
     public ReviewResponse getReviewDetail(String reviewId, String viewerId) {
         Review review = reviewRepository.findById(reviewId)
-                .orElseThrow(() -> new NotFoundException("REVIEW_NOT_FOUND", "Không tìm thấy đánh giá"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đánh giá"));
         boolean owner = viewerId != null && viewerId.equals(review.getUserId());
 
         if (owner && review.getStatus() != ReviewStatus.DELETED) {
@@ -50,7 +50,7 @@ public class ReviewQueryServiceImpl implements ReviewQueryService {
             return assembler.publicView(review);
         }
         // Chưa duyệt / bị ẩn / đã xóa: người khác coi như không tồn tại
-        throw new NotFoundException("REVIEW_NOT_FOUND", "Không tìm thấy đánh giá");
+        throw new ResourceNotFoundException("Không tìm thấy đánh giá");
     }
 
     @Override

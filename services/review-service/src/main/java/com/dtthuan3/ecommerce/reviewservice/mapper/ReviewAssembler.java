@@ -16,7 +16,6 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/** Nạp revision/media/reply/like liên quan rồi dựng response (tránh N+1 cho danh sách). */
 @Component
 @RequiredArgsConstructor
 public class ReviewAssembler {

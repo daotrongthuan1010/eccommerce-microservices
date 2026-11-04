@@ -24,7 +24,6 @@ public class ReviewInteractionController {
     private final ReviewInteractionService interactionService;
     private final ReviewModerationService moderationService;
 
-    /** Đặt trạng thái "hữu ích" mong muốn (idempotent). */
     @PutMapping("/{id}/helpful")
     public ResponseEntity<ApiResponse<HelpfulResponse>> setHelpful(
             @PathVariable("id") String reviewId,
@@ -43,9 +42,8 @@ public class ReviewInteractionController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.created(null));
     }
 
-    /** Nhân viên CSKH phản hồi đại diện doanh nghiệp (REV-06). */
     @PostMapping("/{id}/reply")
-    //@PreAuthorize(ReviewAuthorities.REPLY)
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<ReviewResponse.ReviewReplyDto>> reply(
             @PathVariable("id") String reviewId,
             @Valid @RequestBody SellerReplyRequest request,
@@ -55,7 +53,7 @@ public class ReviewInteractionController {
     }
 
     @DeleteMapping("/{id}/reply/{replyId}")
-    //@PreAuthorize(ReviewAuthorities.REPLY)
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> removeReply(
             @PathVariable("id") String reviewId,
             @PathVariable String replyId,
