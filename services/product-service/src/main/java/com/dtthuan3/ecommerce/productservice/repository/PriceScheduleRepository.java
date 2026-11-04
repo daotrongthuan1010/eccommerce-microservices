@@ -17,6 +17,23 @@ public interface PriceScheduleRepository
             UUID skuId
     );
 
+    /**
+     * Marketplace browse: price-schedule ACTIVE con hieu luc cho nhieu SKU
+     * (IN query). ACTIVE + effectiveFrom <= now AND (effectiveTo IS NULL OR
+     * effectiveTo > now).
+     */
+    @Query("""
+        SELECT ps FROM PriceSchedule ps
+        WHERE ps.skuId IN :skuIds
+          AND ps.status = 'ACTIVE'
+          AND ps.effectiveFrom <= :now
+          AND (ps.effectiveTo IS NULL OR ps.effectiveTo > :now)
+        """)
+    List<PriceSchedule> findActiveForSkus(
+            @Param("skuIds") java.util.Collection<UUID> skuIds,
+            @Param("now") LocalDateTime now
+    );
+
     @Query("""
         SELECT COUNT(p) > 0
         FROM PriceSchedule p

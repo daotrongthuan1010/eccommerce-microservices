@@ -18,5 +18,10 @@ public interface ProductMediaRepository
 
     List<ProductMedia> findByProductIdAndPrimaryTrue(UUID productId);
 
+    /** Marketplace browse: anh chinh cua nhieu product mot luc (IN query). */
+    List<ProductMedia> findByProductIdInAndPrimaryTrue(
+            java.util.Collection<UUID> productIds
+    );
+
     void deleteByProductId(UUID productId);
 }

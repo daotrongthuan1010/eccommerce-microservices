@@ -29,8 +29,17 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.requestMatchers("/actuator/**")
                         .permitAll()
-                        .requestMatchers(HttpMethod.GET, "/products", "/products/**")
-                        .authenticated()
+                        // Marketplace guest browse (2026-11-05 fe-marketplace D3):
+                        // GET cong khai de khach xem san pham khong can login.
+                        // Nhom A (/products, /skus, ...) + nhom B (/api/v1/... doubled
+                        // prefix qua gateway). Write giu nguyen rule role ben duoi.
+                        .requestMatchers(HttpMethod.GET, "/products", "/products/**",
+                                        "/skus", "/skus/**",
+                                        "/products-variant", "/products-variant/**",
+                                        "/products-media", "/products-media/**",
+                                        "/attribute-templates", "/attribute-templates/**",
+                                        "/api/v1/**")
+                        .permitAll()
                         .requestMatchers("/products/admin/**")
                         .hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/products", "/products/**")

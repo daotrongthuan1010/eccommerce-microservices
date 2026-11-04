@@ -16,4 +16,10 @@ public interface SkuRepository extends JpaRepository<Sku, UUID> {
     Optional<Sku> findByIdAndVariantId(UUID id, UUID variantId);
 
     List<Sku> findAllByVariantId(UUID variantId);
+
+    /** Marketplace browse: SKU dang ban (SELLABLE) cua nhieu variant mot luc. */
+    List<Sku> findAllByVariantIdInAndSellingStatus(
+            java.util.Collection<UUID> variantIds,
+            com.dtthuan3.ecommerce.productservice.constant.SkuSellingStatus sellingStatus
+    );
 }

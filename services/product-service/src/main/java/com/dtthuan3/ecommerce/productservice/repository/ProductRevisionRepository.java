@@ -25,4 +25,7 @@ public interface ProductRevisionRepository
             UUID id,
             UUID productId
     );
+
+    /** Marketplace browse: published revisions theo danh sach id (IN query). */
+    List<ProductRevision> findAllByIdIn(java.util.Collection<UUID> ids);
 }

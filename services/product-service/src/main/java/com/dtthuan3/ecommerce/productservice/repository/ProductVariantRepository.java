@@ -23,4 +23,9 @@ public interface ProductVariantRepository
     List<ProductVariant> findAllByProductIdOrderByCreatedAtDesc(
             UUID productId
     );
+
+    /** Marketplace browse: variants cua nhieu product mot luc (IN query). */
+    List<ProductVariant> findAllByProductIdInAndActiveTrue(
+            java.util.Collection<UUID> productIds
+    );
 }
