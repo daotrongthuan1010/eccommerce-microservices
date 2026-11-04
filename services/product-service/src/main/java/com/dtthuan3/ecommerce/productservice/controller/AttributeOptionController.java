@@ -6,6 +6,7 @@ import com.dtthuan3.ecommerce.productservice.dto.request.AttributeOptionCreateRe
 import com.dtthuan3.ecommerce.productservice.dto.request.AttributeOptionUpdateRequest;
 import com.dtthuan3.ecommerce.productservice.dto.response.AttributeOptionResponse;
 import com.dtthuan3.ecommerce.productservice.service.AttributeOptionService;
+import com.dtthuan3.ecommerce.productservice.service.AttributeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

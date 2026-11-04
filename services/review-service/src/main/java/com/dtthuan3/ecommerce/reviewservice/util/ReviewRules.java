@@ -1,10 +1,11 @@
-package com.dtthuan3.ecommerce.reviewservice.util;
+package com.dtthuan3.ecommerce.reviewservice.Util;
 
 
-import com.dtthuan3.ecommerce.common.exception.BusinessException;
-import com.dtthuan3.ecommerce.common.exception.ErrorCode;
 import com.dtthuan3.ecommerce.reviewservice.dto.request.ReviewMediaRequest;
 import com.dtthuan3.ecommerce.reviewservice.enums.ReviewMediaType;
+import com.dtthuan3.ecommerce.reviewservice.exception.BusinessException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
@@ -23,7 +24,7 @@ public class ReviewRules {
     private final List<String> bannedWords;
 
     public ReviewRules() {
-        this(5, 1, List.of());
+        this(5, 0, List.of());
     }
 
     /** Dùng cho test với giới hạn tùy ý. */
@@ -49,10 +50,10 @@ public class ReviewRules {
         for (ReviewMediaRequest item : media) {
             if (item == null || item.getFileId() == null || item.getFileId().isBlank()
                     || item.getMediaType() == null) {
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Thông tin media không hợp lệ");
+                throw bad("VALIDATION_ERROR", "Thông tin media không hợp lệ");
             }
             if (!fileIds.add(item.getFileId())) {
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "File không được trùng lặp");
+                throw bad("VALIDATION_ERROR", "File không được trùng lặp");
             }
             if (item.getMediaType() == ReviewMediaType.VIDEO) {
                 videos++;
@@ -61,10 +62,10 @@ public class ReviewRules {
             }
         }
         if (images > maxImages) {
-            throw new BusinessException(ErrorCode.INVALID_QUANTITY, "Tối đa " + maxImages + " ảnh cho mỗi đánh giá");
+            throw bad("MEDIA_LIMIT_EXCEEDED", "Tối đa " + maxImages + " ảnh cho mỗi đánh giá");
         }
         if (videos > maxVideos) {
-            throw new BusinessException(ErrorCode.INVALID_QUANTITY, "Tối đa " + maxVideos + " video cho mỗi đánh giá");
+            throw bad("MEDIA_LIMIT_EXCEEDED", "Tối đa " + maxVideos + " video cho mỗi đánh giá");
         }
         return media;
     }
@@ -93,5 +94,9 @@ public class ReviewRules {
     /** Cắt khoảng trắng; chuỗi rỗng -> null. */
     public static String normalize(String s) {
         return hasText(s) ? s.trim() : null;
+    }
+
+    private static BusinessException bad(String code, String message) {
+        return new BusinessException(HttpStatus.BAD_REQUEST, code, message);
     }
 }
