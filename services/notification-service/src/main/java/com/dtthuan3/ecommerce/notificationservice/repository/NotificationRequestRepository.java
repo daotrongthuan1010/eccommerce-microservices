@@ -27,6 +27,17 @@ public interface NotificationRequestRepository extends JpaRepository<Notificatio
             """)
     List<NotificationRequest> findDueBatch(@Param("now") Instant now, Pageable pageable);
 
+    /** Recovery: pod chet giu transaction de request kec SENDING — worker
+     *  sau khi khoi dong lai lay nhung request SENDING "ma" qua :staleAfter
+     *  de xu ly lai (idempotent theo businessKey + attempt history). */
+    @Query("""
+            SELECT r FROM NotificationRequest r
+            WHERE r.status = 'SENDING'
+              AND r.updatedAt <= :staleAfter
+            ORDER BY r.updatedAt ASC
+            """)
+    List<NotificationRequest> findStaleSending(@Param("staleAfter") Instant staleAfter, Pageable pageable);
+
     List<NotificationRequest> findByRecipientIdOrderByCreatedAtDesc(String recipientId);
 
     List<NotificationRequest> findByOrderIdOrderByCreatedAtDesc(String orderId);

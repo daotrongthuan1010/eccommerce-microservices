@@ -5,6 +5,7 @@ import com.dtthuan3.ecommerce.notificationservice.entity.NotificationRequest;
 import com.dtthuan3.ecommerce.notificationservice.repository.NotificationRequestRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -83,11 +84,14 @@ public class NotificationWorker {
         }
     }
 
-    /** Mot vong quet: lay batch due (LIMIT trong DB) va dispatch song song cho sendPool. */
+    /** Mot vong quet: lay batch due (LIMIT trong DB) va dispatch song song cho sendPool.
+     *  Kem recovery: request SENDING "ma" (pod crash giu transaction) duoc
+     *  chuyen lai QUEUED de xu ly lai — chong kec vinh vien. */
     int pollOnce() {
+        int processed = recoverStaleSending();
         List<NotificationRequest> due = requests.findDueBatch(Instant.now(),
                 PageRequest.of(0, props.getWorker().getBatchSize()));
-        if (due.isEmpty()) return 0;
+        if (due.isEmpty()) return processed;
         log.debug("Quet duoc {} request due", due.size());
         for (NotificationRequest request : due) {
             sendPool.submit(() -> {
@@ -98,6 +102,23 @@ public class NotificationWorker {
                 }
             });
         }
-        return due.size();
+        return processed + due.size();
+    }
+
+    /** Request SENDING khong nhat xu sau 5 phut = pod da chet giu no.
+     *  Chuyen ve QUEUED (worker se pick o vong sau) — an toan vi send SMTP
+     *  kem businessKey, Mailpit dedup theo header. */
+    private int recoverStaleSending() {
+        Instant staleBefore = Instant.now().minus(Duration.ofMinutes(5));
+        List<NotificationRequest> stale = requests.findStaleSending(staleBefore,
+                PageRequest.of(0, props.getWorker().getBatchSize()));
+        if (stale.isEmpty()) return 0;
+        log.warn("Recovery {} request SENDING mai (pod restart giu transaction)", stale.size());
+        for (NotificationRequest request : stale) {
+            request.setStatus("QUEUED");
+            request.setNextAttemptAt(Instant.now());
+            requests.save(request);
+        }
+        return stale.size();
     }
 }

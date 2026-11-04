@@ -7,9 +7,10 @@ metadata:
     app: notification-service
 data:
   SERVER_PORT: "8087"
-  # Heap 60% thay vi 75%: limit 768Mi, heap ~460MB, con lai cho metaspace +
-  # 59 threads + kafka native buffers (75% da gay OOMKilled lan 2 khi don backlog).
-  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60.0 -XX:InitialRAMPercentage=10.0 -XX:+UseSerialGC"
+  # Heap 50% cua 1Gi = ~512MB; MaxDirectMemorySize 150MB chan native buffer;
+  # SerialGC de nho. 3 lan OOM o 384/512/768 deu khi drain — root cause la
+  # native memory (kafka/jpa/netty) tang nhanh khi don don, khong phai heap.
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=50.0 -XX:InitialRAMPercentage=8.0 -XX:MaxDirectMemorySize=150m -XX:+UseSerialGC"
   EUREKA_SERVER_URL: "http://discovery-service:8761/eureka/"
   EUREKA_HOSTNAME: "notification-service"
   EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"

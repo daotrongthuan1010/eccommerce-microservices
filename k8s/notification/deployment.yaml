@@ -55,10 +55,13 @@ spec:
           resources:
             requests:
               cpu: 150m
-              memory: 384Mi
+              memory: 512Mi
             limits:
               cpu: 500m
-              memory: 768Mi
+              # 1Gi: da OOMKilled 3 lan o 384/512/768 — Spring Boot + Kafka consumer
+              # + JPA + 4 worker threads + Keycloak client can nhieu native memory
+              # hon du doan khi drain don. VPS 26Gi con ~10Gi headroom.
+              memory: 1Gi
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
