@@ -6,18 +6,21 @@ import com.dtthuan3.ecommerce.productservice.dto.request.AttributeCreateRequest;
 import com.dtthuan3.ecommerce.productservice.dto.request.AttributeUpdateRequest;
 import com.dtthuan3.ecommerce.productservice.dto.response.AttributeResponse;
 import com.dtthuan3.ecommerce.productservice.service.AttributeService;
+import io.lettuce.core.dynamic.annotation.Param;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.ResponseEntity;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @RestController
 @RequestMapping("/api/v1/attributes")
 @RequiredArgsConstructor
 public class AttributeController {
-
     private final AttributeService attributeService;
 
     @PostMapping

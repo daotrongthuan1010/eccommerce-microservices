@@ -74,20 +74,49 @@ spring:
   # =========================
   # KAFKA
   # =========================
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:162.4.177.91:9092}
+  spring:
+    kafka:
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
-    consumer:
-      group-id: product-service
-      auto-offset-reset: earliest
-      enable-auto-commit: false
+      consumer:
+        group-id: product-service
+        auto-offset-reset: earliest
+        enable-auto-commit: false
 
-    producer:
-      acks: all
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
-      properties:
-        enable.idempotence: true
+        key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+        value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+
+        properties:
+          spring.json.trusted.packages: com.dtthuan3.ecommerce.productservice.event
+          spring.json.use.type.headers: false
+          spring.json.value.default.type: com.dtthuan3.ecommerce.productservice.event.ProductEvent
+
+
+      producer:
+        key-serializer: org.apache.kafka.common.serialization.StringSerializer
+        value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+        acks: all
+        retries: 2147483647
+
+        properties:
+          enable.idempotence: true
+          max.in.flight.requests.per.connection: 5
+          delivery.timeout.ms: 120000
+          request.timeout.ms: 30000
+          compression.type: snappy
+
+
+  app:
+    kafka:
+      topic:
+        partitions: 3
+        replication-factor: 3
+
+
+    outbox:
+      poll-interval-ms: 1000
+      batch-size: 100
 
   # =========================
   # OAUTH2 / KEYCLOAK
