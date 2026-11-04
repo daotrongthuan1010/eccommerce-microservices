@@ -39,6 +39,11 @@ public class FileGrpcService extends FileGrpcServiceGrpc.FileGrpcServiceImplBase
             responseObserver.onCompleted();
         } catch (FileValidationException e) {
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(e.getMessage()).withCause(e).asRuntimeException());
+        } catch (com.dtthuan3.ecommerce.fileservice.exception.FileNotFoundInStorageException e) {
+            responseObserver.onError(Status.NOT_FOUND.withDescription(e.getMessage()).withCause(e).asRuntimeException());
+        } catch (com.dtthuan3.ecommerce.fileservice.exception.VirusDetectedException e) {
+            // 422 khong co trong gRPC — PERMISSION_DENIED gan nhat nghia "file bi tu choi"
+            responseObserver.onError(Status.PERMISSION_DENIED.withDescription(e.getMessage()).withCause(e).asRuntimeException());
         } catch (Exception e) {
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).withCause(e).asRuntimeException());
         }

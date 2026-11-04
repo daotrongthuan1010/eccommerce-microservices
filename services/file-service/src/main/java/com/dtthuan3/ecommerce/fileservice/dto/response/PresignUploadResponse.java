@@ -17,5 +17,11 @@ public class PresignUploadResponse {
 
     private String contentType;
 
+    /** PostPolicy upload: form fields FE phai gui kem (policy + signature cua MinIO). */
+    private java.util.Map<String, String> formData;
+
+    /** Size da duyet cho upload nay (bytes) — PostPolicy gioi content-length-range. */
+    private long sizeBytes;
+
     private long expiresInSeconds;
 }

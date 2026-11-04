@@ -9,6 +9,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -30,6 +32,8 @@ import java.util.List;
 @RequiredArgsConstructor
 @Validated
 public class FileController {
+
+    private static final Logger log = LoggerFactory.getLogger(FileController.class);
 
     private final FileStorageService fileStorageService;
 
@@ -79,6 +83,11 @@ public class FileController {
         StreamingResponseBody body = out -> {
             try (in) {
                 in.transferTo(out);
+            } catch (Exception e) {
+                // Stream dut giua chang: client nhan 200 cut — log de truy vet (khong the
+                // doi status sau khi header da gui, nhung phai thay duoc trong log)
+                log.error("Download stream error key={}: {}", key, e.getMessage());
+                throw e;
             }
         };
         String filename = key.contains("/") ? key.substring(key.lastIndexOf('/') + 1) : key;

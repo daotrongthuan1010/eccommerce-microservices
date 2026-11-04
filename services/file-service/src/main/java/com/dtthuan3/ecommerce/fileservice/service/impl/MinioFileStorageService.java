@@ -20,6 +20,7 @@ import java.io.InputStream;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -127,11 +128,20 @@ public class MinioFileStorageService implements FileStorageService {
                         FileResponse r = upload(file, folder);
                         return new Result(file.getOriginalFilename(), r, null);
                     } catch (Exception e) {
-                        return new Result(file.getOriginalFilename(), null, e.getMessage());
+                        // getMessage co the null (NPE...) — dung ten class + message de FE hieu ly do
+                        String reason = e.getMessage() != null ? e.getMessage()
+                                : e.getClass().getSimpleName();
+                        return new Result(file.getOriginalFilename(), null, reason);
                     }
                 }, fileUploadExecutor)
                 .orTimeout(60, TimeUnit.SECONDS)
-                .exceptionally(ex -> new Result(file.getOriginalFilename(), null, ex.getMessage()))
+                .exceptionally(ex -> {
+                    // Timeout/loi executor: ex.getMessage thuong null — lay root cause ro rang
+                    Throwable root = ex.getCause() != null ? ex.getCause() : ex;
+                    String reason = root.getMessage() != null ? root.getMessage()
+                            : root.getClass().getSimpleName();
+                    return new Result(file.getOriginalFilename(), null, reason);
+                })
                 ).toList();
 
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
@@ -168,7 +178,7 @@ public class MinioFileStorageService implements FileStorageService {
     public UrlResponse getUrl(String key, Integer expirySeconds) {
         validateKey(key);
         String safeKey = sanitizeKey(key);
-        getInfo(safeKey);
+        getInfo(safeKey); // 404 neu khong ton tai — khong cap URL cho file khong co that
         int expiry = normalizeExpiry(expirySeconds);
         String url = generateGetUrl(safeKey, expiry);
         return new UrlResponse(safeKey, url, expiry);
@@ -181,17 +191,39 @@ public class MinioFileStorageService implements FileStorageService {
             throw new FileValidationException("Filename không được rỗng");
         if (request.getContentType() == null || request.getContentType().isBlank())
             throw new FileValidationException("Content-Type không được rỗng");
+        if (request.getSizeBytes() == null || request.getSizeBytes() <= 0)
+            throw new FileValidationException("Size dự kiến (sizeBytes) không được rỗng và phải > 0");
+        if (request.getSizeBytes() > MAX_SINGLE_FILE_SIZE)
+            throw new FileValidationException("Size vượt quá giới hạn 50MB: " + request.getSizeBytes());
         validateContentType(request.getContentType());
         String key = generateKey(request.getFolder(), request.getFilename());
         String safeKey = sanitizeKey(key);
         int expiry = normalizeExpiry(request.getExpirySeconds());
         try {
-            String uploadUrl = presignMinioClient.getPresignedObjectUrl(
-                    GetPresignedObjectUrlArgs.builder().method(Method.PUT).bucket(minioProperties.bucket()).object(safeKey).expiry(expiry).build());
-            return new PresignUploadResponse(safeKey, uploadUrl, request.getContentType(), expiry);
+            // PostPolicy (ch.14 §385-391): URL co han + gioi content-length-range + content-type
+            // ngay tai MinIO — client khong the PUT lon hon size da duyet hay sai loai.
+            java.time.ZonedDateTime expiration = java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC)
+                    .plusSeconds(expiry);
+            PostPolicy policy = new PostPolicy(minioProperties.bucket(), expiration);
+            policy.addEqualsCondition("key", safeKey);
+            policy.addEqualsCondition("Content-Type", request.getContentType());
+            policy.addContentLengthRangeCondition(request.getSizeBytes(), request.getSizeBytes());
+            Map<String, String> formData = presignMinioClient.getPresignedPostFormData(policy);
+            String uploadUrl = propsToUploadUrl();
+            return new PresignUploadResponse(safeKey, uploadUrl, request.getContentType(),
+                    formData, request.getSizeBytes(), expiry);
+        } catch (FileValidationException | StorageException e) {
+            throw e;
         } catch (Exception e) {
             throw new StorageException("Không thể tạo presigned upload URL", e);
         }
+    }
+
+    /** POST upload URL theo bucket cua presignMinioClient (public endpoint). */
+    private String propsToUploadUrl() {
+        String endpoint = minioProperties.effectivePublicEndpoint();
+        if (endpoint.endsWith("/")) endpoint = endpoint.substring(0, endpoint.length() - 1);
+        return endpoint + "/" + minioProperties.bucket();
     }
 
     @Override
