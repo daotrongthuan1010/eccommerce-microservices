@@ -26,6 +26,8 @@ on:
           - inventory-service
           - order-service
           - payment-service
+          - shipping-service
+          - fake-gateway-service
           - notification-service
           - search-service
           - product-service
@@ -57,7 +59,7 @@ jobs:
           DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           DH_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          ALL='["discovery-service","api-gateway","auth-service","user-service","catalog-service","inventory-service","order-service","payment-service","notification-service","search-service","product-service","review-service","analytics-service","file-service"]'
+          ALL='["discovery-service","api-gateway","auth-service","user-service","catalog-service","inventory-service","order-service","payment-service","notification-service","search-service","product-service","review-service","analytics-service","file-service","shipping-service","fake-gateway-service"]'
           CANDIDATES="$ALL"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.service }}" != "all" ]; then
             CANDIDATES='["${{ inputs.service }}"]'

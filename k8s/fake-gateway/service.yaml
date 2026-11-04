@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-gateway-service
+  namespace: ecommerce
+  labels:
+    app: fake-gateway-service
+spec:
+  type: ClusterIP
+  selector:
+    app: fake-gateway-service
+  ports:
+    - name: http
+      port: 8099
+      targetPort: http

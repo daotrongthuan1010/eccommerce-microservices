@@ -90,7 +90,7 @@ storage:
     endpoint: ${MINIO_ENDPOINT:http://162.4.177.91:9000}
 
     # URL mà browser/client có thể truy cập.
-    public-endpoint: ${MINIO_PUBLIC_ENDPOINT:http://162.4.177.91:9000}
+    public-endpoint: ${MINIO_PUBLIC_ENDPOINT:http://162.4.177.91:9000}  # UAT: https://files.shop-hatd.online (configmap)
 
     access-key: ${MINIO_ACCESS_KEY:local_minio_admin}
 

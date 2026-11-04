@@ -1,0 +1,45 @@
+# MinIO public qua subdomain files.shop-hatd.online (HTTPS, Traefik ACME).
+# Dieu kien: DNS A `files` -> 162.4.177.91 (Bao ve TAT) o iNET.
+# file-service dung MINIO_ENDPOINT=http://minio:9000 (noi bo) de upload/download,
+# con MINIO_PUBLIC_ENDPOINT (presigned URL tra ve browser) phai la dia chi public.
+# Truoc day la http://162.4.177.91:9000 -> trang HTTPS goi anh http bi block
+# (mixed content) nen avatar khong hien. Qua domain nay presigned URL la https.
+# MinIO Console (9001) khong route o day — van dung http://162.4.177.91:9001.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: minio
+  namespace: ecommerce
+  labels:
+    app: minio
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`files.shop-hatd.online`)
+      kind: Rule
+      priority: 50
+      middlewares:
+        - name: redirect-https
+      services:
+        - name: minio
+          port: 9000
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: minio-tls
+  namespace: ecommerce
+  labels:
+    app: minio
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`files.shop-hatd.online`)
+      kind: Rule
+      services:
+        - name: minio
+          port: 9000
+  tls:
+    certResolver: letsencrypt

@@ -1,0 +1,24 @@
+server:
+  port: ${SERVER_PORT:8099}
+spring:
+  application:
+    name: fake-gateway-service
+fake:
+  public-base-url: ${FAKE_GATEWAY_PUBLIC_URL:http://localhost:8099}
+  vnpay-secret: ${FAKE_VNPAY_SECRET:local_fake_vnpay_change_me}
+  zalopay-secret: ${FAKE_ZALOPAY_SECRET:local_fake_zalopay_change_me}
+  carrier-secret: ${FAKE_CARRIER_SECRET:local_fake_carrier_change_me}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+info:
+  app:
+    name: fake-gateway-service
+    stage: fake-only
