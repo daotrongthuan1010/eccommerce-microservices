@@ -80,7 +80,9 @@ notification:
   worker:
     poll-interval-ms: 2000
     batch-size: 100
-    concurrency: 8
+    # 4 threads thay vi 8: moi thread giu JPA + Keycloak client + SMTP connection;
+    # 8 threads da gay OOM khi don backlog trong limit 768Mi.
+    concurrency: 4
 
 auth:
   keycloak:

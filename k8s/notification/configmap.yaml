@@ -7,7 +7,9 @@ metadata:
     app: notification-service
 data:
   SERVER_PORT: "8087"
-  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75.0"
+  # Heap 60% thay vi 75%: limit 768Mi, heap ~460MB, con lai cho metaspace +
+  # 59 threads + kafka native buffers (75% da gay OOMKilled lan 2 khi don backlog).
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60.0 -XX:InitialRAMPercentage=10.0 -XX:+UseSerialGC"
   EUREKA_SERVER_URL: "http://discovery-service:8761/eureka/"
   EUREKA_HOSTNAME: "notification-service"
   EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
