@@ -25,6 +25,7 @@ spring:
         provider:
           catalog-keycloak:
             token-uri: ${KEYCLOAK_TOKEN_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/token}
+
       resourceserver:
         jwt:
           jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs}
@@ -46,7 +47,6 @@ spring:
     username: ${DB_USERNAME:catalog_user}
     password: ${DB_PASSWORD:local_catalog_change_me}
     driver-class-name: org.postgresql.Driver
-
     hikari:
       maximum-pool-size: 5
       minimum-idle: 1
@@ -69,15 +69,20 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:162.4.177.91:9092}
 
     consumer:
-      group-id: catalog-service
+      group-id: ${PRODUCT_SEARCH_PROJECTION_GROUP:catalog-product-search-projection}
       auto-offset-reset: earliest
       enable-auto-commit: false
       max-poll-records: 50
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
     listener:
       ack-mode: record
 
     producer:
       acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
       properties:
         enable.idempotence: true
 
@@ -118,6 +123,7 @@ management:
     enabled: false
     sampling:
       probability: 1.0
+
   zipkin:
     tracing:
       endpoint: ${ZIPKIN_ENDPOINT:http://162.4.177.91:9411/api/v2/spans}
@@ -130,6 +136,7 @@ resilience4j:
         wait-duration: 50ms
         retry-exceptions:
           - org.springframework.dao.DataAccessException
+
   circuitbreaker:
     instances:
       catalogSearch:
@@ -149,17 +156,29 @@ info:
 
 logging:
   level:
+    root: INFO
+
     org.springframework.security: DEBUG
+
+    # Kafka listener/container
+    org.springframework.kafka: DEBUG
+    org.springframework.kafka.listener: TRACE
+    org.springframework.kafka.config: DEBUG
+
+    # Kafka client
+    org.apache.kafka.clients.consumer: INFO
+
+    # Code Kafka của Catalog Service
+    com.dtthuan3.ecommerce.catalogservice.kafka: DEBUG
 
 catalog:
   search:
-    index:
-      bootstrap-enabled: ${CATALOG_SEARCH_INDEX_BOOTSTRAP_ENABLED:false}
     kafka:
       replication-factor: ${CATALOG_SEARCH_KAFKA_REPLICATION_FACTOR:1}
-    replay:
-      max-events-per-second: ${CATALOG_SEARCH_REPLAY_MAX_EVENTS_PER_SECOND:5}
+      dlt-partitions: ${CATALOG_SEARCH_KAFKA_DLT_PARTITIONS:3}
+
     events:
       product-topic: ${PRODUCT_EVENTS_TOPIC:product-events}
       group-id: ${PRODUCT_SEARCH_PROJECTION_GROUP:catalog-product-search-projection}
       concurrency: ${PRODUCT_EVENTS_CONCURRENCY:3}
+      dlt-topic: ${PRODUCT_SEARCH_DLT_TOPIC:product-search-projection.DLT}
