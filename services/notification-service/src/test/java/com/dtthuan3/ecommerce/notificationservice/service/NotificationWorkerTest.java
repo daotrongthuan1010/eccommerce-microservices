@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * NOTI-06/07/10: retry backoff co gioi han, UNKNOWN tra provider truoc thu lai,
- * vu han maxAttempts -> FAILED_FINAL + DLQ; mail loi khong anh huong don (worker doc lap).
+ * vu han maxAttempts -> FAILED_FINAL + DLQ; mail loi khong anh huong don (processor doc lap).
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -44,13 +44,13 @@ class NotificationWorkerTest {
 
     private NotificationProperties props;
     private SimpleMeterRegistry registry;
-    private NotificationWorker worker;
+    private NotificationRequestProcessor processor;
 
     @BeforeEach
     void setUp() {
         props = new NotificationProperties();
         registry = new SimpleMeterRegistry();
-        worker = new NotificationWorker(requests, attempts, deadLetters,
+        processor = new NotificationRequestProcessor(requests, attempts, deadLetters,
                 mailProvider, recipientResolver, props, registry);
     }
 
@@ -83,7 +83,7 @@ class NotificationWorkerTest {
         when(mailProvider.send(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(SendResult.accepted("msg-1"));
 
-        worker.processOne("req-1");
+        processor.processOne("req-1");
 
         assertThat(request.getStatus()).isEqualTo("ACCEPTED");
         assertThat(request.getProviderMessageId()).isEqualTo("msg-1");
@@ -103,7 +103,7 @@ class NotificationWorkerTest {
         when(mailProvider.lookupByBusinessKey(request.getBusinessKey()))
                 .thenReturn(SendResult.delivered("msg-1"));
 
-        worker.processOne("req-1");
+        processor.processOne("req-1");
 
         assertThat(request.getStatus()).isEqualTo("DELIVERED");
         assertThat(request.getAttempts()).isEqualTo(1);
@@ -122,7 +122,7 @@ class NotificationWorkerTest {
         when(mailProvider.lookupByBusinessKey(anyString()))
                 .thenReturn(SendResult.retryable("NOT_FOUND", "khong thay"));
 
-        worker.processOne("req-1");
+        processor.processOne("req-1");
 
         assertThat(request.getStatus()).isEqualTo("FAILED_RETRYABLE");
         assertThat(request.getNextAttemptAt()).isAfter(Instant.now());
@@ -138,7 +138,7 @@ class NotificationWorkerTest {
         when(mailProvider.send(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(SendResult.retryable("SMTP_5xx", "server busy"));
 
-        worker.processOne("req-1");
+        processor.processOne("req-1");
 
         assertThat(request.getStatus()).isEqualTo("FAILED_RETRYABLE");
         assertThat(request.getAttempts()).isEqualTo(2);
@@ -157,7 +157,7 @@ class NotificationWorkerTest {
         when(mailProvider.send(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(SendResult.retryable("SMTP_5xx", "still down"));
 
-        worker.processOne("req-1");
+        processor.processOne("req-1");
 
         assertThat(request.getStatus()).isEqualTo("FAILED_FINAL");
         assertThat(request.getNextAttemptAt()).isNull();
@@ -173,7 +173,7 @@ class NotificationWorkerTest {
         when(mailProvider.send(anyString(), eq("khong-dung@@@"), anyString(), anyString()))
                 .thenReturn(SendResult.permanent("INVALID_ADDRESS", "bad address"));
 
-        worker.processOne("req-1");
+        processor.processOne("req-1");
 
         assertThat(request.getStatus()).isEqualTo("FAILED_FINAL");
         assertThat(request.getAttempts()).isEqualTo(1);
@@ -187,7 +187,7 @@ class NotificationWorkerTest {
         when(requests.findByIdForUpdate("req-1")).thenReturn(Optional.of(request));
         when(recipientResolver.resolveEmail("user-1")).thenReturn(null);
 
-        worker.processOne("req-1");
+        processor.processOne("req-1");
 
         assertThat(request.getStatus()).isEqualTo("FAILED_RETRYABLE");
         assertThat(request.getLastError()).contains("RECIPIENT_UNRESOLVED");
@@ -201,7 +201,7 @@ class NotificationWorkerTest {
         request.setStatus("DELIVERED");
         when(requests.findByIdForUpdate("req-1")).thenReturn(Optional.of(request));
 
-        worker.processOne("req-1");
+        processor.processOne("req-1");
 
         verify(mailProvider, never()).send(anyString(), anyString(), anyString(), anyString());
         verify(attempts, never()).save(any());
