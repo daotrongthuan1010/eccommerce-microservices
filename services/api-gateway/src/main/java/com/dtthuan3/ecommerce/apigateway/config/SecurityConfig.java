@@ -30,6 +30,22 @@ public class SecurityConfig {
                         // 403, nhung gateway nen chan som + thong nhat voi moi service).
                         .pathMatchers("/api/*/admin/**")
                         .hasRole("ADMIN")
+                        // IPN/callback tu gateway thanh toan (VNPAY/ZaloPay) va nha xe
+                        // (carrier webhook): KHONG co JWT — bao ve bang HMAC o service layer.
+                        // Gateway phai cho qua, service verify chu ky + timestamp + dedup.
+                        .pathMatchers("/api/payment/payments/webhooks/**",
+                                      "/api/shipping/shipments/webhooks/**")
+                        .permitAll()
+                        // Marketplace guest browse (2026-11-05 fe-marketplace D3):
+                        // GET cong khai de khach xem san pham/danh muc/review truoc khi
+                        // login (kieu Shopee/Tiki). CHI GET — moi write van roi vao
+                        // rule /api/** authenticated ben duoi. Rule phai dung SAU
+                        // denyAll internal + admin de khong mo lo /api/*/internal/**.
+                        .pathMatchers(HttpMethod.GET,
+                                      "/api/catalog/**",
+                                      "/api/product/**",
+                                      "/api/review/**")
+                        .permitAll()
                         .pathMatchers("/api/auth/**", "/actuator/**")
                         .permitAll()
                         .pathMatchers("/api/**")
