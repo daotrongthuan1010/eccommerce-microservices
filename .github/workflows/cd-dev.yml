@@ -150,7 +150,9 @@ jobs:
       - name: Deploy frontend (independent job)
         uses: ./.github/actions/deploy-frontend
         with:
-          tag: develop
+          # SHA thay vi floating develop: IfNotPresent + floating tag da gay pod giu image cu
+          # (bundle bake VITE_* cu -> loi login). SHA moi = spec doi = pod moi keo image moi.
+          tag: ${{ needs.select.outputs.sha }}
           host: ${{ secrets.VPS_SSH_HOST }}
           port: ${{ secrets.VPS_SSH_PORT }}
           username: ${{ secrets.VPS_SSH_USER }}
