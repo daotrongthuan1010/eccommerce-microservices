@@ -24,8 +24,10 @@ public class InventoryProjectionKafkaListener {
     private final MeterRegistry meterRegistry;
 
     /** Đồng bộ trạng thái SKU từ Product Service để giảm các lần gọi validate đồng bộ. */
-    @KafkaListener(topics = "${inventory.kafka.product-events-topic:product-events}")
+    @KafkaListener(topics = "${inventory.kafka.product-events-topic}",
+            concurrency = "${inventory.kafka.consumer-concurrency}")
     public void onProductEvent(String payload) {
+        // Timer được dừng cả khi parse/lưu projection lỗi; outcome failure giúp phân biệt lỗi với record đã xử lý.
         Timer.Sample processingTimer = Timer.start(meterRegistry);
         String outcome = "success";
         meterRegistry.counter("inventory.kafka.product_events.received").increment();
@@ -35,6 +37,7 @@ public class InventoryProjectionKafkaListener {
             if (!"SkuCreated".equals(event.eventType()) && !"SkuDisabled".equals(event.eventType())) {
                 meterRegistry.counter("inventory.kafka.product_events.unsupported").increment();
                 log.debug("Bỏ qua Product event không thuộc projection SKU: {}", event.eventType());
+                // Event không thuộc hợp đồng consumer được xem là xử lý xong, nên không retry vô ích hoặc đẩy DLT.
                 return;
             }
             InventoryProjectionEventService.ApplyOutcome applyOutcome = projectionEventService.applyProductEvent(event);
@@ -43,6 +46,7 @@ public class InventoryProjectionKafkaListener {
         } catch (RuntimeException failure) {
             outcome = "failure";
             meterRegistry.counter("inventory.kafka.product_events.failures").increment();
+            // Ném lỗi lại để DefaultErrorHandler áp dụng retry/DLT; nuốt lỗi ở đây sẽ khiến offset tiến mất event.
             throw failure;
         } finally {
             processingTimer.stop(Timer.builder("inventory.kafka.product_events.processing")

@@ -1,0 +1,64 @@
+spring:
+  datasource:
+    # Profile production không dùng fallback localhost/VPS hoặc mật khẩu mẫu của application.yml.
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:5}
+      minimum-idle: ${DB_POOL_MIN_IDLE:1}
+      connection-timeout: ${DB_POOL_CONNECTION_TIMEOUT_MS:10000}
+      initialization-fail-timeout: ${DB_POOL_INITIALIZATION_FAIL_TIMEOUT_MS:30000}
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:true}
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    properties:
+      security.protocol: SASL_SSL
+      sasl.mechanism: ${KAFKA_SASL_MECHANISM:SCRAM-SHA-512}
+      sasl.jaas.config: >-
+        org.apache.kafka.common.security.scram.ScramLoginModule required
+        username="${KAFKA_USERNAME}" password="${KAFKA_PASSWORD}";
+      ssl.truststore.location: ${KAFKA_SSL_TRUSTSTORE_LOCATION}
+      ssl.truststore.password: ${KAFKA_SSL_TRUSTSTORE_PASSWORD}
+      ssl.truststore.type: ${KAFKA_SSL_TRUSTSTORE_TYPE:PKCS12}
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI}
+
+  application:
+    name: inventory-service
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL}
+
+inventory:
+  integration:
+    file-service-base-url: ${FILE_SERVICE_BASE_URL}
+
+grpc:
+  server:
+    # Profile production bắt buộc TLS/mTLS; thiếu certificate hoặc trust bundle thì service fail-fast.
+    security:
+      enabled: true
+      certificate-chain: ${GRPC_SERVER_CERTIFICATE_CHAIN}
+      private-key: ${GRPC_SERVER_PRIVATE_KEY}
+      trust-cert-collection: ${GRPC_SERVER_TRUST_CERT_COLLECTION}
+      client-auth: REQUIRE
+
+management:
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT}

@@ -7,6 +7,7 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.request.SetActiveRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.UpdateLocationRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.LocationResponse;
 import com.dtthuan3.ecommerce.inventoryservice.service.LocationManagementService;
+import com.dtthuan3.ecommerce.inventoryservice.service.InventoryWarehouseAuthorizationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -25,20 +26,29 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.beans.factory.annotation.Value;
 
 
-/** REST API quản lý Location thuộc một Warehouse nội bộ của Inventory. */
+/**
+ * REST API quản lý Location thuộc một Warehouse nội bộ của Inventory.
+ * Class này là ranh giới HTTP của Inventory: nhận path/query/body, áp dụng xác thực và kiểm tra đầu vào,
+ * gọi service nghiệp vụ rồi đóng gói HTTP response; không tự thực hiện truy vấn SQL hay cập nhật tồn.
+ */
 @RestController
 @RequestMapping("/inventory/locations")
 @RequiredArgsConstructor
 @Validated
 public class LocationController {
 
+    @Value("${inventory.api.location-page-size}")
+    private int locationPageSize;
+
     private final LocationManagementService locationService;
+    private final InventoryWarehouseAuthorizationService warehouseAuthorizationService;
 
     /** Tạo Location mới; mã Location phải duy nhất trong cùng một Warehouse. */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INVENTORY_MANAGE')")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<LocationResponse> create(@Valid @RequestBody CreateLocationRequest request) {
         return new ApiResponse<>(true, "CREATED", "Tạo Location thành công", locationService.createLocation(request));
@@ -46,20 +56,23 @@ public class LocationController {
 
     /** Đọc một Location theo ID; response luôn dùng cấu trúc ApiResponse chung của hệ thống. */
     @GetMapping("/{locationId}")
-    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INVENTORY_READ')")
     public ApiResponse<LocationResponse> getById(@PathVariable String locationId) {
-        return ApiResponse.ok("Lấy thông tin Location thành công", locationService.getLocation(locationId));
+        LocationResponse response = locationService.getLocation(locationId);
+        warehouseAuthorizationService.requireWarehouseAccess(response.warehouseId());
+        return ApiResponse.ok("Lấy thông tin Location thành công", response);
     }
 
     /** Liệt kê các Location thuộc warehouseId được truyền vào, đã sắp xếp theo code. */
     @GetMapping
-    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INVENTORY_READ')")
     public ApiResponse<PageResponse<LocationResponse>> list(
             @RequestParam @NotBlank(message = "warehouseId là bắt buộc") String warehouseId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
+        warehouseAuthorizationService.requireWarehouseAccess(warehouseId);
         Page<LocationResponse> result = locationService.listLocations(warehouseId,
-                PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 100))));
+                PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, locationPageSize))));
         return ApiResponse.ok("Lấy danh sách Location thành công",
                 PageResponse.of(result.getContent(), result.getNumber(), result.getSize(),
                         result.getTotalElements(), result.getTotalPages()));
@@ -67,7 +80,7 @@ public class LocationController {
 
     /** Cập nhật code và name; API không cho chuyển Location sang Warehouse khác. */
     @PutMapping("/{locationId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INVENTORY_MANAGE')")
     public ApiResponse<LocationResponse> update(@PathVariable String locationId,
                                                 @Valid @RequestBody UpdateLocationRequest request) {
         return ApiResponse.ok("Cập nhật Location thành công", locationService.updateLocation(locationId, request));
@@ -75,7 +88,7 @@ public class LocationController {
 
     /** Bật hoặc ngừng sử dụng Location; dùng trạng thái thay cho xóa để giữ lịch sử tham chiếu. */
     @PatchMapping("/{locationId}/status")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INVENTORY_MANAGE')")
     public ApiResponse<LocationResponse> setActive(@PathVariable String locationId,
                                                    @Valid @RequestBody SetActiveRequest request) {
         return ApiResponse.ok("Cập nhật trạng thái Location thành công",

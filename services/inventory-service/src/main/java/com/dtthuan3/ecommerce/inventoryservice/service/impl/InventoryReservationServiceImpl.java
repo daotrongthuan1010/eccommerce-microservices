@@ -37,7 +37,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/** Điều phối reservation theo dòng với khóa ổn định, giao dịch cục bộ và retry deadlock giới hạn. */
+/**
+ * Điều phối reservation theo dòng với khóa ổn định, giao dịch cục bộ và retry deadlock giới hạn.
+ * Class này hiện thực use case hoặc tác vụ nền của Inventory, phối hợp kiểm tra nghiệp vụ, repository và
+ * tích hợp cần thiết để hoàn tất một bước xử lý; adapter bên ngoài không tự thao tác dữ liệu.
+ */
 @Service
 @RequiredArgsConstructor
 public class InventoryReservationServiceImpl implements InventoryReservationService {
@@ -94,6 +98,8 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                                                                String actor, String reservationId,
                                                                String operationId, String orderId,
                                                                String payloadHash) {
+        // Tra operation trước khi khóa tồn: retry cùng key/payload nhận kết quả cũ, key cũ nhưng payload khác là
+        // conflict.
         ReservationHeaderRecord existing = reservationRepository.findByOperationId(operationId).orElse(null);
         if (existing != null) return replayOrReject(existing, payloadHash);
         ReservationHeaderRecord sameId = reservationRepository.findById(reservationId).orElse(null);
@@ -101,6 +107,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                 "reservationId đã tồn tại với một lệnh khác");
 
         List<CreateInventoryReservationRequest.Line> inputLines = validateReserveLines(request.lines());
+        // Mọi transaction khóa nhiều Inventory theo cùng thứ tự ID để giảm chu trình chờ và nguy cơ deadlock.
         List<String> inventoryIds = inputLines.stream().map(line -> line.inventoryId().trim()).sorted().toList();
         List<Inventory> locked = inventoryRepository.findByIdsForUpdate(inventoryIds);
         if (locked.size() != inventoryIds.size()) {
@@ -121,6 +128,8 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         }
 
         Instant createdAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        // Header, từng line, các UPDATE tồn và StockMovement cùng transaction; thiếu hàng ở bất kỳ line nào
+        // rollback cả reservation.
         ReservationHeaderRecord header = new ReservationHeaderRecord(reservationId, orderId, enterpriseId,
                 operationId, payloadHash, "HELD", request.expiresAt(), 0, actor, createdAt, null, null, null);
         if (!reservationRepository.insertHeader(header)) {
@@ -392,6 +401,8 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
 
     private boolean replayOperation(ReservationHeaderRecord header, String operationId,
                                     String type, String expectedHash) {
+        // operationId chỉ idempotent trong phạm vi reservation; type và hash phải khớp để không dùng lệnh release
+        // làm dispatch.
         ReservationOperationRecord existing = reservationRepository.findOperation(header.id(), operationId.trim())
                 .orElse(null);
         if (existing == null) return false;
@@ -411,6 +422,8 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
 
     private void saveOperation(String reservationId, String operationId, String type, String payloadHash,
                                ReservationHeaderRecord after, String referenceId) {
+        // Ghi dấu thao tác trong cùng transaction với cập nhật tồn/header; unique constraint là lớp chặn race cuối
+        // cùng.
         if (!reservationRepository.insertOperation(new ReservationOperationRecord(UUID.randomUUID().toString(),
                 reservationId, operationId.trim(), type, payloadHash, after.status(), after.version(),
                 referenceId, Instant.now()))) {
@@ -438,6 +451,8 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     }
 
     private void checkVersion(ReservationHeaderRecord header, long expectedVersion) {
+        // Version đọc sau khi khóa phải bằng version client gửi; repository vẫn CAS thêm version trong UPDATE để
+        // bảo vệ DB.
         if (header.version() != expectedVersion) throw new BusinessException(ErrorCode.VERSION_CONFLICT,
                 "Reservation đã thay đổi; hãy tải trạng thái mới nhất");
     }
@@ -448,10 +463,13 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                 .movementType(type).quantity(quantity).physicalBefore(before.getPhysicalQuantity())
                 .physicalAfter(after.getPhysicalQuantity()).reservedBefore(before.getReservedQuantity())
                 .reservedAfter(after.getReservedQuantity()).referenceType(referenceType)
-                .referenceId(referenceId).reason(reason).performedBy(actor).performedBySubject(actor).build();
+                .referenceId(referenceId).reason(reason).performedBy(actor).performedBySubject(actor)
+                .build().withBalanceSnapshot(before, after);
     }
 
     private String reserveHash(CreateInventoryReservationRequest request) {
+        // Hash chứa nội dung quyết định reservation; thứ tự line được giữ nguyên nên retry cần gửi cùng thứ tự ban
+        // đầu.
         List<String> parts = new ArrayList<>(List.of(request.reservationId().trim(), request.orderId().trim(),
                 request.expiresAt().toString()));
         for (CreateInventoryReservationRequest.Line line : request.lines()) {
@@ -461,6 +479,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     }
 
     private String releaseHash(String id, ReleaseInventoryReservationRequest request) {
+        // Sort line và chuẩn hóa decimal để cùng ý nghĩa không khác hash chỉ vì thứ tự dòng hoặc scale của số.
         List<String> parts = new ArrayList<>(List.of(id, request.operationId().trim(), request.reason().trim(),
                 request.expectedVersion().toString()));
         if (request.lines() != null) request.lines().stream()
@@ -471,6 +490,8 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
     }
 
     private String dispatchHash(String id, DispatchInventoryReservationRequest request) {
+        // Hash gắn shipment/order/version và từng lượng xuất để operationId không thể bị tái dùng cho shipment
+        // khác.
         List<String> parts = new ArrayList<>(List.of(id, request.operationId().trim(), request.shipmentId().trim(),
                 request.orderId().trim(), request.expectedVersion().toString()));
         request.lines().stream().sorted(Comparator.comparing(DispatchInventoryReservationRequest.Line::reservationLineId))

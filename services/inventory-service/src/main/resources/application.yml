@@ -9,13 +9,10 @@ spring:
     # Buộc dùng RedisCacheManager thay vì cache mặc định trong bộ nhớ của từng instance.
     type: redis
 
-  # Dự án không dùng Flyway; Hibernate ddl-auto là cơ chế duy nhất tự đồng bộ cấu trúc bảng.
-  flyway:
-    enabled: false
-
   data:
     redis:
-      # Thông tin kết nối có thể ghi đè bằng REDIS_HOST, REDIS_PORT và REDIS_PASSWORD.
+      # Redis chỉ phục vụ cache đọc; PostgreSQL vẫn là nguồn dữ liệu chuẩn cho tồn kho và reservation.
+      # Thay các giá trị mặc định bằng biến môi trường ở môi trường triển khai thật.
       host: ${REDIS_HOST:162.4.177.91}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:local_redis_change_me}
@@ -23,32 +20,51 @@ spring:
       timeout: ${REDIS_TIMEOUT:500ms}
 
   kafka:
-    # Broker dùng chung; từng môi trường nên cung cấp KAFKA_BOOTSTRAP_SERVERS riêng.
+    # Địa chỉ bootstrap để producer/consumer tìm broker; Kafka lấy metadata cluster sau kết nối.
+    # Mỗi môi trường nên cung cấp KAFKA_BOOTSTRAP_SERVERS thay cho giá trị mặc định.
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:162.4.177.91:9092}
+    # Có thể bật SASL_SSL qua profile production; không ghi credential broker vào cấu hình mặc định.
+    properties:
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+
+    admin:
+      # Spring Kafka sẽ tạo các NewTopic do Inventory khai báo lúc ứng dụng khởi động.
+      # Không fail startup nếu broker tạm thời chưa sẵn sàng; topic sẽ được thử tạo lại ở lần khởi động sau.
+      auto-create: ${KAFKA_ADMIN_AUTO_CREATE:true}
+      fail-fast: ${KAFKA_ADMIN_FAIL_FAST:false}
 
     consumer:
-      # Cùng group để các instance Inventory chia nhau partition của từng topic.
+      # Các instance cùng group chia partition để record chỉ được xử lý bởi một consumer tại một thời điểm.
       group-id: inventory-service
-      # Đọc lại từ đầu nếu group chưa có committed offset; offset được commit sau khi xử lý record.
+      # Chỉ áp dụng khi group chưa có offset; không tự tua lại offset đã commit.
       auto-offset-reset: earliest
+      # Tắt commit nền; container commit theo ack-mode sau khi listener xử lý thành công.
       enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       properties:
+        # Consumer cần poll tiếp trong giới hạn này; vượt quá có thể làm group rebalance partition.
         max.poll.interval.ms: 300000
+        # Giới hạn số record mỗi poll để mỗi batch nhỏ, dễ retry và giảm thời gian giữ partition.
+        max.poll.records: ${INVENTORY_KAFKA_MAX_POLL_RECORDS:100}
 
     producer:
+      # Chờ tất cả replica in-sync xác nhận; ưu tiên độ bền cho event được phát từ outbox.
       acks: all
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
       properties:
+        # Chống ghi trùng do retry ở tầng producer trong cùng phiên producer.
+        # Không thay thế idempotency nghiệp vụ hoặc inbox dedup ở consumer.
         enable.idempotence: true
+        # Request timeout cho một lần gọi broker; delivery timeout bao phủ toàn lần gửi gồm retry.
         request.timeout.ms: 30000
         delivery.timeout.ms: 120000
 
     listener:
-      # Commit offset theo từng message đã xử lý; thiếu topic chưa làm service dừng khởi động.
+      # Commit offset từng record sau khi listener hoàn tất, không xác nhận cả batch khi một record lỗi.
       ack-mode: record
+      # Cho phép khởi động khi topic chưa tạo; topic cần được provision trước khi luồng được sử dụng.
       missing-topics-fatal: false
 
   datasource:
@@ -58,10 +74,11 @@ spring:
     driver-class-name: org.postgresql.Driver
 
     hikari:
-      maximum-pool-size: 5
-      minimum-idle: 1
-      connection-timeout: 10000
-      initialization-fail-timeout: 30000
+      # Tổng connection DB = giá trị này nhân số replica; phải khớp ngân sách PostgreSQL và giới hạn pod.
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:5}
+      minimum-idle: ${DB_POOL_MIN_IDLE:1}
+      connection-timeout: ${DB_POOL_CONNECTION_TIMEOUT_MS:10000}
+      initialization-fail-timeout: ${DB_POOL_INITIALIZATION_FAIL_TIMEOUT_MS:30000}
 
   jpa:
     hibernate:
@@ -73,11 +90,13 @@ spring:
 
     properties:
       hibernate:
-        # Hibernate query counters are exposed by Actuator when statistics are enabled.
+        # Bật số liệu Hibernate để theo dõi query qua Actuator; có thể tắt nếu chi phí đo đạc ảnh hưởng tải production.
         generate_statistics: ${HIBERNATE_STATISTICS_ENABLED:true}
         format_sql: true
         jdbc:
+          # Gom nhiều câu insert/update để giảm round trip; batch vừa phải giúp giới hạn bộ nhớ và transaction.
           batch_size: 50
+          # Cho phép gom update entity có @Version; Hibernate vẫn kiểm tra version để phát hiện xung đột optimistic lock.
           batch_versioned_data: true
 
         order_inserts: true
@@ -94,51 +113,138 @@ spring:
           jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs}
 
 inventory:
+  api:
+    # Giới hạn phân trang REST để API không cho tải quá nhiều dòng trong một request.
+    max-page-size: ${INVENTORY_API_MAX_PAGE_SIZE:200}
+    receipt-page-size: ${INVENTORY_RECEIPT_PAGE_SIZE:100}
+    location-page-size: ${INVENTORY_LOCATION_PAGE_SIZE:100}
+    transfer-page-size: ${INVENTORY_TRANSFER_PAGE_SIZE:100}
+    # Độ dài tối đa của Idempotency-Key cho API ghi trực tiếp.
+    idempotency-key-max-length: ${INVENTORY_IDEMPOTENCY_KEY_MAX_LENGTH:120}
+    # Giới hạn an toàn cho danh sách kho không phân trang và kích thước một trang kho.
+    warehouse-unpaged-max-size: ${INVENTORY_WAREHOUSE_UNPAGED_MAX_SIZE:100}
+    warehouse-page-max-size: ${INVENTORY_WAREHOUSE_PAGE_MAX_SIZE:100}
+  grpc:
+    # Giới hạn số hàng mỗi trang RPC; nhỏ hơn hoặc bằng cấu hình REST để giữ ngân sách bộ nhớ.
+    max-page-size: ${INVENTORY_GRPC_MAX_PAGE_SIZE:100}
+  database:
+    deadlock-retry:
+      # Thử lại có giới hạn; tăng attempts sẽ kéo dài thời gian request trong lúc DB đang tranh chấp.
+      max-attempts: ${INVENTORY_DB_DEADLOCK_MAX_ATTEMPTS:3}
+      base-backoff: ${INVENTORY_DB_DEADLOCK_BASE_BACKOFF:40ms}
+      max-backoff: ${INVENTORY_DB_DEADLOCK_MAX_BACKOFF:1s}
   integration:
+    # Timeout gọi Product Service để request không giữ thread chờ service phụ thuộc quá lâu.
+    product-connect-timeout: ${INVENTORY_PRODUCT_CONNECT_TIMEOUT:2s}
+    product-read-timeout: ${INVENTORY_PRODUCT_READ_TIMEOUT:3s}
     # Local Inventory gọi File Service qua host dev; Docker Compose ghi đè bằng service name file-service.
     file-service-base-url: ${FILE_SERVICE_BASE_URL:http://162.4.177.91:8095}
+  schema:
+    # Thêm FK/CHECK NOT VALID vẫn bảo vệ bản ghi mới; validate lịch sử có thể quét bảng lớn nên mặc định tắt.
+    # Chỉ bật tạm trên một replica khi đã làm sạch dữ liệu và có cửa sổ bảo trì.
+    validate-constraints-on-startup: ${INVENTORY_SCHEMA_VALIDATE_CONSTRAINTS_ON_STARTUP:false}
+  reservation-expiry:
+    # Batch nhỏ giữ transaction claim ngắn và giới hạn áp lực quét trên PostgreSQL khi nhiều replica chạy.
+    poll-delay-ms: ${INVENTORY_RESERVATION_EXPIRY_POLL_DELAY_MS:5000}
+    batch-size: ${INVENTORY_RESERVATION_EXPIRY_BATCH_SIZE:100}
+    # Lease dài hơn thời gian xử lý bình thường; nếu pod chết, bản ghi sẽ tự được claim lại khi lease hết hạn.
+    lease-seconds: ${INVENTORY_RESERVATION_EXPIRY_LEASE_SECONDS:300}
   batch:
     # Số inventory tối đa được chèn trong một request; có thể ghi đè bằng INVENTORY_BATCH_MAX_SIZE.
     max-size: ${INVENTORY_BATCH_MAX_SIZE:500}
   cache:
     # Cache metadata ít thay đổi; số lượng tồn và reservation luôn được xác nhận từ PostgreSQL.
+    # Cache.clear() (chỉ trên cache namespace được chỉ định) dùng SCAN theo batch,
+    # tránh lệnh KEYS có thể chặn Redis khi cache lớn; dùng Lettuce/Redis standalone hoặc cấu hình tương thích.
+    clear-scan-batch-size: ${INVENTORY_CACHE_CLEAR_SCAN_BATCH_SIZE:500}
+    # TTL có thể cộng jitter trong InventoryCacheConfig để nhiều key không hết hạn cùng lúc.
     location-id-ttl: ${INVENTORY_LOCATION_ID_CACHE_TTL:PT2M}
     location-list-ttl: ${INVENTORY_LOCATION_LIST_CACHE_TTL:PT2M}
     warehouse-id-ttl: ${INVENTORY_WAREHOUSE_ID_CACHE_TTL:PT5M}
     warehouse-list-ttl: ${INVENTORY_WAREHOUSE_LIST_CACHE_TTL:PT3M}
-    # Cache rất ngắn cho màn hình xem tồn theo SKU; giữ reserve/issue luôn xác nhận ở PostgreSQL.
+    # Cache rất ngắn cho màn hình đọc tồn; reserve/issue vẫn kiểm tra và cập nhật PostgreSQL theo điều kiện nguyên tử.
     availability-ttl: ${INVENTORY_AVAILABILITY_CACHE_TTL:PT1S}
     # Giới hạn cache-miss query theo từng instance; Hikari hiện có 5 connection, để dành 1 cho luồng khác.
     availability-db-max-concurrency: ${INVENTORY_AVAILABILITY_DB_MAX_CONCURRENCY:4}
     # Nếu hết permit trong thời gian này, trả 503 để bảo vệ DB thay vì xếp hàng request dài vô hạn.
     availability-db-wait-ms: ${INVENTORY_AVAILABILITY_DB_WAIT_MS:100}
+    # Retry xóa cache ngắn tại chỗ trước khi để outbox retry ở background.
+    eviction-retry-attempts: ${INVENTORY_CACHE_EVICTION_RETRY_ATTEMPTS:3}
+    eviction-retry-base-delay: ${INVENTORY_CACHE_EVICTION_RETRY_BASE_DELAY:50ms}
+    outbox-retry-base-delay: ${INVENTORY_CACHE_OUTBOX_RETRY_BASE_DELAY:1s}
+    outbox-retry-max-delay: ${INVENTORY_CACHE_OUTBOX_RETRY_MAX_DELAY:5m}
+    outbox-retry-max-exponent: ${INVENTORY_CACHE_OUTBOX_RETRY_MAX_EXPONENT:8}
     outbox-poll-delay-ms: ${INVENTORY_CACHE_OUTBOX_POLL_DELAY_MS:1000}
     outbox-metrics-refresh-ms: ${INVENTORY_CACHE_OUTBOX_METRICS_REFRESH_MS:10000}
   sku-projection:
     # Projection quá tuổi này sẽ được kiểm tra lại với Product Service trước thao tác ghi.
     max-age: ${INVENTORY_SKU_PROJECTION_MAX_AGE:PT5M}
   kafka:
+    outbox:
+      publisher:
+        # Bật relay Spring hiện tại khi chưa triển khai Kafka Connect/Debezium.
+        # Khi đã cutover CDC, đặt INVENTORY_EVENT_OUTBOX_PUBLISHER_ENABLED=false để tránh publish trùng.
+        enabled: ${INVENTORY_EVENT_OUTBOX_PUBLISHER_ENABLED:true}
+    # Số consumer thread trên mỗi listener trong một pod; hiệu quả tối đa bằng số partition topic.
+    # Cùng partition luôn do một consumer xử lý nên thứ tự trong partition vẫn được giữ.
+    consumer-concurrency: ${INVENTORY_KAFKA_CONSUMER_CONCURRENCY:3}
+    consumer-retry-interval: ${INVENTORY_KAFKA_CONSUMER_RETRY_INTERVAL:1s}
+    consumer-retry-attempts: ${INVENTORY_KAFKA_CONSUMER_RETRY_ATTEMPTS:3}
     # Topic Product mà Inventory đăng ký nhận để cập nhật projection SKU.
     product-events-topic: ${PRODUCT_EVENTS_TOPIC:product-events}
+    # Return/Order phát event sau khi duyệt; Inventory dùng event này làm nguồn hạn mức nhận hàng trả.
+    return-approval-events-topic: ${INVENTORY_RETURN_APPROVAL_EVENTS_TOPIC:inventory-return-approval-events}
+    return-approval-events-dlt-topic: ${INVENTORY_RETURN_APPROVAL_EVENTS_DLT_TOPIC:inventory-return-approval-events.DLT}
     # Topic lỗi được tạo sẵn cùng số partition với topic Product để giữ khả năng đối soát theo partition.
     product-events-dlt-topic: ${PRODUCT_EVENTS_DLT_TOPIC:product-events.DLT}
+    topic-provisioning:
+      # Tạo topic return approval và DLT qua KafkaAdmin khi service khởi động; tắt được theo môi trường.
+      enabled: ${INVENTORY_KAFKA_TOPIC_PROVISIONING_ENABLED:true}
+      # Consumer concurrency mặc định là 3; partitions quyết định mức song song tối đa của consumer group.
+      partitions: ${INVENTORY_KAFKA_TOPIC_PARTITIONS:3}
+      # Đặt 1 cho broker đơn; môi trường nhiều broker nên cấu hình replication factor theo số broker khả dụng.
+      replication-factor: ${INVENTORY_KAFKA_TOPIC_REPLICATION_FACTOR:1}
     # Outbox phát audit movement sau commit; event key là inventoryId để giữ thứ tự theo bucket tồn.
     stock-movement-events-topic: ${INVENTORY_STOCK_MOVEMENT_EVENTS_TOPIC:inventory-stock-movement-events}
     # Event nhận điều chuyển và sai lệch dùng topic riêng, tránh trộn schema với event movement.
     transfer-events-topic: ${INVENTORY_TRANSFER_EVENTS_TOPIC:inventory-transfer-events}
+    # Chu kỳ publisher quét outbox đến hạn; giảm chu kỳ giúp event đi nhanh hơn nhưng tăng truy vấn DB.
     outbox-poll-delay-ms: ${INVENTORY_EVENT_OUTBOX_POLL_DELAY_MS:500}
+    # Số event claim mỗi lượt; giới hạn lô để transaction claim ngắn và kiểm soát số lease đang giữ.
     outbox-batch-size: ${INVENTORY_EVENT_OUTBOX_BATCH_SIZE:100}
     # Giới hạn số lần gửi Kafka đang chờ ACK trên mỗi instance, tránh tạo backlog bất đồng bộ trong bộ nhớ.
     outbox-max-in-flight: ${INVENTORY_EVENT_OUTBOX_MAX_IN_FLIGHT:100}
     # Kafka có delivery timeout tối đa 120 giây; lease dài hơn để tránh instance khác claim khi lần gửi còn chạy.
     outbox-lease: ${INVENTORY_EVENT_OUTBOX_LEASE:PT3M}
+    outbox-retry-base-delay: ${INVENTORY_EVENT_OUTBOX_RETRY_BASE_DELAY:PT1S}
+    outbox-retry-max-delay: ${INVENTORY_EVENT_OUTBOX_RETRY_MAX_DELAY:PT5M}
+    outbox-retry-max-exponent: ${INVENTORY_EVENT_OUTBOX_RETRY_MAX_EXPONENT:9}
+    # Chỉ xóa event đã publish sau thời gian này; giữ đủ lâu cho đối soát và khôi phục.
     outbox-retention: ${INVENTORY_EVENT_OUTBOX_RETENTION:PT720H}
+    # Tần suất dọn outbox cũ; dọn theo lịch để tránh transaction xóa quá lớn.
     outbox-cleanup-delay-ms: ${INVENTORY_EVENT_OUTBOX_CLEANUP_DELAY_MS:86400000}
+    # Giới hạn mỗi câu lệnh xóa và số lô mỗi lượt để dọn dữ liệu cũ mà không khóa bảng quá lâu.
+    outbox-cleanup-batch-size: ${INVENTORY_EVENT_OUTBOX_CLEANUP_BATCH_SIZE:1000}
+    outbox-cleanup-max-batches: ${INVENTORY_EVENT_OUTBOX_CLEANUP_MAX_BATCHES:10}
+    # Trần bảo vệ DB cho kích thước batch và tổng lượt xóa trong một lần chạy; có thể chỉnh theo tải.
+    outbox-cleanup-batch-limit: ${INVENTORY_EVENT_OUTBOX_CLEANUP_BATCH_LIMIT:10000}
+    outbox-cleanup-max-batches-per-run: ${INVENTORY_EVENT_OUTBOX_CLEANUP_MAX_BATCHES_PER_RUN:100}
+    outbox-claim-batch-limit: ${INVENTORY_EVENT_OUTBOX_CLAIM_BATCH_LIMIT:500}
     outbox-metrics-refresh-ms: ${INVENTORY_EVENT_OUTBOX_METRICS_REFRESH_MS:10000}
+    # Giữ dấu nhận event đủ lâu để retry/replay không áp dụng nghiệp vụ lần nữa.
     inbox-retention: ${INVENTORY_EVENT_INBOX_RETENTION:P90D}
+    # Thời điểm dọn inbox; nên dài hơn cửa sổ retry/replay của các producer liên quan.
     inbox-cleanup-delay-ms: ${INVENTORY_EVENT_INBOX_CLEANUP_DELAY_MS:86400000}
+    # Giới hạn số dòng mỗi câu SQL và số lô mỗi lượt để dọn inbox mà không tạo transaction xóa khổng lồ.
+    inbox-cleanup-batch-size: ${INVENTORY_EVENT_INBOX_CLEANUP_BATCH_SIZE:1000}
+    inbox-cleanup-max-batches: ${INVENTORY_EVENT_INBOX_CLEANUP_MAX_BATCHES:10}
+    # Trần bảo vệ DB tương ứng cho tác vụ dọn inbox.
+    inbox-cleanup-batch-limit: ${INVENTORY_EVENT_INBOX_CLEANUP_BATCH_LIMIT:10000}
+    inbox-cleanup-max-batches-per-run: ${INVENTORY_EVENT_INBOX_CLEANUP_MAX_BATCHES_PER_RUN:100}
     # Replay chỉ xử lý một offset mỗi request; timeout đọc DLT được giới hạn để tránh giữ connection lâu.
     dlt-replay-poll-timeout: ${INVENTORY_KAFKA_DLT_REPLAY_POLL_TIMEOUT:PT10S}
+    # Khoảng thời gian mỗi lần poll consumer khi chờ đúng offset được yêu cầu.
+    dlt-replay-poll-interval: ${INVENTORY_KAFKA_DLT_REPLAY_POLL_INTERVAL:250ms}
     # Chờ lâu hơn delivery.timeout.ms của producer để chỉ trả kết quả sau khi broker xác nhận hoặc timeout gửi.
     dlt-replay-send-timeout: ${INVENTORY_KAFKA_DLT_REPLAY_SEND_TIMEOUT:PT130S}
 
@@ -154,9 +260,17 @@ eureka:
 
 grpc:
   server:
-    # grpc-spring-boot-starter mở listener cho các bean @GrpcService, gồm InventoryGrpcService.
-    # Chỉ mở trong mạng nội bộ; JWT filter HTTP không tự áp dụng lên listener gRPC.
+    # Cổng listener cho các bean @GrpcService, hiện gồm InventoryGrpcService.
+    # JWT được xác thực qua gRPC interceptor; cấu hình bảo vệ HTTP không tự áp dụng lên listener này.
+    # Chỉ expose cổng trong mạng nội bộ và dùng GRPC_SERVER_PORT để cấu hình theo môi trường.
     port: ${GRPC_SERVER_PORT:9084}
+    security:
+      # Bật TLS/mTLS ở môi trường đã cấp cert; JWT interceptor vẫn xác thực principal và role nghiệp vụ.
+      enabled: ${GRPC_TLS_ENABLED:false}
+      certificate-chain: ${GRPC_SERVER_CERTIFICATE_CHAIN:}
+      private-key: ${GRPC_SERVER_PRIVATE_KEY:}
+      trust-cert-collection: ${GRPC_SERVER_TRUST_CERT_COLLECTION:}
+      client-auth: ${GRPC_SERVER_CLIENT_AUTH:REQUIRE}
 
 management:
   endpoints:

@@ -8,7 +8,12 @@ import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 
-/** Sự kiện thiếu hàng được phát hiện khi soạn một allocation đã cam kết. */
+/**
+ * Sự kiện thiếu hàng được phát hiện khi soạn một allocation đã cam kết.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record ReportInventoryShortageRequest(
         /** Khóa idempotency do Shipping/Order tạo cho một lần phát hiện thiếu hàng. */
         @NotBlank(message = "operationId là bắt buộc")

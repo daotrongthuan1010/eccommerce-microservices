@@ -13,7 +13,11 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/** Ledger từng lần giữ hàng thay thế; cho phép một shortage được bù từ nhiều Inventory. */
+/**
+ * Ledger từng lần giữ hàng thay thế; cho phép một shortage được bù từ nhiều Inventory.
+ * Class này biểu diễn trạng thái được lưu bền vững của Inventory service. Hibernate ánh xạ class với bảng
+ * tương ứng; ID tham chiếu service/bản ghi khác được lưu dạng scalar và khóa ngoại do database bảo đảm.
+ */
 @Entity
 @Table(name = "inventory_shortage_reallocation",
         uniqueConstraints = {

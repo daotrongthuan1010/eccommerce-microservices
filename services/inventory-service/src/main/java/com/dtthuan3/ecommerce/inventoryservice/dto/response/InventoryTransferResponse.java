@@ -4,7 +4,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
-/** Phiếu điều chuyển và các dòng hàng ở thời điểm mở phiếu. */
+/**
+ * Phiếu điều chuyển và các dòng hàng ở thời điểm mở phiếu.
+ * Record này là hợp đồng dữ liệu trả về cho client. Service/controller chọn và tổng hợp các trường cần công
+ * khai, giúp API không phụ thuộc trực tiếp vào cấu trúc entity lưu trong database.
+ */
 public record InventoryTransferResponse(
         /** ID của phiếu điều chuyển do Inventory tạo. */
         String transferId,
@@ -33,7 +37,11 @@ public record InventoryTransferResponse(
         /** Các dòng theo thứ tự đã gửi lên. */
         List<Line> lines
 ) {
-    /** Dòng hàng dự kiến trên phiếu; chưa biểu thị lượng đã xuất hoặc đã nhận. */
+    /**
+     * Dòng hàng dự kiến trên phiếu; chưa biểu thị lượng đã xuất hoặc đã nhận.
+     * Record này là hợp đồng dữ liệu trả về cho client. Service/controller chọn và tổng hợp các trường cần công
+     * khai, giúp API không phụ thuộc trực tiếp vào cấu trúc entity lưu trong database.
+     */
     public record Line(
             /** ID nội bộ của dòng phiếu. */
             String lineId,

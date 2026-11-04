@@ -10,14 +10,24 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.util.List;
 
-/** Nhả toàn bộ residual hoặc các lượng cụ thể chưa dispatch của reservation. */
+/**
+ * Nhả toàn bộ residual hoặc các lượng cụ thể chưa dispatch của reservation.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record ReleaseInventoryReservationRequest(
         @NotBlank @Size(max = 120) String operationId,
         @NotBlank @Size(max = 200) String reason,
         @NotNull @PositiveOrZero Long expectedVersion,
         @Size(max = 200) List<@NotNull @Valid Line> lines
 ) {
-    /** Lượng nhả trên một dòng; bỏ trống lines nghĩa là nhả toàn bộ residual. */
+    /**
+     * Lượng nhả trên một dòng; bỏ trống lines nghĩa là nhả toàn bộ residual.
+     * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+     * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+     * bảng database.
+     */
     public record Line(@NotBlank String reservationLineId,
                        @NotNull @Positive BigDecimal quantity) {}
 }

@@ -1,0 +1,65 @@
+# Chỉ tạo CronJob sau khi đã build/push ảnh backup và tạo ConfigMap/Secret theo hai file mẫu cùng thư mục.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: inventory-offsite-backup
+  namespace: ecommerce
+  labels:
+    app: inventory-offsite-backup
+spec:
+  schedule: "30 2 * * *"
+  timeZone: Asia/Ho_Chi_Minh
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app: inventory-offsite-backup
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: inventory-backup
+              image: REPLACE_WITH_PINNED_INVENTORY_BACKUP_IMAGE
+              imagePullPolicy: IfNotPresent
+              command: ["/usr/local/bin/backup-inventory"]
+              envFrom:
+                - configMapRef:
+                    name: inventory-offsite-backup-config
+                - secretRef:
+                    name: inventory-offsite-backup-secrets
+              env:
+                - name: MC_CONFIG_DIR
+                  value: /tmp/mc-config
+              volumeMounts:
+                - name: temporary-files
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: temporary-files
+              emptyDir:
+                sizeLimit: 2Gi

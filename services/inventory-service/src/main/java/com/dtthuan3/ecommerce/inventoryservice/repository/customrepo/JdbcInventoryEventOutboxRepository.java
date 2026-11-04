@@ -17,15 +17,19 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-/** PostgreSQL adapter: batch insert, leasing query và cập nhật retry/publish bằng SQL rõ ràng. */
+/**
+ * PostgreSQL adapter: batch insert, leasing query và cập nhật retry/publish bằng SQL rõ ràng.
+ * Class/interface này chứa hợp đồng hoặc phần thực thi truy vấn SQL/JDBC tùy chỉnh như khóa dòng, cập nhật có điều kiện và phân trang; repository tập trung thao tác dữ liệu, không điều phối toàn bộ use case.
+ */
 @Repository
 @RequiredArgsConstructor
 public class JdbcInventoryEventOutboxRepository implements InventoryEventOutboxRepository {
     private static final String INSERT_SQL = """
             INSERT INTO inventory_event_outbox (
-                event_id, topic, event_type, aggregate_id, payload,
+                event_id, topic, event_type, aggregate_id, payload, sequence_id,
                 created_at, available_at, attempts, published_at, last_error
-            ) VALUES (?, ?, ?, ?, ?, clock_timestamp(), clock_timestamp(), 0, NULL, NULL)
+            ) VALUES (?, ?, ?, ?, ?, nextval('inventory_event_outbox_order_seq'),
+                      clock_timestamp(), clock_timestamp(), 0, NULL, NULL)
             """;
 
     private static final RowMapper<OutboxMessage> MESSAGE_ROW_MAPPER = (resultSet, rowNumber) ->
@@ -39,6 +43,8 @@ public class JdbcInventoryEventOutboxRepository implements InventoryEventOutboxR
     @Transactional
     public void appendBatch(List<OutboxMessage> messages) {
         if (messages == null || messages.isEmpty()) return;
+        // Phương thức tham gia transaction đang ghi nghiệp vụ; không có trạng thái tồn đã commit mà thiếu event
+        // outbox.
         jdbcTemplate.batchUpdate(INSERT_SQL, new BatchPreparedStatementSetter() {
             @Override
             public void setValues(PreparedStatement statement, int index) throws SQLException {
@@ -61,27 +67,38 @@ public class JdbcInventoryEventOutboxRepository implements InventoryEventOutboxR
     @Transactional
     public List<OutboxMessage> claimAvailable(int limit, Instant now, Instant leaseUntil) {
         if (limit < 1) return List.of();
+        // SKIP LOCKED cho phép nhiều publisher lấy các event khác nhau; NOT EXISTS giữ đúng thứ tự của từng
+        // aggregate.
+        // LIMIT giới hạn batch và transaction này chỉ bao quanh việc đọc/đánh lease, không bao quanh lời gọi
+        // Kafka.
         List<OutboxMessage> claimed = jdbcTemplate.query("""
                         SELECT current_event.event_id, current_event.topic, current_event.event_type,
                                current_event.aggregate_id, current_event.payload, current_event.attempts,
-                               current_event.created_at
+                               current_event.created_at, current_event.sequence_id
                         FROM inventory_event_outbox current_event
                         WHERE current_event.published_at IS NULL AND current_event.available_at <= ?
                           AND NOT EXISTS (
                               SELECT 1 FROM inventory_event_outbox earlier_event
                               WHERE earlier_event.aggregate_id = current_event.aggregate_id
                                 AND earlier_event.published_at IS NULL
-                                AND (earlier_event.created_at < current_event.created_at
-                                  OR (earlier_event.created_at = current_event.created_at
-                                      AND earlier_event.event_id < current_event.event_id))
+                                AND ((current_event.sequence_id IS NOT NULL AND
+                                      (earlier_event.sequence_id IS NULL
+                                       OR earlier_event.sequence_id < current_event.sequence_id))
+                                  OR (current_event.sequence_id IS NULL AND earlier_event.sequence_id IS NULL
+                                      AND (earlier_event.created_at < current_event.created_at
+                                        OR (earlier_event.created_at = current_event.created_at
+                                            AND earlier_event.event_id < current_event.event_id))))
                           )
-                        ORDER BY current_event.created_at, current_event.event_id
+                        ORDER BY current_event.sequence_id NULLS FIRST,
+                                 current_event.created_at, current_event.event_id
                         LIMIT ? FOR UPDATE SKIP LOCKED
                         """,
                 MESSAGE_ROW_MAPPER, Timestamp.from(now), limit);
         if (claimed.isEmpty()) return claimed;
 
         List<OutboxMessage> leased = new ArrayList<>(claimed.size());
+        // Lease token hoạt động như fencing token: callback cũ không thể ACK/retry nếu event đã được instance khác
+        // claim.
         List<String> leaseTokens = claimed.stream().map(message -> UUID.randomUUID().toString()).toList();
         int[] leaseUpdates = jdbcTemplate.batchUpdate("""
                         UPDATE inventory_event_outbox
@@ -117,6 +134,8 @@ public class JdbcInventoryEventOutboxRepository implements InventoryEventOutboxR
 
     @Override
     public boolean markPublished(String eventId, String leaseToken, Instant publishedAt) {
+        // Chỉ chủ lease hiện tại được đánh dấu published; cập nhật có điều kiện chống callback trễ ghi đè lease
+        // mới.
         return jdbcTemplate.update("""
                         UPDATE inventory_event_outbox
                         SET published_at = ?, last_error = NULL, lease_token = NULL
@@ -156,11 +175,23 @@ public class JdbcInventoryEventOutboxRepository implements InventoryEventOutboxR
     }
 
     @Override
-    public int deletePublishedBefore(Instant cutoff) {
+    public int deletePublishedBefore(Instant cutoff, int limit) {
+        if (limit < 1) return 0;
+        // Xóa theo lô nhỏ để không tạo một transaction/WAL burst lớn khi bảng đã tích lũy nhiều event hết hạn.
+        // SKIP LOCKED cho phép nhiều Inventory instance cùng dọn mà không chờ hoặc xóa trùng một dòng.
         return jdbcTemplate.update("""
-                        DELETE FROM inventory_event_outbox
-                        WHERE published_at IS NOT NULL AND published_at < ?
+                        WITH delete_batch AS (
+                            SELECT event_id
+                            FROM inventory_event_outbox
+                            WHERE published_at IS NOT NULL AND published_at < ?
+                            ORDER BY published_at, event_id
+                            LIMIT ?
+                            FOR UPDATE SKIP LOCKED
+                        )
+                        DELETE FROM inventory_event_outbox AS outbox
+                        USING delete_batch
+                        WHERE outbox.event_id = delete_batch.event_id
                         """,
-                Timestamp.from(cutoff));
+                Timestamp.from(cutoff), limit);
     }
 }

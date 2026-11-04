@@ -12,7 +12,11 @@ import lombok.Setter;
 
 import java.time.Instant;
 
-/** Dấu idempotency cho commit, release, expire và dispatch của reservation. */
+/**
+ * Dấu idempotency cho commit, release, expire và dispatch của reservation.
+ * Class này biểu diễn trạng thái được lưu bền vững của Inventory service. Hibernate ánh xạ class với bảng
+ * tương ứng; ID tham chiếu service/bản ghi khác được lưu dạng scalar và khóa ngoại do database bảo đảm.
+ */
 @Entity
 @Table(name = "inventory_reservation_operation",
         uniqueConstraints = {

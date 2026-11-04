@@ -31,7 +31,10 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-/** Ghi/đọc lịch sử kho bằng SQL trực tiếp để chỉ lấy cột cần thiết và kiểm soát phân trang. */
+/**
+ * Ghi/đọc lịch sử kho bằng SQL trực tiếp để chỉ lấy cột cần thiết và kiểm soát phân trang.
+ * Class/interface này chứa hợp đồng hoặc phần thực thi truy vấn SQL/JDBC tùy chỉnh như khóa dòng, cập nhật có điều kiện và phân trang; repository tập trung thao tác dữ liệu, không điều phối toàn bộ use case.
+ */
 @Repository
 @RequiredArgsConstructor
 public class StockMovementRepositoryCustomImpl implements StockMovementRepository {
@@ -40,8 +43,10 @@ public class StockMovementRepositoryCustomImpl implements StockMovementRepositor
             INSERT INTO stock_movement (
                 id, inventory_id, movement_type, quantity,
                 physical_before, physical_after, reserved_before, reserved_after,
+                defective_before, defective_after, pending_before, pending_after,
+                in_transit_before, in_transit_after, inventory_version_before, inventory_version_after,
                 reference_type, reference_id, reason, performed_by, performed_by_subject, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -49,7 +54,7 @@ public class StockMovementRepositoryCustomImpl implements StockMovementRepositor
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
 
-    @Value("${inventory.kafka.stock-movement-events-topic:inventory-stock-movement-events}")
+    @Value("${inventory.kafka.stock-movement-events-topic}")
     private String stockMovementEventsTopic;
 
     /**
@@ -69,6 +74,14 @@ public class StockMovementRepositoryCustomImpl implements StockMovementRepositor
                 movement.getPhysicalAfter(),
                 movement.getReservedBefore(),
                 movement.getReservedAfter(),
+                movement.getDefectiveBefore(),
+                movement.getDefectiveAfter(),
+                movement.getPendingBefore(),
+                movement.getPendingAfter(),
+                movement.getInTransitBefore(),
+                movement.getInTransitAfter(),
+                movement.getInventoryVersionBefore(),
+                movement.getInventoryVersionAfter(),
                 movement.getReferenceType(),
                 movement.getReferenceId(),
                 movement.getReason(),
@@ -97,11 +110,19 @@ public class StockMovementRepositoryCustomImpl implements StockMovementRepositor
                 statement.setBigDecimal(6, movement.getPhysicalAfter());
                 statement.setBigDecimal(7, movement.getReservedBefore());
                 statement.setBigDecimal(8, movement.getReservedAfter());
-                statement.setString(9, movement.getReferenceType());
-                statement.setString(10, movement.getReferenceId());
-                statement.setString(11, movement.getReason());
-                statement.setString(12, movement.getPerformedBy());
-                statement.setString(13, movement.getPerformedBySubject());
+                statement.setBigDecimal(9, movement.getDefectiveBefore());
+                statement.setBigDecimal(10, movement.getDefectiveAfter());
+                statement.setBigDecimal(11, movement.getPendingBefore());
+                statement.setBigDecimal(12, movement.getPendingAfter());
+                statement.setBigDecimal(13, movement.getInTransitBefore());
+                statement.setBigDecimal(14, movement.getInTransitAfter());
+                statement.setObject(15, movement.getInventoryVersionBefore());
+                statement.setObject(16, movement.getInventoryVersionAfter());
+                statement.setString(17, movement.getReferenceType());
+                statement.setString(18, movement.getReferenceId());
+                statement.setString(19, movement.getReason());
+                statement.setString(20, movement.getPerformedBy());
+                statement.setString(21, movement.getPerformedBySubject());
             }
 
             @Override
@@ -129,9 +150,12 @@ public class StockMovementRepositoryCustomImpl implements StockMovementRepositor
     /** Tạo envelope ổn định từ movement trước khi chính transaction JDBC được commit. */
     private InventoryEventOutboxRepository.OutboxMessage toOutboxMessage(StockMovement movement) {
         InventoryMovementEvent event = new InventoryMovementEvent(
-                movement.getId(), "InventoryMovementRecorded.v1", Instant.now(), movement.getInventoryId(),
+                movement.getId(), "InventoryMovementRecorded.v2", Instant.now(), movement.getInventoryId(),
                 movement.getMovementType().name(), movement.getQuantity(), movement.getPhysicalBefore(),
                 movement.getPhysicalAfter(), movement.getReservedBefore(), movement.getReservedAfter(),
+                movement.getDefectiveBefore(), movement.getDefectiveAfter(), movement.getPendingBefore(),
+                movement.getPendingAfter(), movement.getInTransitBefore(), movement.getInTransitAfter(),
+                movement.getInventoryVersionBefore(), movement.getInventoryVersionAfter(),
                 movement.getReferenceType(), movement.getReferenceId());
         try {
             return new InventoryEventOutboxRepository.OutboxMessage(event.eventId(), stockMovementEventsTopic,
@@ -178,6 +202,8 @@ public class StockMovementRepositoryCustomImpl implements StockMovementRepositor
         String selectSql = """
                 SELECT id, inventory_id, movement_type, quantity,
                        physical_before, physical_after, reserved_before, reserved_after,
+                       defective_before, defective_after, pending_before, pending_after,
+                       in_transit_before, in_transit_after, inventory_version_before, inventory_version_after,
                        reference_type, reference_id, reason, performed_by,
                        performed_by_subject, created_at
                 FROM stock_movement
@@ -196,6 +222,14 @@ public class StockMovementRepositoryCustomImpl implements StockMovementRepositor
                         rs.getBigDecimal("physical_after"),
                         rs.getBigDecimal("reserved_before"),
                         rs.getBigDecimal("reserved_after"),
+                        rs.getBigDecimal("defective_before"),
+                        rs.getBigDecimal("defective_after"),
+                        rs.getBigDecimal("pending_before"),
+                        rs.getBigDecimal("pending_after"),
+                        rs.getBigDecimal("in_transit_before"),
+                        rs.getBigDecimal("in_transit_after"),
+                        (Long) rs.getObject("inventory_version_before"),
+                        (Long) rs.getObject("inventory_version_after"),
                         rs.getString("reference_type"),
                         rs.getString("reference_id"),
                         rs.getString("reason"),

@@ -19,10 +19,13 @@ import com.dtthuan3.ecommerce.inventoryservice.entity.Inventory;
 import com.dtthuan3.ecommerce.inventoryservice.entity.MovementType;
 import com.dtthuan3.ecommerce.inventoryservice.entity.StockMovement;
 import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryRepository;
+import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryStockOperationRepository;
 import com.dtthuan3.ecommerce.inventoryservice.repository.StockMovementRepository;
 import com.dtthuan3.ecommerce.inventoryservice.service.InventoryService;
 import com.dtthuan3.ecommerce.inventoryservice.service.InventoryLocationAccessService;
 import com.dtthuan3.ecommerce.inventoryservice.service.ClassifiedStockReceipt;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,8 +33,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.math.BigDecimal;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -39,10 +45,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.HexFormat;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-/** Chứa nghiệp vụ tồn kho; cập nhật số lượng và lịch sử được xác nhận hoặc hoàn tác cùng nhau. */
+/**
+ * Chứa nghiệp vụ tồn kho; cập nhật số lượng và lịch sử được xác nhận hoặc hoàn tác cùng nhau.
+ * Class này hiện thực use case hoặc tác vụ nền của Inventory, phối hợp kiểm tra nghiệp vụ, repository và
+ * tích hợp cần thiết để hoàn tất một bước xử lý; adapter bên ngoài không tự thao tác dữ liệu.
+ */
 @Service
 @RequiredArgsConstructor
 public class InventoryServiceImpl implements InventoryService {
@@ -53,29 +65,34 @@ public class InventoryServiceImpl implements InventoryService {
     private final InventoryLocationAccessService locationAccessService;
     private final DeadlockRetryExecutor deadlockRetryExecutor;
     private final InventoryAvailabilityReadCache availabilityReadCache;
+    private final InventoryStockOperationRepository stockOperationRepository;
+    private final ObjectMapper objectMapper;
+
+    @Value("${inventory.api.idempotency-key-max-length}")
+    private int idempotencyKeyMaxLength;
 
     /** Tìm hoặc tạo vị trí tồn theo SKU, cộng hàng nhập và ghi lịch sử trong một giao dịch. */
     @Override
     @Transactional
     public InventoryResponse receiveStock(
             ReceiveStockRequest request,
-            String performedBy
+            String performedBy,
+            String operationId
     ) {
+        // Kiểm tra quyền vị trí trước khi trả kết quả retry, tránh khóa cũ làm bỏ qua quyền theo kho.
         locationAccessService.requireWritablePosition(
                 request.enterpriseId(), request.warehouseId(), request.locationId());
-        // INSERT ... ON CONFLICT khóa và trả dòng hiện tại, tránh đua nhau tạo cùng vị trí tồn.
-        Inventory before = inventoryRepository.createOrFind(
-                request.enterpriseId(),
-                request.warehouseId(),
-                request.locationId(),
-                request.sku()
-        );
-        verifyVersion(before, request.expectedVersion());
-        // Cập nhật số lượng và ghi lịch sử trong cùng giao dịch để hai phần dữ liệu luôn khớp nhau.
-        Inventory updated = inventoryRepository.receive(before.getId(), request.quantity());
-        recordMovement(before, updated, MovementType.RECEIVE, request.quantity(), request.referenceType(),
-                request.referenceId(), request.reason(), performedBy);
-        return toResponse(updated);
+        return runIdempotentStockOperation(operationId, "RECEIVE_STOCK", request, null, () -> {
+            // INSERT ... ON CONFLICT khóa và trả dòng hiện tại, tránh đua nhau tạo cùng vị trí tồn.
+            Inventory before = inventoryRepository.createOrFind(
+                    request.enterpriseId(), request.warehouseId(), request.locationId(), request.sku());
+            verifyVersion(before, request.expectedVersion());
+            // Cập nhật số lượng và ghi lịch sử trong cùng giao dịch để hai phần dữ liệu luôn khớp nhau.
+            Inventory updated = inventoryRepository.receive(before.getId(), request.quantity());
+            recordMovement(before, updated, MovementType.RECEIVE, request.quantity(), request.referenceType(),
+                    request.referenceId(), request.reason(), performedBy);
+            return toResponse(updated);
+        });
     }
 
     /**
@@ -268,9 +285,11 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional
     public InventoryResponse receive(
-            ReceiveInventoryRequest request
+            ReceiveInventoryRequest request, String operationId
     ) {
-
+        // Xác nhận quyền theo kho trước khi tra lại snapshot idempotency của một thao tác cũ.
+        locationAccessService.requireWritableInventory(requireInventory(request.inventoryId()));
+        return runIdempotentStockOperation(operationId, "RECEIVE_EXISTING", request, request.inventoryId(), () -> {
         /*
          * Bước 1:
          *
@@ -304,6 +323,7 @@ public class InventoryServiceImpl implements InventoryService {
          * Chuyển đối tượng tồn kho thành phản hồi.
          */
         return toResponse(inventory);
+        });
     }
 
     /** Giữ hàng nếu tồn khả dụng đủ; nếu không đủ thì không cập nhật và trả lỗi xung đột. */
@@ -391,9 +411,11 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional
     public InventoryResponse issue(
-            IssueInventoryRequest request
+            IssueInventoryRequest request, String operationId
     ) {
-
+        // Không để khóa idempotency biến thành đường đọc response bỏ qua quyền của warehouse hiện tại.
+        locationAccessService.requireWritableInventory(requireInventory(request.inventoryId()));
+        return runIdempotentStockOperation(operationId, "ISSUE", request, request.inventoryId(), () -> {
         /*
          * Bước 1:
          *
@@ -426,38 +448,30 @@ public class InventoryServiceImpl implements InventoryService {
         recordMovement(before, inventory, MovementType.ISSUE, request.quantity(), null, null, null, null);
 
         return toResponse(inventory);
+        });
     }
 
     /** Đặt tồn vật lý bằng kết quả kiểm kê nhưng không thấp hơn các lượng đã cam kết. */
     @Override
     @Transactional
-    public InventoryResponse adjust(
-            AdjustInventoryRequest request
-    ) {
+    public InventoryResponse adjust(AdjustInventoryRequest request, String operationId) {
+        // Kiểm tra quyền trước khi trả snapshot idempotency để retry không vượt quyền hiện tại của Warehouse.
+        locationAccessService.requireWritableInventory(requireInventory(request.inventoryId()));
+        return runIdempotentStockOperation(operationId, "ADJUST", request, request.inventoryId(), () -> {
+            // Khóa dòng tồn và xác nhận version để hai lần kiểm kê đồng thời không ghi đè lẫn nhau.
+            Inventory before = requireLocked(request.inventoryId());
+            locationAccessService.requireWritableInventory(before);
+            verifyVersion(before, request.expectedVersion());
 
-        // Bước 1:
-        // Kiểm tra Inventory có tồn tại hay không.
-        Inventory before = requireLocked(request.inventoryId());
-        locationAccessService.requireWritableInventory(before);
-        verifyVersion(before, request.expectedVersion());
-
-        // Bước 2:
-        // Cập nhật tồn vật lý theo số lượng thực tế sau khi kiểm kê.
-        Inventory inventory = inventoryRepository
-                .adjust(
-                        request.inventoryId(),
-                        request.actualQuantity()
-                )
-                .orElseThrow(() ->
-                        new BusinessException(ErrorCode.INVALID_QUANTITY,
-                                "actualQuantity không được nhỏ hơn tổng reserved, defective và pending"
-                        )
-                );
-        recordMovement(before, inventory, MovementType.ADJUSTMENT,
-                request.actualQuantity().subtract(before.getPhysicalQuantity()).abs(), null, null,
-                request.reason(), null);
-
-        return toResponse(inventory);
+            // Cập nhật tồn vật lý theo số lượng thực tế sau kiểm kê; SQL từ chối nếu thấp hơn lượng đã cam kết.
+            Inventory inventory = inventoryRepository.adjust(request.inventoryId(), request.actualQuantity())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_QUANTITY,
+                            "actualQuantity không được nhỏ hơn tổng reserved, defective và pending"));
+            recordMovement(before, inventory, MovementType.ADJUSTMENT,
+                    request.actualQuantity().subtract(before.getPhysicalQuantity()).abs(), null, null,
+                    request.reason(), null);
+            return toResponse(inventory);
+        });
     }
 
     /**
@@ -568,8 +582,17 @@ public class InventoryServiceImpl implements InventoryService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy Inventory với ID: " + id));
     }
 
+    /** Đọc Inventory không khóa để kiểm tra quyền trước khi tra cứu kết quả idempotency. */
+    private Inventory requireInventory(String id) {
+        return inventoryRepository.findInventoryRowById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "Không tìm thấy Inventory với ID: " + id));
+    }
+
     /** So sánh version client đã đọc với version hiện tại để phát hiện ghi dựa trên dữ liệu cũ. */
     private void verifyVersion(Inventory inventory, Long expectedVersion) {
+        // Chặn lệnh dựa trên snapshot cũ; repository vẫn áp dụng điều kiện số lượng nguyên tử để bảo vệ tranh chấp
+        // sau bước đọc.
         if (expectedVersion != null && !expectedVersion.equals(inventory.getVersion())) {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT,
                     "Version Inventory đã cũ; hãy tải lại dữ liệu rồi thử lại");
@@ -582,6 +605,71 @@ public class InventoryServiceImpl implements InventoryService {
         stockMovementRepository.insertMovement(buildMovement(
                 before, after, type, quantity, referenceType, referenceId, reason, performedBy));
     }
+
+    /**
+     * Chạy thao tác nhập/xuất tối đa một lần cho mỗi Idempotency-Key.
+     * Dấu khóa, thay đổi balance, movement và response snapshot cùng transaction; request đồng thời dùng cùng
+     * khóa sẽ được PostgreSQL phân xử tại unique constraint, còn retry trả snapshot đã lưu mà không cộng/trừ lại.
+     */
+    private InventoryResponse runIdempotentStockOperation(String operationId, String operationType,
+                                                           Object request, String inventoryId,
+                                                           Supplier<InventoryResponse> operation) {
+        String normalizedOperationId = operationId == null ? null : operationId.trim();
+        if (normalizedOperationId == null || normalizedOperationId.isBlank()
+                || normalizedOperationId.length() > idempotencyKeyMaxLength) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST,
+                    "Idempotency-Key là bắt buộc và không được vượt quá "
+                            + idempotencyKeyMaxLength + " ký tự");
+        }
+
+        String payloadHash = stockOperationPayloadHash(operationType, request);
+        boolean claimed = stockOperationRepository.tryStart(normalizedOperationId, operationType,
+                inventoryId, payloadHash, LocalDateTime.now());
+        if (!claimed) {
+            var previous = stockOperationRepository.findByOperationId(normalizedOperationId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.CONFLICT,
+                            "Operation đang được xử lý; hãy retry cùng Idempotency-Key"));
+            if (!operationType.equals(previous.operationType()) || !payloadHash.equals(previous.payloadHash())) {
+                throw new BusinessException(ErrorCode.CONFLICT,
+                        "Idempotency-Key đã được dùng cho thao tác hoặc dữ liệu request khác");
+            }
+            if (previous.responseJson() == null) {
+                throw new BusinessException(ErrorCode.CONFLICT,
+                        "Operation chưa có kết quả hoàn tất; hãy retry sau với cùng Idempotency-Key");
+            }
+            try {
+                return objectMapper.readValue(previous.responseJson(), InventoryResponse.class);
+            } catch (JsonProcessingException exception) {
+                throw new IllegalStateException("Không thể đọc snapshot response của operation "
+                        + normalizedOperationId, exception);
+            }
+        }
+
+        InventoryResponse response = operation.get();
+        try {
+            stockOperationRepository.complete(normalizedOperationId, response.id(),
+                    objectMapper.writeValueAsString(response));
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Không thể lưu snapshot response cho operation "
+                    + normalizedOperationId, exception);
+        }
+        return response;
+    }
+
+    /** Tạo fingerprint ổn định theo loại thao tác và toàn bộ payload để phát hiện tái sử dụng khóa sai. */
+    private String stockOperationPayloadHash(String operationType, Object request) {
+        try {
+            byte[] canonicalPayload = objectMapper.writeValueAsBytes(new StockOperationPayload(operationType, request));
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonicalPayload));
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException("Không thể chuẩn hóa request nhập/xuất để kiểm tra retry", exception);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("JVM không hỗ trợ SHA-256", exception);
+        }
+    }
+
+    /** Wrapper JSON dùng để payload hash không thể lẫn giữa các loại nghiệp vụ khác nhau. */
+    private record StockOperationPayload(String operationType, Object request) {}
 
     /** Dựng movement và giữ nguyên subject JWT dạng chuỗi để batch hoặc insert đơn lẻ dùng chung. */
     private StockMovement buildMovement(Inventory before, Inventory after, MovementType type, BigDecimal quantity,
@@ -605,7 +693,7 @@ public class InventoryServiceImpl implements InventoryService {
                 .reason(reason)
                 .performedBy(actor)
                 .performedBySubject(actor)
-                .build();
+                .build().withBalanceSnapshot(before, after);
     }
 
     /** Dùng chung phép tính tồn khả dụng để mọi endpoint trả về cùng một công thức. */

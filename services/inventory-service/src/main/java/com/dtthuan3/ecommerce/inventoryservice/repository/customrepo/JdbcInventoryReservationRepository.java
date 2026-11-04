@@ -12,7 +12,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-/** Adapter JDBC thực thi khóa dòng, compare-and-set và idempotency cho reservation. */
+/**
+ * Adapter JDBC thực thi khóa dòng, compare-and-set và idempotency cho reservation.
+ * Class/interface này chứa hợp đồng hoặc phần thực thi truy vấn SQL/JDBC tùy chỉnh như khóa dòng, cập nhật có điều kiện và phân trang; repository tập trung thao tác dữ liệu, không điều phối toàn bộ use case.
+ */
 @Repository
 @RequiredArgsConstructor
 public class JdbcInventoryReservationRepository implements InventoryReservationRepository {
@@ -110,6 +113,9 @@ public class JdbcInventoryReservationRepository implements InventoryReservationR
     @Override
     public boolean commit(String id, long expectedVersion, String orderId, String operationId,
                           String paymentReference, String actor, Instant committedAt) {
+        // Compare-and-set: status, order, version và hạn giữ phải còn đúng tại lúc UPDATE mới được commit.
+        // affectedRows=0 nghĩa là reservation hết hạn hoặc request khác đã thắng; service chuyển kết quả thành lỗi
+        // nghiệp vụ.
         return jdbcTemplate.update("""
                 UPDATE inventory_reservation SET status = 'COMMITTED', committed_by = ?, committed_at = ?,
                     payment_reference = ?,
@@ -122,13 +128,38 @@ public class JdbcInventoryReservationRepository implements InventoryReservationR
     @Override
     public boolean expireIfDue(String id, long expectedVersion) {
         return jdbcTemplate.update("""
-                UPDATE inventory_reservation SET status = 'EXPIRED', version = version + 1
+                UPDATE inventory_reservation SET status = 'EXPIRED', version = version + 1,
+                    expiry_claim_until = NULL
                 WHERE id = ? AND status = 'HELD' AND version = ? AND expires_at <= CURRENT_TIMESTAMP
                 """, id, expectedVersion) == 1;
     }
 
+    /** Claim theo lô trong một câu lệnh; lease tự hết hạn để job tiếp tục được sau khi pod bị dừng đột ngột. */
+    @Override
+    public List<String> claimDueForExpiry(int batchSize, int leaseSeconds) {
+        return jdbcTemplate.queryForList("""
+                WITH due AS (
+                    SELECT id
+                    FROM inventory_reservation
+                    WHERE status = 'HELD'
+                      AND expires_at <= CURRENT_TIMESTAMP
+                      AND (expiry_claim_until IS NULL OR expiry_claim_until <= CURRENT_TIMESTAMP)
+                    ORDER BY expires_at, id
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT ?
+                )
+                UPDATE inventory_reservation reservation
+                SET expiry_claim_until = CURRENT_TIMESTAMP + (? * INTERVAL '1 second')
+                FROM due
+                WHERE reservation.id = due.id
+                RETURNING reservation.id
+                """, String.class, batchSize, leaseSeconds);
+    }
+
     @Override
     public boolean updateStatus(String id, long expectedVersion, String expectedStatus, String newStatus) {
+        // Mỗi lần chuyển trạng thái tăng version nguyên tử; chỉ writer đang giữ status/version hiện tại mới cập
+        // nhật được.
         return jdbcTemplate.update("""
                 UPDATE inventory_reservation SET status = ?, version = version + 1
                 WHERE id = ? AND status = ? AND version = ?
@@ -137,6 +168,7 @@ public class JdbcInventoryReservationRepository implements InventoryReservationR
 
     @Override
     public boolean addDispatched(String lineId, String reservationId, BigDecimal quantity) {
+        // Kiểm tra residual ngay trong UPDATE để hai shipment đồng thời không thể cùng tiêu thụ một lượng đã giữ.
         return jdbcTemplate.update("""
                 UPDATE inventory_reservation_line SET dispatched_quantity = dispatched_quantity + ?
                 WHERE id = ? AND reservation_id = ? AND requested_quantity - dispatched_quantity
@@ -146,6 +178,7 @@ public class JdbcInventoryReservationRepository implements InventoryReservationR
 
     @Override
     public boolean addReleased(String lineId, String reservationId, BigDecimal quantity) {
+        // Release dùng cùng công thức residual với dispatch; hàng đã xuất hoặc nhả không thể bị nhả thêm lần nữa.
         return jdbcTemplate.update("""
                 UPDATE inventory_reservation_line SET released_quantity = released_quantity + ?
                 WHERE id = ? AND reservation_id = ? AND requested_quantity - dispatched_quantity

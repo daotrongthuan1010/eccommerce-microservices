@@ -12,7 +12,11 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
-/** Lịch sử quyết định yêu cầu đếm lại; mỗi lần xem xét được append, không ghi đè quyết định trước. */
+/**
+ * Lịch sử quyết định yêu cầu đếm lại; mỗi lần xem xét được append, không ghi đè quyết định trước.
+ * Class này biểu diễn trạng thái được lưu bền vững của Inventory service. Hibernate ánh xạ class với bảng
+ * tương ứng; ID tham chiếu service/bản ghi khác được lưu dạng scalar và khóa ngoại do database bảo đảm.
+ */
 @Entity
 @Table(name = "inventory_count_review",
         uniqueConstraints = @UniqueConstraint(name = "uk_inventory_count_review_operation",

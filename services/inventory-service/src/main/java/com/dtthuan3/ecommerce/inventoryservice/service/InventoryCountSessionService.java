@@ -12,10 +12,15 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.response.InventoryCountRecoun
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-/** Use case mở phiên kiểm kê và ghi nhận baseline trước khi nhân viên nhập số đếm. */
+/**
+ * Use case mở phiên kiểm kê và ghi nhận baseline trước khi nhân viên nhập số đếm.
+ * Interface này công bố các use case Inventory cho controller, worker và adapter gọi tới. Class triển khai
+ * nằm ở service/impl, vì vậy bên gọi phụ thuộc vào hợp đồng thay vì chi tiết xử lý.
+ */
 public interface InventoryCountSessionService {
     Page<InventoryCountSessionResponse> list(String enterpriseId, String warehouseId,
                                               String status, Pageable pageable);
+    InventoryCountSessionResponse getById(String sessionId);
     InventoryCountSessionResponse open(OpenInventoryCountSessionRequest request, String openedBy);
     Page<InventoryCountSessionLineResponse> getLines(String sessionId, int page, int size);
     InventoryCountSubmissionResponse recordCounts(String sessionId, RecordInventoryCountRequest request,

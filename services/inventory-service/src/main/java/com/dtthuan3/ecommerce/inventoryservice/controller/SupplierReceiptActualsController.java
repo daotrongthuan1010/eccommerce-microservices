@@ -4,6 +4,7 @@ import com.dtthuan3.ecommerce.common.response.ApiResponse;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.UpdateSupplierReceiptActualsRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptResponse;
 import com.dtthuan3.ecommerce.inventoryservice.service.SupplierReceiptService;
+import com.dtthuan3.ecommerce.inventoryservice.service.InventoryWarehouseAuthorizationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -17,13 +18,18 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** REST adapter ghi nhận hàng thực nhận và phân loại chất lượng trên phiếu nháp. */
+/**
+ * REST adapter ghi nhận hàng thực nhận và phân loại chất lượng trên phiếu nháp.
+ * Class này là ranh giới HTTP của Inventory: nhận path/query/body, áp dụng xác thực và kiểm tra đầu vào,
+ * gọi service nghiệp vụ rồi đóng gói HTTP response; không tự thực hiện truy vấn SQL hay cập nhật tồn.
+ */
 @RestController
 @RequestMapping("/receipts")
 @RequiredArgsConstructor
 @Validated
 public class SupplierReceiptActualsController {
     private final SupplierReceiptService receiptService;
+    private final InventoryWarehouseAuthorizationService warehouseAuthorizationService;
 
     /**
      * Đọc một phiếu nhập gồm trạng thái, version, toàn bộ dòng hàng và chứng từ liên quan.
@@ -33,10 +39,12 @@ public class SupplierReceiptActualsController {
      * @return dữ liệu chi tiết mới nhất; ID không tồn tại trả lỗi NOT_FOUND
      */
     @GetMapping("/{receiptId}")
-    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INVENTORY_READ')")
     public ApiResponse<SupplierReceiptResponse> getById(
             @PathVariable @NotBlank @Size(max = 36) String receiptId) {
-        return ApiResponse.ok("Lấy chi tiết phiếu nhập thành công", receiptService.getById(receiptId));
+        SupplierReceiptResponse receipt = receiptService.getById(receiptId);
+        warehouseAuthorizationService.requireWarehouseAccess(receipt.warehouseId());
+        return ApiResponse.ok("Lấy chi tiết phiếu nhập thành công", receipt);
     }
 
     /**
@@ -48,10 +56,11 @@ public class SupplierReceiptActualsController {
      * @return phiếu mới nhất cùng version tăng thêm một
      */
     @PatchMapping("/{receiptId}/actuals")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INVENTORY_RECEIVE')")
     public ApiResponse<SupplierReceiptResponse> updateActuals(
             @PathVariable @NotBlank @Size(max = 36) String receiptId,
             @Valid @RequestBody UpdateSupplierReceiptActualsRequest request) {
+        warehouseAuthorizationService.requireWarehouseAccess(receiptService.getById(receiptId).warehouseId());
         return ApiResponse.ok("Cập nhật số lượng thực nhận thành công",
                 receiptService.updateActuals(receiptId, request));
     }

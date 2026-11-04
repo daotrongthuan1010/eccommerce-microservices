@@ -1,0 +1,23 @@
+# Chỉ cho pod trong namespace ecommerce gọi REST/gRPC Inventory.
+# NetworkPolicy giới hạn mặt mạng; JWT/interceptor vẫn là lớp xác thực bắt buộc.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: inventory-service-ingress
+  namespace: ecommerce
+spec:
+  podSelector:
+    matchLabels:
+      app: inventory-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ecommerce
+      ports:
+        - protocol: TCP
+          port: 8084
+        - protocol: TCP
+          port: 9084

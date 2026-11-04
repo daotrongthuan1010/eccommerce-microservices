@@ -196,6 +196,8 @@ spec:
               kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic product-events.DLT --partitions 3 --replication-factor 1
               kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic inventory-stock-movement-events --partitions 3 --replication-factor 1
               kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic inventory-transfer-events --partitions 3 --replication-factor 1
+              kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic inventory-return-approval-events --partitions 3 --replication-factor 1
+              kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic inventory-return-approval-events.DLT --partitions 3 --replication-factor 1
               kafka-topics --bootstrap-server kafka:29092 --list
           resources:
             requests:

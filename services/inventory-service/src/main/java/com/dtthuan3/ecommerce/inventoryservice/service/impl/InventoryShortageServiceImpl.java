@@ -26,7 +26,11 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-/** Kiểm tra dữ liệu shortage theo allocation và lưu case bất biến để các bước sau tiếp tục xử lý. */
+/**
+ * Kiểm tra dữ liệu shortage theo allocation và lưu case bất biến để các bước sau tiếp tục xử lý.
+ * Class này hiện thực use case hoặc tác vụ nền của Inventory, phối hợp kiểm tra nghiệp vụ, repository và
+ * tích hợp cần thiết để hoàn tất một bước xử lý; adapter bên ngoài không tự thao tác dữ liệu.
+ */
 @Service
 @RequiredArgsConstructor
 public class InventoryShortageServiceImpl implements InventoryShortageService {

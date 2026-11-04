@@ -6,6 +6,7 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.request.ReplayProductEventDlt
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.ReplayProductEventDltResponse;
 import com.dtthuan3.ecommerce.inventoryservice.service.InventoryDltReplayService;
 import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -36,7 +37,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-/** Đọc đúng một record DLT, khóa replay theo partition và chờ broker xác nhận trước khi trả kết quả. */
+/**
+ * Đọc đúng một record DLT, khóa replay theo partition và chờ broker xác nhận trước khi trả kết quả.
+ * Class này hiện thực use case hoặc tác vụ nền của Inventory, phối hợp kiểm tra nghiệp vụ, repository và
+ * tích hợp cần thiết để hoàn tất một bước xử lý; adapter bên ngoài không tự thao tác dữ liệu.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -49,17 +54,29 @@ public class InventoryDltReplayServiceImpl implements InventoryDltReplayService 
     private final JdbcTemplate jdbcTemplate;
     private final MeterRegistry meterRegistry;
 
-    @Value("${inventory.kafka.product-events-topic:product-events}")
+    @Value("${inventory.kafka.product-events-topic}")
     private String sourceTopic;
 
-    @Value("${inventory.kafka.product-events-dlt-topic:product-events.DLT}")
+    @Value("${inventory.kafka.product-events-dlt-topic}")
     private String dltTopic;
 
-    @Value("${inventory.kafka.dlt-replay-poll-timeout:PT10S}")
+    @Value("${inventory.kafka.dlt-replay-poll-timeout}")
     private Duration pollTimeout;
 
-    @Value("${inventory.kafka.dlt-replay-send-timeout:PT130S}")
+    @Value("${inventory.kafka.dlt-replay-poll-interval}")
+    private Duration pollInterval;
+
+    @Value("${inventory.kafka.dlt-replay-send-timeout}")
     private Duration sendTimeout;
+
+    @PostConstruct
+    void validateReplayTimeouts() {
+        if (pollTimeout.isNegative() || pollTimeout.isZero()
+                || pollInterval.isNegative() || pollInterval.isZero()
+                || sendTimeout.isNegative() || sendTimeout.isZero()) {
+            throw new IllegalStateException("Cấu hình timeout replay Product DLT phải lớn hơn 0");
+        }
+    }
 
     @Override
     public ReplayProductEventDltResponse replayProductEvent(
@@ -160,7 +177,7 @@ public class InventoryDltReplayServiceImpl implements InventoryDltReplayService 
             consumer.seek(topicPartition, offset);
             long deadline = System.nanoTime() + pollTimeout.toNanos();
             while (System.nanoTime() < deadline) {
-                ConsumerRecords<Object, Object> records = consumer.poll(Duration.ofMillis(250));
+                ConsumerRecords<Object, Object> records = consumer.poll(pollInterval);
                 for (ConsumerRecord<Object, Object> record : records.records(topicPartition)) {
                     if (record.offset() == offset) return record;
                     if (record.offset() > offset) break;

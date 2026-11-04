@@ -6,6 +6,7 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.request.CreateSupplierReceipt
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptResponse;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptSummaryResponse;
 import com.dtthuan3.ecommerce.inventoryservice.service.SupplierReceiptService;
+import com.dtthuan3.ecommerce.inventoryservice.service.InventoryWarehouseAuthorizationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -13,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,7 +35,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @Validated
 public class SupplierReceiptController {
+
+    @Value("${inventory.api.receipt-page-size}")
+    private int receiptPageSize;
     private final SupplierReceiptService receiptService;
+    private final InventoryWarehouseAuthorizationService warehouseAuthorizationService;
 
     /**
      * Liệt kê phiếu nhập thuộc một kho theo trang mới nhất trước.
@@ -46,12 +52,13 @@ public class SupplierReceiptController {
      * @return danh sách tóm tắt cùng tổng số dòng và tổng số trang
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INVENTORY_READ')")
     public ApiResponse<PageResponse<SupplierReceiptSummaryResponse>> listByWarehouse(
             @PathVariable @NotBlank @Size(max = 100) String warehouseId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        PageRequest pageable = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 100)));
+        warehouseAuthorizationService.requireWarehouseAccess(warehouseId);
+        PageRequest pageable = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, receiptPageSize)));
         Page<SupplierReceiptSummaryResponse> result = receiptService.listByWarehouse(warehouseId, pageable);
         PageResponse<SupplierReceiptSummaryResponse> response = PageResponse.of(result.getContent(),
                 result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
@@ -68,7 +75,7 @@ public class SupplierReceiptController {
      * @return phong bì API chung chứa phiếu DRAFT mới hoặc kết quả cũ khi caller retry an toàn
      */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INVENTORY_RECEIVE')")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<SupplierReceiptResponse> create(
             @PathVariable @NotBlank @Size(max = 100) String warehouseId,

@@ -6,6 +6,8 @@ import java.util.List;
 
 /**
  * Kết quả các API trên phiếu nhập nhà cung cấp, gồm trạng thái hiện tại và dữ liệu chi tiết.
+ * Record này là hợp đồng dữ liệu trả về cho client. Service/controller chọn và tổng hợp các trường cần công
+ * khai, giúp API không phụ thuộc trực tiếp vào cấu trúc entity lưu trong database.
  */
 public record SupplierReceiptResponse(
         /** ID phiếu nhập do Inventory tạo. */
@@ -31,7 +33,11 @@ public record SupplierReceiptResponse(
         /** Thời điểm phê duyệt theo UTC; null trước khi được duyệt. */
         Instant approvedAt
 ) {
-    /** Chi tiết dự kiến, thực nhận và phân loại chất lượng của một dòng phiếu. */
+    /**
+     * Chi tiết dự kiến, thực nhận và phân loại chất lượng của một dòng phiếu.
+     * Record này là hợp đồng dữ liệu trả về cho client. Service/controller chọn và tổng hợp các trường cần công
+     * khai, giúp API không phụ thuộc trực tiếp vào cấu trúc entity lưu trong database.
+     */
     public record Line(
             /** ID do Inventory cấp cho dòng phiếu. */
             String lineId,

@@ -35,7 +35,12 @@ public record CreateSupplierReceiptRequest(
         @Size(max = 120, message = "operationId không được vượt quá 120 ký tự")
         String operationId
 ) {
-    /** Một dòng hàng dự kiến nhập; API này chưa ghi actualQty hoặc phân loại chất lượng. */
+    /**
+     * Một dòng hàng dự kiến nhập; API này chưa ghi actualQty hoặc phân loại chất lượng.
+     * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+     * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+     * bảng database.
+     */
     public record Line(
             /** Mã SKU được đối chiếu với Product Service trước khi tạo phiếu. */
             @NotBlank(message = "skuId là bắt buộc")

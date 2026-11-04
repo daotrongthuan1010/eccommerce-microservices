@@ -3,7 +3,11 @@ package com.dtthuan3.ecommerce.inventoryservice.integration.event;
 import java.math.BigDecimal;
 import java.time.Instant;
 
-/** Sự kiện bất biến mô tả một movement đã commit; không chứa thông tin xác thực hoặc dữ liệu nhạy cảm. */
+/**
+ * Sự kiện bất biến mô tả một movement đã commit; không chứa thông tin xác thực hoặc dữ liệu nhạy cảm.
+ * Class này gom trách nhiệm khởi tạo và chạy ứng dụng Inventory, đăng ký cấu hình cần thiết để Spring tạo
+ * các bean trước khi nhận request.
+ */
 public record InventoryMovementEvent(
         /** Dùng cùng ID movement để consumer có thể khử trùng lặp. */
         String eventId,
@@ -23,6 +27,14 @@ public record InventoryMovementEvent(
         /** Tồn đã giữ trước và sau giao dịch. */
         BigDecimal reservedBefore,
         BigDecimal reservedAfter,
+        BigDecimal defectiveBefore,
+        BigDecimal defectiveAfter,
+        BigDecimal pendingBefore,
+        BigDecimal pendingAfter,
+        BigDecimal inTransitBefore,
+        BigDecimal inTransitAfter,
+        Long inventoryVersionBefore,
+        Long inventoryVersionAfter,
         /** Loại và ID chứng từ tham chiếu nếu có. */
         String referenceType,
         String referenceId

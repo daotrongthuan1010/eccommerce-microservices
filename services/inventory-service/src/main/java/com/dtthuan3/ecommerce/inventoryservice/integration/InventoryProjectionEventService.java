@@ -7,6 +7,7 @@ import com.dtthuan3.ecommerce.inventoryservice.repository.SkuCatalogProjectionRe
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,7 +23,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
 
-/** Áp dụng Product event atomically cùng dấu inbox để Kafka redelivery không lặp cập nhật projection. */
+/**
+ * Áp dụng Product event atomically cùng dấu inbox để Kafka redelivery không lặp cập nhật projection.
+ * Class này nối use case Inventory với hệ thống hoặc luồng sự kiện bên ngoài; nó xử lý chuyển đổi/giao tiếp
+ * tại biên tích hợp, còn trạng thái tồn và quy tắc nghiệp vụ vẫn do service Inventory quản lý.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -34,22 +39,46 @@ public class InventoryProjectionEventService {
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
 
-    @Value("${inventory.kafka.inbox-retention:P90D}")
+    @Value("${inventory.kafka.inbox-retention}")
     private Duration inboxRetention;
+
+    @Value("${inventory.kafka.inbox-cleanup-batch-size}")
+    private int inboxCleanupBatchSize;
+
+    @Value("${inventory.kafka.inbox-cleanup-max-batches}")
+    private int inboxCleanupMaxBatches;
+
+    @Value("${inventory.kafka.inbox-cleanup-batch-limit}")
+    private int inboxCleanupBatchLimit;
+
+    @Value("${inventory.kafka.inbox-cleanup-max-batches-per-run}")
+    private int inboxCleanupMaxBatchesPerRun;
+
+    @PostConstruct
+    void validateCleanupConfiguration() {
+        if (inboxCleanupBatchSize < 1 || inboxCleanupMaxBatches < 1
+                || inboxCleanupBatchLimit < 1 || inboxCleanupMaxBatchesPerRun < 1) {
+            throw new IllegalStateException("Cấu hình dọn Inventory inbox phải lớn hơn 0");
+        }
+    }
 
     /** Đăng ký event trước trong transaction; projection lỗi sẽ rollback cả dấu inbox. */
     @Transactional
     public ApplyOutcome applyProductEvent(ProductSkuEvent event) {
         validateEnvelope(event);
+        // Hash giúp phân biệt redelivery cùng nội dung (an toàn) với eventId bị tái sử dụng cho nội dung khác.
         String payloadHash = calculatePayloadHash(event);
         InventoryEventInboxRepository.InboxClaim claim = inboxRepository.claim(
                 CONSUMER_NAME, event.eventId(), payloadHash, Instant.now());
 
         if (!claim.inserted()) {
             if (!payloadHash.equals(claim.existingPayloadHash())) {
+                // Không âm thầm bỏ qua xung đột ID: đó là vi phạm hợp đồng và cần cảnh báo để điều tra producer.
                 meterRegistry.counter("inventory.kafka.product_events.id_conflict").increment();
                 throw new IllegalStateException("eventId đã được dùng với payload khác: " + event.eventId());
             }
+            // Inbox và projection cùng transaction nên event đã claim trước đây cũng đã áp dụng hoặc transaction
+            // rollback.
             meterRegistry.counter("inventory.kafka.product_events.duplicates").increment();
             return ApplyOutcome.DUPLICATE;
         }
@@ -62,7 +91,8 @@ public class InventoryProjectionEventService {
 
         String skuCode = event.skuCode().trim();
         SkuCatalogProjection current = skuRepository.findById(skuCode).orElse(null);
-        // Version từ nguồn là thứ tự chính; occurredAt chỉ làm dự phòng khi thiếu version.
+        // Version do Product phát là thứ tự chuẩn; chỉ dùng occurredAt khi một trong hai event thiếu version.
+        // So sánh <= cũng bỏ event replay cùng version, tránh event cũ ghi đè trạng thái mới hơn.
         if (isOlder(event.version(), event.occurredAt(),
                 current == null ? null : current.getSourceVersion(),
                 current == null ? null : current.getSourceUpdatedAt())) {
@@ -71,19 +101,34 @@ public class InventoryProjectionEventService {
         }
 
         Instant sourceUpdatedAt = event.occurredAt() == null ? Instant.now() : event.occurredAt();
+        // Nếu lưu projection lỗi, dấu inbox cũng rollback để Kafka retry có thể thử lại đầy đủ.
         skuRepository.save(new SkuCatalogProjection(skuCode, active, event.version(), sourceUpdatedAt));
         incrementAfterCommit("inventory.kafka.product_events.applied", 1, "event_type", event.eventType());
         return ApplyOutcome.APPLIED;
     }
 
     /** Dọn inbox theo retention cấu hình để bảng chống trùng không tăng vô hạn. */
-    @Scheduled(fixedDelayString = "${inventory.kafka.inbox-cleanup-delay-ms:86400000}")
-    @Transactional
+    @Scheduled(fixedDelayString = "${inventory.kafka.inbox-cleanup-delay-ms}")
     public void cleanupInbox() {
-        int deleted = inboxRepository.deleteProcessedBefore(Instant.now().minus(inboxRetention));
-        if (deleted > 0) {
-            incrementAfterCommit("inventory.kafka.inbox.cleanup.deleted", deleted);
-            log.info("Đã xóa {} inbox record cũ hơn retention {}", deleted, inboxRetention);
+        try {
+            Instant cutoff = Instant.now().minus(inboxRetention);
+            int safeBatchSize = Math.max(1, Math.min(inboxCleanupBatchSize, inboxCleanupBatchLimit));
+            int safeMaxBatches = Math.max(1, Math.min(inboxCleanupMaxBatches, inboxCleanupMaxBatchesPerRun));
+            int deleted = 0;
+            // Không bọc cả đợt dọn trong một transaction; mỗi câu SQL kết thúc riêng để nhả lock/WAL sớm.
+            for (int batch = 0; batch < safeMaxBatches; batch++) {
+                int deletedInBatch = inboxRepository.deleteProcessedBefore(cutoff, safeBatchSize);
+                deleted += deletedInBatch;
+                if (deletedInBatch < safeBatchSize) break;
+            }
+            if (deleted > 0) {
+                meterRegistry.counter("inventory.kafka.inbox.cleanup.deleted").increment(deleted);
+                log.info("Đã xóa {} inbox record quá retention {} theo các lô tối đa {} dòng",
+                        deleted, inboxRetention, safeBatchSize);
+            }
+        } catch (RuntimeException failure) {
+            meterRegistry.counter("inventory.kafka.inbox.cleanup.failures").increment();
+            log.error("Không dọn được Inventory event inbox", failure);
         }
     }
 
@@ -128,6 +173,11 @@ public class InventoryProjectionEventService {
         return incomingTime != null && currentTime != null && incomingTime.isBefore(currentTime);
     }
 
+    /**
+     * Kết quả áp dụng event vào projection: mới được ghi, cũ hơn bị bỏ qua hoặc bị trùng.
+     * Enum này mô tả kết quả xử lý tích hợp để luồng gọi biết event được áp dụng, bỏ qua do cũ hay nhận diện là
+     * trùng.
+     */
     public enum ApplyOutcome {
         APPLIED,
         STALE,

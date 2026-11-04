@@ -7,6 +7,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
+/**
+ * Khởi động Inventory service và bật các cấu hình Spring/JPA dùng chung cho service này.
+ * Class này gom trách nhiệm khởi tạo và chạy ứng dụng Inventory, đăng ký cấu hình cần thiết để Spring tạo
+ * các bean trước khi nhận request.
+ */
 @SpringBootApplication
 @EnableConfigurationProperties(InventoryBatchProperties.class)
 // Tự gán createdAt/updatedAt khi các entity được lưu hoặc cập nhật qua JPA.

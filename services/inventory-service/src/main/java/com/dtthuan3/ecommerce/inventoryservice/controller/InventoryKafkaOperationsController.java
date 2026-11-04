@@ -13,7 +13,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Endpoint quản trị Kafka của riêng Inventory; chỉ ADMIN được phát lại record lỗi. */
+/**
+ * Endpoint quản trị Kafka của riêng Inventory; chỉ ADMIN được phát lại record lỗi.
+ * Class này là ranh giới HTTP của Inventory: nhận path/query/body, áp dụng xác thực và kiểm tra đầu vào,
+ * gọi service nghiệp vụ rồi đóng gói HTTP response; không tự thực hiện truy vấn SQL hay cập nhật tồn.
+ */
 @RestController
 @RequestMapping("/inventory/operations/kafka")
 @RequiredArgsConstructor

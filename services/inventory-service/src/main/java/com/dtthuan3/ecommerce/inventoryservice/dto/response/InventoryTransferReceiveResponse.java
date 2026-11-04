@@ -4,7 +4,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
-/** Kết quả của một lần nhận hàng điều chuyển, gồm trạng thái phiếu và từng dòng đã đối soát. */
+/**
+ * Kết quả của một lần nhận hàng điều chuyển, gồm trạng thái phiếu và từng dòng đã đối soát.
+ * Record này là hợp đồng dữ liệu trả về cho client. Service/controller chọn và tổng hợp các trường cần công
+ * khai, giúp API không phụ thuộc trực tiếp vào cấu trúc entity lưu trong database.
+ */
 public record InventoryTransferReceiveResponse(
         String transferId,
         String operationId,
@@ -15,7 +19,11 @@ public record InventoryTransferReceiveResponse(
         boolean hasDiscrepancy,
         List<Line> lines
 ) {
-    /** Số lượng xác nhận trong lần nhận này và hai số dư dùng để truy vết. */
+    /**
+     * Số lượng xác nhận trong lần nhận này và hai số dư dùng để truy vết.
+     * Record này là hợp đồng dữ liệu trả về cho client. Service/controller chọn và tổng hợp các trường cần công
+     * khai, giúp API không phụ thuộc trực tiếp vào cấu trúc entity lưu trong database.
+     */
     public record Line(
             String lineId,
             String sku,

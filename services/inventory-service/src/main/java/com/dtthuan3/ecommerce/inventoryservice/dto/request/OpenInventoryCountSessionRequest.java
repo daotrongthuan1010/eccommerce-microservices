@@ -3,7 +3,12 @@ package com.dtthuan3.ecommerce.inventoryservice.dto.request;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-/** Dữ liệu mở phiên kiểm kê và xác định phạm vi tồn cần chụp snapshot. */
+/**
+ * Dữ liệu mở phiên kiểm kê và xác định phạm vi tồn cần chụp snapshot.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record OpenInventoryCountSessionRequest(
         @NotBlank(message = "enterpriseId không được để trống")
         @Size(max = 100, message = "enterpriseId tối đa 100 ký tự") String enterpriseId,

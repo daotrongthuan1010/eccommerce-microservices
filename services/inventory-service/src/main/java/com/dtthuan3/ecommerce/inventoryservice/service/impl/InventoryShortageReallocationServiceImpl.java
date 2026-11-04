@@ -26,7 +26,11 @@ import java.util.HexFormat;
 import java.util.Optional;
 import java.util.UUID;
 
-/** Điều phối giữ thay thế, ghi ledger và StockMovement nguyên tử; hỗ trợ retry deadlock an toàn. */
+/**
+ * Điều phối giữ thay thế, ghi ledger và StockMovement nguyên tử; hỗ trợ retry deadlock an toàn.
+ * Class này hiện thực use case hoặc tác vụ nền của Inventory, phối hợp kiểm tra nghiệp vụ, repository và
+ * tích hợp cần thiết để hoàn tất một bước xử lý; adapter bên ngoài không tự thao tác dữ liệu.
+ */
 @Service
 @RequiredArgsConstructor
 public class InventoryShortageReallocationServiceImpl implements InventoryShortageReallocationService {
@@ -141,7 +145,7 @@ public class InventoryShortageReallocationServiceImpl implements InventoryShorta
                 .performedBy(actor)
                 .performedBySubject(actor)
                 .createdAt(now)
-                .build());
+                .build().withBalanceSnapshot(target, updated));
         return record.toResponse();
     }
 

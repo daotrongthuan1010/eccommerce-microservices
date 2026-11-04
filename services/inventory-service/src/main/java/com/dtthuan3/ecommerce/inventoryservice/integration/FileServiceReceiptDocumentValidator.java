@@ -13,7 +13,11 @@ import org.springframework.web.client.RestClientException;
 
 import java.util.Collection;
 
-/** Adapter gọi File Service; service nghiệp vụ chỉ phụ thuộc interface ReceiptDocumentValidator. */
+/**
+ * Adapter gọi File Service; service nghiệp vụ chỉ phụ thuộc interface ReceiptDocumentValidator.
+ * Class này nối use case Inventory với hệ thống hoặc luồng sự kiện bên ngoài; nó xử lý chuyển đổi/giao tiếp
+ * tại biên tích hợp, còn trạng thái tồn và quy tắc nghiệp vụ vẫn do service Inventory quản lý.
+ */
 @Component
 @RequiredArgsConstructor
 public class FileServiceReceiptDocumentValidator implements ReceiptDocumentValidator {
@@ -21,7 +25,7 @@ public class FileServiceReceiptDocumentValidator implements ReceiptDocumentValid
     private final RestClient.Builder restClientBuilder;
 
     /** URL có thể đổi theo môi trường; local mặc định trỏ tới File Service trên máy chủ dev. */
-    @Value("${inventory.integration.file-service-base-url:http://162.4.177.91:8095}")
+    @Value("${inventory.integration.file-service-base-url}")
     private String fileServiceBaseUrl;
 
     /**

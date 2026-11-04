@@ -1,0 +1,31 @@
+{
+  "name": "inventory-outbox-cdc",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "database.hostname": "<POSTGRES_HOST_REACHABLE_FROM_KAFKA_CONNECT>",
+    "database.port": "5432",
+    "database.user": "<INVENTORY_CDC_REPLICATION_USER>",
+    "database.password": "<INVENTORY_CDC_REPLICATION_PASSWORD>",
+    "database.dbname": "inventory_db",
+    "topic.prefix": "inventory-cdc",
+    "plugin.name": "pgoutput",
+    "slot.name": "inventory_outbox_slot",
+    "publication.name": "inventory_outbox_publication",
+    "publication.autocreate.mode": "filtered",
+    "snapshot.mode": "no_data",
+    "table.include.list": "public.inventory_event_outbox",
+    "tombstones.on.delete": "false",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "transforms": "outbox",
+    "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+    "transforms.outbox.table.field.event.id": "event_id",
+    "transforms.outbox.table.field.event.key": "aggregate_id",
+    "transforms.outbox.table.field.event.type": "event_type",
+    "transforms.outbox.table.field.event.payload": "payload",
+    "transforms.outbox.route.by.field": "topic",
+    "transforms.outbox.route.topic.replacement": "${routedByValue}",
+    "transforms.outbox.table.op.invalid.behavior": "warn"
+  }
+}
