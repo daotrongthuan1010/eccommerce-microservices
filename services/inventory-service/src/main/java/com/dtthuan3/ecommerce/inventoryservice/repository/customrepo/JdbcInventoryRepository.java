@@ -377,6 +377,8 @@ public class JdbcInventoryRepository implements InventoryRepository {
             BigDecimal quantity
     ) {
 
+        // PostgreSQL cộng số lượng và tăng version trong cùng UPDATE; các lần nhận song song không ghi đè snapshot
+        // của nhau.
         String sql = """
             UPDATE inventory
             SET
@@ -489,6 +491,9 @@ public class JdbcInventoryRepository implements InventoryRepository {
             BigDecimal quantity
     ) {
 
+        // Điều kiện available nằm trong UPDATE nên quyết định giữ hàng được đưa ra tại DB, không dựa trên SELECT
+        // cũ.
+        // Khi có tranh chấp, chỉ request còn đủ available mới UPDATE được và nhận lại dòng qua RETURNING.
         String sql = """
             UPDATE inventory
             SET
@@ -539,6 +544,7 @@ public class JdbcInventoryRepository implements InventoryRepository {
             BigDecimal quantity
     ) {
 
+        // Kiểm tra reserved_quantity >= quantity cùng lúc trừ lượng giữ; không đủ thì UPDATE không đổi dòng nào.
         String sql = """
             UPDATE inventory
             SET
@@ -624,6 +630,24 @@ public class JdbcInventoryRepository implements InventoryRepository {
                 )
                 .stream()
                 .findFirst();
+    }
+
+    /** Xuất đúng lượng đã giữ; điều kiện SQL bảo vệ cả tồn vật lý lẫn phần reservation còn lại. */
+    @Override
+    public Optional<Inventory> dispatchReserved(String inventoryId, BigDecimal quantity) {
+        String sql = """
+            UPDATE inventory
+            SET physical_quantity = physical_quantity - ?,
+                reserved_quantity = reserved_quantity - ?,
+                updated_at = CURRENT_TIMESTAMP,
+                version = version + 1
+            WHERE id = ? AND physical_quantity >= ? AND reserved_quantity >= ? AND ? > 0
+            RETURNING id, enterprise_id, warehouse_id, location_id, sku, physical_quantity,
+                      reserved_quantity, defective_quantity, pending_quantity, in_transit_quantity,
+                      version, created_at, updated_at
+            """;
+        return jdbcTemplate.query(sql, inventoryMapper, quantity, quantity, inventoryId,
+                quantity, quantity, quantity).stream().findFirst();
     }
 
     /**
@@ -716,6 +740,27 @@ public class JdbcInventoryRepository implements InventoryRepository {
                 )
                 .stream()
                 .findFirst();
+    }
+
+    /** Áp dụng kết quả kiểm kê theo từng bucket với optimistic guard để không ghi đè movement mới. */
+    @Override
+    public Optional<Inventory> adjustCountedBuckets(String inventoryId, BigDecimal goodQuantity,
+                                                     BigDecimal defectiveQuantity, BigDecimal pendingQuantity,
+                                                     long expectedVersion) {
+        BigDecimal physicalQuantity = goodQuantity.add(defectiveQuantity).add(pendingQuantity);
+        String sql = """
+                UPDATE inventory
+                SET physical_quantity = ?, defective_quantity = ?, pending_quantity = ?,
+                    updated_at = CURRENT_TIMESTAMP, version = version + 1
+                WHERE id = ? AND version = ? AND reserved_quantity <= ?
+                  AND ? >= 0 AND ? >= 0 AND ? >= 0
+                RETURNING id, enterprise_id, warehouse_id, location_id, sku,
+                          physical_quantity, reserved_quantity, defective_quantity,
+                          pending_quantity, in_transit_quantity, version, created_at, updated_at
+                """;
+        return jdbcTemplate.query(sql, inventoryMapper, physicalQuantity, defectiveQuantity, pendingQuantity,
+                        inventoryId, expectedVersion, goodQuantity, goodQuantity, defectiveQuantity, pendingQuantity)
+                .stream().findFirst();
     }
 }
 

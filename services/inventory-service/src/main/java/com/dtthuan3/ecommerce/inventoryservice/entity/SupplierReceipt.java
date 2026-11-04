@@ -68,4 +68,16 @@ public class SupplierReceipt {
     /** Thời điểm duyệt phiếu; được lưu cùng chuyển trạng thái SUBMITTED sang APPROVED. */
     @Column(name = "approved_at")
     private Instant approvedAt;
+
+    /** Tài khoản ADMIN từ chối phiếu đã gửi duyệt. */
+    @Column(name = "rejected_by", length = 160)
+    private String rejectedBy;
+
+    /** Lý do từ chối để người tạo biết nội dung cần chỉnh sửa. */
+    @Column(name = "rejection_reason", length = 500)
+    private String rejectionReason;
+
+    /** Thời điểm từ chối phiếu theo UTC. */
+    @Column(name = "rejected_at")
+    private Instant rejectedAt;
 }

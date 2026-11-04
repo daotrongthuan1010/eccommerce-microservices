@@ -259,8 +259,8 @@ jobs:
       - name: Build (VITE baked)
         working-directory: frontend
         env:
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'http://162.4.177.91/api' }}
-          VITE_KEYCLOAK_URL: ${{ vars.VITE_KEYCLOAK_URL || 'http://162.4.177.91:7080' }}
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'https://shop-hatd.online/api' }}
+          VITE_KEYCLOAK_URL: ${{ vars.VITE_KEYCLOAK_URL || 'https://auth.shop-hatd.online' }}
         run: npm run build
 
       - name: Set up Docker Buildx
@@ -291,8 +291,8 @@ jobs:
             context: .
             file: frontend/Dockerfile
             build-args: |
-              VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL || 'http://162.4.177.91/api' }}
-              VITE_KEYCLOAK_URL=${{ vars.VITE_KEYCLOAK_URL || 'http://162.4.177.91:7080' }}
+              VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL || 'https://shop-hatd.online/api' }}
+              VITE_KEYCLOAK_URL=${{ vars.VITE_KEYCLOAK_URL || 'https://auth.shop-hatd.online' }}
             push: true
             tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/frontend:${{ github.sha }}
             # GHA layer cache giam so lan pull node:/nginx: tu Hub (1 job

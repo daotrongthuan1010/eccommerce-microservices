@@ -10,8 +10,13 @@ import org.springframework.data.domain.Pageable;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Hợp đồng các nghiệp vụ tồn kho: tra cứu, nhập, giữ, xuất, điều chỉnh, điều chuyển và xem lịch sử.
+ * Interface này công bố các use case Inventory cho controller, worker và adapter gọi tới. Class triển khai
+ * nằm ở service/impl, vì vậy bên gọi phụ thuộc vào hợp đồng thay vì chi tiết xử lý.
+ */
 public interface InventoryService {
-    InventoryResponse receiveStock(ReceiveStockRequest request, String performedBy);
+    InventoryResponse receiveStock(ReceiveStockRequest request, String performedBy, String operationId);
     void receiveClassifiedStock(List<ClassifiedStockReceipt> requests);
     InventoryResponse getById(String id);
 
@@ -24,11 +29,11 @@ public interface InventoryService {
 
     InventoryResponse create(CreateInventoryRequest request);
     List<InventoryResponse> createBatch(List<CreateInventoryRequest> requests);
-    InventoryResponse receive(ReceiveInventoryRequest request);
+    InventoryResponse receive(ReceiveInventoryRequest request, String operationId);
     InventoryResponse reserve(ReserveInventoryRequest request);
     InventoryResponse release(ReleaseInventoryRequest request);
-    InventoryResponse issue(IssueInventoryRequest request);
-    InventoryResponse adjust(AdjustInventoryRequest request);
+    InventoryResponse issue(IssueInventoryRequest request, String operationId);
+    InventoryResponse adjust(AdjustInventoryRequest request, String operationId);
 
     TransferInventoryResponse transfer(TransferInventoryRequest request);
 

@@ -11,7 +11,12 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.util.List;
 
-/** Dữ liệu mở phiếu điều chuyển; thao tác tạo phiếu chưa làm thay đổi số dư tồn kho. */
+/**
+ * Dữ liệu mở phiếu điều chuyển; thao tác tạo phiếu chưa làm thay đổi số dư tồn kho.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record CreateInventoryTransferRequest(
         /** Mã thao tác do client tạo và giữ nguyên khi retry để không tạo hai phiếu. */
         @NotBlank(message = "operationId là bắt buộc")
@@ -46,7 +51,12 @@ public record CreateInventoryTransferRequest(
         @Size(max = 200, message = "Một phiếu điều chuyển tối đa 200 dòng hàng")
         List<@Valid Line> lines
 ) {
-    /** Một SKU và số lượng dự kiến trên phiếu điều chuyển. */
+    /**
+     * Một SKU và số lượng dự kiến trên phiếu điều chuyển.
+     * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+     * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+     * bảng database.
+     */
     public record Line(
             /** SKU phải đang hoạt động trong Product Service. */
             @NotBlank(message = "sku là bắt buộc")

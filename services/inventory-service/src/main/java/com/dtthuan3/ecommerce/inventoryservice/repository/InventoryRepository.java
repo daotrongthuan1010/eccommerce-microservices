@@ -8,7 +8,11 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
-/** Cổng dữ liệu Inventory; service chỉ phụ thuộc interface, không phụ thuộc JPA hay JDBC. */
+/**
+ * Cổng dữ liệu Inventory; service chỉ phụ thuộc interface, không phụ thuộc JPA hay JDBC.
+ * Interface này là ranh giới truy cập dữ liệu cho service, gom các thao tác đọc/ghi cần thiết. Cách thực
+ * thi bằng JPA hay JDBC nằm trong repository/adapter, không đặt trong controller.
+ */
 public interface InventoryRepository {
 
     /** Đọc theo ID cho luồng chỉ đọc, không đặt khóa database. */
@@ -71,12 +75,24 @@ public interface InventoryRepository {
     /** Chỉ xuất hàng từ tồn khả dụng, ngăn tồn khả dụng xuống dưới 0. */
     Optional<Inventory> issue(String inventoryId, BigDecimal quantity);
 
+    /** Dispatch phần đã reserve: giảm vật lý và reserved cùng lúc, không chạm lượng khả dụng khác. */
+    Optional<Inventory> dispatchReserved(String inventoryId, BigDecimal quantity);
+
     /** Trừ/cộng theo lô khi từng lượng dương và tồn khả dụng tại DB vẫn đủ. */
     List<Inventory> dispatchTransferBatch(List<TransferDispatchUpdate> updates);
 
     /** Chỉ nhận lượng kiểm kê không âm và vẫn bao phủ các lượng đã cam kết. */
     Optional<Inventory> adjust(String inventoryId, BigDecimal actualQuantity);
 
-    /** ID tồn nguồn và lượng cần chuyển cho một dòng đã được khóa trước khi cập nhật. */
+    /** Ghi đồng thời ba bucket đã kiểm đếm, chỉ khi balance vẫn ở version snapshot và reserved còn hợp lệ. */
+    Optional<Inventory> adjustCountedBuckets(String inventoryId, BigDecimal goodQuantity,
+                                             BigDecimal defectiveQuantity, BigDecimal pendingQuantity,
+                                             long expectedVersion);
+
+    /**
+     * ID tồn nguồn và lượng cần chuyển cho một dòng đã được khóa trước khi cập nhật.
+     * Record này là projection/value object mang đúng các cột cần thiết giữa repository và service. Nó không
+     * tạo quan hệ JPA; việc khóa, lưu và cập nhật dữ liệu vẫn được thực hiện bởi repository.
+     */
     record TransferDispatchUpdate(String inventoryId, BigDecimal quantity) {}
 }

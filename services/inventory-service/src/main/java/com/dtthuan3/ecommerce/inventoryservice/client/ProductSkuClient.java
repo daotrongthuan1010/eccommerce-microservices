@@ -25,18 +25,32 @@ import java.util.stream.Collectors;
 import java.time.Duration;
 import java.time.Instant;
 
-/** Đối soát trạng thái SKU với projection Kafka hoặc gọi Product Service khi projection chưa đủ mới. */
+/**
+ * Adapter tích hợp Product Service và projection cục bộ cho cổng xác thực SKU.
+ * Class này đặt ranh giới giao tiếp với Product Service/projection cục bộ, cấu hình cách tạo client và giới
+ * hạn thời gian gọi để lỗi phụ thuộc ngoài không chờ vô hạn.
+ */
 @Component
-/** Adapter tích hợp Product Service và projection cục bộ cho cổng xác thực SKU. */
 public class ProductSkuClient implements ActiveSkuValidator {
 
+    /**
+     * Request gửi danh sách mã SKU cần xác minh trạng thái hoạt động.
+     * Record này định nghĩa cấu trúc request/response của lần trao đổi với Product Service, giúp dữ liệu tích
+     * hợp có kiểu rõ ràng và tách khỏi entity Inventory.
+     */
     public record SkuValidationRequest(List<String> skuCodes) {}
+
+    /**
+     * Response tách các SKU hợp lệ khỏi các SKU không hoạt động hoặc không tồn tại.
+     * Record này định nghĩa cấu trúc request/response của lần trao đổi với Product Service, giúp dữ liệu tích
+     * hợp có kiểu rõ ràng và tách khỏi entity Inventory.
+     */
     public record SkuValidationResponse(List<String> activeSkuCodes, List<String> invalidSkuCodes) {}
 
     private final RestClient restClient;
     private final SkuCatalogProjectionRepository projectionRepository;
 
-    @Value("${inventory.sku-projection.max-age:PT5M}")
+    @Value("${inventory.sku-projection.max-age}")
     private Duration projectionMaxAge;
 
     public ProductSkuClient(RestClient.Builder productServiceRestClientBuilder,

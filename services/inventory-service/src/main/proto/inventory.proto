@@ -6,15 +6,235 @@ option java_multiple_files = true;
 option java_package = "com.dtthuan3.ecommerce.inventoryservice.grpc";
 option java_outer_classname = "InventoryProto";
 
-// Base contract only — replace Ping with real inventory RPCs when implementing.
+// Contract gRPC nội bộ cho các service cần tra cứu Inventory với độ trễ thấp.
 service InventoryService {
-  rpc Ping(PingRequest) returns (PingResponse);
+  // Tra cứu một bucket tồn theo ID của Inventory.
+  rpc GetInventoryById(GetInventoryByIdRequest) returns (GetInventoryByIdResponse);
+  // Tra cứu các bucket tồn còn hàng khả dụng, có phân trang và bộ lọc tùy chọn.
+  rpc GetAvailableInventory(GetAvailableInventoryRequest) returns (GetAvailableInventoryResponse);
+  // Tra cứu đúng một bucket theo enterprise, warehouse, location và SKU.
+  rpc GetInventoryByPosition(GetInventoryByPositionRequest) returns (GetInventoryByPositionResponse);
+  // Đọc trạng thái reservation để Order có thể đối soát sau timeout hoặc retry.
+  rpc GetReservation(GetReservationRequest) returns (GetReservationResponse);
+  // Tra cứu lịch sử biến động tồn có bộ lọc và phân trang.
+  rpc GetMovementHistory(GetMovementHistoryRequest) returns (GetMovementHistoryResponse);
+  // Tạo reservation atomically; client phải giữ nguyên operation_id khi retry.
+  rpc ReserveInventory(ReserveInventoryRequest) returns (ReserveInventoryResponse);
+  // Commit reservation sau khi Order xác minh thanh toán.
+  rpc CommitReservation(CommitReservationRequest) returns (CommitReservationResponse);
+  // Nhả toàn bộ hoặc một phần lượng reservation chưa dispatch.
+  rpc ReleaseReservation(ReleaseReservationRequest) returns (ReleaseReservationResponse);
+  // Xuất lượng đã commit cho shipment; client phải giữ nguyên operation_id khi retry.
+  rpc DispatchReservation(DispatchReservationRequest) returns (DispatchReservationResponse);
 }
 
-message PingRequest {
-  string message = 1;
+message GetInventoryByIdRequest {
+  string inventory_id = 1;
 }
 
-message PingResponse {
-  string message = 1;
+message GetInventoryByIdResponse {
+  InventoryItem inventory = 1;
+}
+
+message GetAvailableInventoryRequest {
+  // SKU cần lọc; để trống nếu muốn lấy mọi SKU.
+  string sku = 1;
+  // ID Warehouse cần lọc; để trống nếu không giới hạn Warehouse.
+  string warehouse_id = 2;
+  // ID Location cần lọc; để trống nếu không giới hạn Location.
+  string location_id = 3;
+  // Trang bắt đầu từ 0.
+  int32 page = 4;
+  // Số phần tử mỗi trang, hợp lệ từ 1 đến 100.
+  int32 page_size = 5;
+}
+
+message GetAvailableInventoryResponse {
+  repeated InventoryItem items = 1;
+  int64 total_elements = 2;
+  int32 total_pages = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+  bool has_next = 6;
+}
+
+message GetInventoryByPositionRequest {
+  string enterprise_id = 1;
+  string warehouse_id = 2;
+  string location_id = 3;
+  string sku = 4;
+}
+
+message GetInventoryByPositionResponse {
+  InventoryItem inventory = 1;
+}
+
+message InventoryItem {
+  string id = 1;
+  string enterprise_id = 2;
+  string warehouse_id = 3;
+  string location_id = 4;
+  string sku = 5;
+  // Số lượng dùng string để giữ nguyên độ chính xác của Java BigDecimal.
+  string physical_quantity = 6;
+  string reserved_quantity = 7;
+  string defective_quantity = 8;
+  string pending_quantity = 9;
+  string in_transit_quantity = 10;
+  string available_quantity = 11;
+  int64 version = 12;
+  string created_at = 13;
+  string updated_at = 14;
+}
+
+message GetReservationRequest {
+  string reservation_id = 1;
+}
+
+message GetReservationResponse {
+  InventoryReservation reservation = 1;
+}
+
+message InventoryReservation {
+  string reservation_id = 1;
+  string order_id = 2;
+  string enterprise_id = 3;
+  string status = 4;
+  string expires_at = 5;
+  int64 version = 6;
+  string created_by = 7;
+  string created_at = 8;
+  string committed_by = 9;
+  string committed_at = 10;
+  repeated InventoryReservationLine lines = 11;
+}
+
+message InventoryReservationLine {
+  string reservation_line_id = 1;
+  int32 line_number = 2;
+  string inventory_id = 3;
+  string sku = 4;
+  string requested_quantity = 5;
+  string dispatched_quantity = 6;
+  string released_quantity = 7;
+  string remaining_quantity = 8;
+}
+
+message ReserveInventoryRequest {
+  string reservation_id = 1;
+  string order_id = 2;
+  string operation_id = 3;
+  // ISO-8601 UTC, ví dụ 2026-10-26T12:00:00Z.
+  string expires_at = 4;
+  repeated ReserveInventoryLine lines = 5;
+}
+
+message ReserveInventoryLine {
+  string inventory_id = 1;
+  // Decimal dạng chuỗi để không mất độ chính xác.
+  string quantity = 2;
+}
+
+message ReserveInventoryResponse {
+  InventoryReservation reservation = 1;
+}
+
+message CommitReservationRequest {
+  string reservation_id = 1;
+  string operation_id = 2;
+  string order_id = 3;
+  string verified_payment_reference = 4;
+  int64 expected_version = 5;
+}
+
+message CommitReservationResponse {
+  InventoryReservation reservation = 1;
+}
+
+message ReleaseReservationRequest {
+  string reservation_id = 1;
+  string operation_id = 2;
+  string reason = 3;
+  int64 expected_version = 4;
+  // Không gửi dòng nào nghĩa là nhả toàn bộ lượng còn lại của tất cả line.
+  repeated ReleaseReservationLine lines = 5;
+}
+
+message ReleaseReservationLine {
+  string reservation_line_id = 1;
+  // Decimal dạng chuỗi; quantity phải lớn hơn 0 và không vượt phần còn lại.
+  string quantity = 2;
+}
+
+message ReleaseReservationResponse {
+  InventoryReservation reservation = 1;
+}
+
+message DispatchReservationRequest {
+  string reservation_id = 1;
+  string operation_id = 2;
+  string shipment_id = 3;
+  string order_id = 4;
+  int64 expected_version = 5;
+  // Chỉ xuất các line được shipment yêu cầu; không gửi số lượng vượt residual.
+  repeated DispatchReservationLine lines = 6;
+}
+
+message DispatchReservationLine {
+  string reservation_line_id = 1;
+  // Decimal dạng chuỗi để giữ nguyên độ chính xác và phải lớn hơn 0.
+  string quantity = 2;
+}
+
+message DispatchReservationResponse {
+  InventoryReservation reservation = 1;
+}
+
+message GetMovementHistoryRequest {
+  // Bộ lọc tùy chọn; chuỗi rỗng nghĩa là không áp dụng bộ lọc.
+  string inventory_id = 1;
+  string movement_type = 2;
+  string reference_id = 3;
+  // ISO LocalDateTime, ví dụ 2026-10-26T10:30:00; để trống nếu không giới hạn.
+  string from = 4;
+  string to = 5;
+  int32 page = 6;
+  // Kích thước trang hợp lệ từ 1 đến 100.
+  int32 page_size = 7;
+}
+
+message GetMovementHistoryResponse {
+  repeated StockMovementItem movements = 1;
+  int64 total_elements = 2;
+  int32 total_pages = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+  bool has_next = 6;
+}
+
+message StockMovementItem {
+  string id = 1;
+  string inventory_id = 2;
+  string movement_type = 3;
+  string quantity = 4;
+  string physical_before = 5;
+  string physical_after = 6;
+  string reserved_before = 7;
+  string reserved_after = 8;
+  string reference_type = 9;
+  string reference_id = 10;
+  string reason = 11;
+  string performed_by = 12;
+  string performed_by_subject = 13;
+  string created_at = 14;
+  // Snapshot các bucket mở rộng; chuỗi rỗng biểu thị dữ liệu lịch sử chưa có snapshot.
+  string defective_before = 15;
+  string defective_after = 16;
+  string pending_before = 17;
+  string pending_after = 18;
+  string in_transit_before = 19;
+  string in_transit_after = 20;
+  // Version trước/sau movement; chuỗi rỗng dùng cho movement lịch sử không lưu version.
+  string inventory_version_before = 21;
+  string inventory_version_after = 22;
 }

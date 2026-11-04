@@ -167,6 +167,11 @@ spec:
       targetPort: zipkin
 ---
 # LoadBalancer preserves the DEV 0.0.0.0 public-access behavior (compose parity).
+# 9411 = Zipkin receiver (ZIPKIN_ENDPOINT in .env.remote), 3200 = Tempo API,
+# 4317/4318 = OTLP for local apps that export OTLP instead of Zipkin.
+# NOTE: this Service was defined but never applied for a while — local devs
+# could not reach Zipkin (9411 connection refused) until it was re-applied
+# 2026-11-03. If Zipkin breaks again, check `kubectl get svc tempo-external`.
 apiVersion: v1
 kind: Service
 metadata:
@@ -185,3 +190,9 @@ spec:
     - name: zipkin
       port: 9411
       targetPort: zipkin
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http

@@ -1,0 +1,16 @@
+# Chỉ cấu hình endpoint và fixture staging; không dùng URL hoặc inventory production.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inventory-load-test-config
+  namespace: ecommerce-staging
+data:
+  INVENTORY_BASE_URL: "REPLACE_WITH_STAGING_INVENTORY_URL"
+  INVENTORY_ID: "REPLACE_WITH_DEDICATED_STAGING_INVENTORY_ID"
+  RESERVATION_QUANTITY: "1"
+  K6_PEAK_VUS: "10"
+  K6_RAMP_UP: "30s"
+  K6_HOLD: "2m"
+  K6_RAMP_DOWN: "30s"
+  K6_THINK_TIME_SECONDS: "0.1"
+  LOAD_TEST_CONFIRM: "STAGING_ONLY"

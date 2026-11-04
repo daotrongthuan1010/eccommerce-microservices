@@ -1,35 +1,34 @@
-# Port of docker-compose.yml `kafka` + `kafka-init` (confluentinc/cp-kafka:7.9.2, KRaft single-node).
-# In-cluster clients use kafka:29092 (ClusterIP svc `kafka`).
-# External DEV clients use <VPS-IP>:9092 (LoadBalancer svc `kafka-external`,
-# k3s Klipper lb preserves the compose 0.0.0.0:9092 behavior).
-# NOTE: EXTERNAL advertised listener is pinned to the VPS IP below. If the VPS
-# IP ever changes, update it here and roll the Deployment.
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: kafka-data
-  namespace: ecommerce
-  labels:
-    app: kafka
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: local-path
-  resources:
-    requests:
-      storage: 10Gi
----
+# Kafka 3-broker KRaft cluster (confluentinc/cp-kafka:7.9.2) — StatefulSet.
+# Replaces the former single-node Deployment (2026-11-03, learning/UAT infra):
+#   - 3 combined broker+controller pods (kafka-0/1/2, node ids 1/2/3) so topics
+#     can use replication-factor 3 / min-ISR 2 and survive ONE pod restart.
+#   - NOT real HA: all 3 pods run on the single k3s node (162.4.177.91).
+#     Losing the node still loses the whole cluster. Learning/UAT only.
+#   - Migration from single-node was a FRESH cluster: old messages/offsets were
+#     dropped, topics recreated by kafka-init-topics with RF=3. The old
+#     `kafka-data` PVC is kept unmounted for rollback (delete it manually once
+#     the 3-broker cluster is trusted).
+# In-cluster clients: bootstrap `kafka:29092` (headless svc resolves to all 3
+# pod IPs; each broker advertises its own kafka-<n>.kafka:29092 address).
+# External DEV clients: bootstrap 162.4.177.91:9092, then per-broker advertised
+# EXTERNAL listeners 162.4.177.91:9092 (kafka-0), :9093 (kafka-1), :9094
+# (kafka-2) via per-broker LoadBalancer services (k3s Klipper, single host IP
+# so each broker needs a distinct host port).
+# Sizing is deliberately small (this box is ~8 CPU / 26Gi and was already at
+# 88% CPU requests with the old 500m broker): 250m/640Mi requests per broker.
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: kafka
   namespace: ecommerce
   labels:
     app: kafka
 spec:
-  replicas: 1
-  strategy:
-    type: Recreate # single KRaft node on RWO volume; never roll while mounted
+  serviceName: kafka
+  replicas: 3
+  # All 3 controllers must find each other to form the KRaft quorum on a
+  # fresh cluster, so start them in parallel.
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app: kafka
@@ -48,6 +47,17 @@ spec:
         - name: kafka
           image: confluentinc/cp-kafka:7.9.2
           imagePullPolicy: IfNotPresent
+          # Derive node id + advertised listeners from the pod ordinal
+          # (kafka-0 -> id 1 / ext 9092, kafka-1 -> id 2 / ext 9093, ...),
+          # then hand over to the stock Confluent entrypoint.
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              ORD="${HOSTNAME##*-}"
+              export KAFKA_NODE_ID=$((ORD + 1))
+              export KAFKA_ADVERTISED_LISTENERS="INTERNAL://kafka-${ORD}.kafka:29092,EXTERNAL://162.4.177.91:$((9092 + ORD))"
+              exec /etc/confluent/docker/run
           ports:
             - name: internal
               containerPort: 29092
@@ -58,16 +68,12 @@ spec:
           env:
             - name: CLUSTER_ID
               value: MkU3OEVBNTcwNTJENDM2Qk
-            - name: KAFKA_NODE_ID
-              value: "1"
             - name: KAFKA_PROCESS_ROLES
               value: broker,controller
             - name: KAFKA_CONTROLLER_QUORUM_VOTERS
-              value: 1@localhost:29093
+              value: 1@kafka-0.kafka:29093,2@kafka-1.kafka:29093,3@kafka-2.kafka:29093
             - name: KAFKA_LISTENERS
               value: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
-            - name: KAFKA_ADVERTISED_LISTENERS
-              value: INTERNAL://kafka:29092,EXTERNAL://162.4.177.91:9092
             - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
               value: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
             - name: KAFKA_INTER_BROKER_LISTENER_NAME
@@ -75,24 +81,31 @@ spec:
             - name: KAFKA_CONTROLLER_LISTENER_NAMES
               value: CONTROLLER
             - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
-              value: "1"
+              value: "3"
             - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
-              value: "1"
+              value: "3"
             - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
-              value: "1"
+              value: "2"
+            - name: KAFKA_DEFAULT_REPLICATION_FACTOR
+              value: "3"
+            - name: KAFKA_MIN_INSYNC_REPLICAS
+              value: "2"
+            # RF=3 triples disk use on one host; cap UAT retention at 72h.
+            - name: KAFKA_LOG_RETENTION_HOURS
+              value: "72"
             - name: KAFKA_LOG_DIRS
               value: /var/lib/kafka/data
             - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
               value: "false"
             - name: KAFKA_HEAP_OPTS
-              value: -Xms256m -Xmx512m
+              value: -Xms256m -Xmx384m
           volumeMounts:
             - name: data
               mountPath: /var/lib/kafka/data
           resources:
             requests:
-              cpu: 500m
-              memory: 512Mi
+              cpu: 250m
+              memory: 640Mi
             limits:
               cpu: "1"
               memory: 1Gi
@@ -116,16 +129,23 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 10
             failureThreshold: 20
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: kafka-data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app: kafka
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 10Gi
 ---
-# Internal listener for pods (auth-service, user-service, ...).
-# Headless (clusterIP: None): `kafka` DNS resolves directly to pod IPs.
-# A regular ClusterIP deadlocks single-node KRaft startup — kube-proxy only
-# routes to Ready endpoints, but the readiness probe redirects through the
-# advertised listener `kafka:29092`, so the pod can never become Ready.
+# Headless governing service for the StatefulSet + in-cluster bootstrap.
+# `kafka` DNS resolves directly to pod IPs; pods also get stable DNS
+# kafka-<n>.kafka used in advertised listeners / controller quorum voters.
+# publishNotReadyAddresses: brokers must resolve each other before Ready.
 apiVersion: v1
 kind: Service
 metadata:
@@ -135,7 +155,7 @@ metadata:
     app: kafka
 spec:
   clusterIP: None
-  publishNotReadyAddresses: true # KRaft pod must resolve `kafka` DNS before its own readiness passes
+  publishNotReadyAddresses: true
   selector:
     app: kafka
   ports:
@@ -146,7 +166,8 @@ spec:
       port: 29093
       targetPort: 29093
 ---
-# External listener for DEV tools on the VPS IP (compose parity: 0.0.0.0:9092).
+# External listener for DEV tools: kafka-0 on 162.4.177.91:9092.
+# This is the bootstrap address in .env.remote (KAFKA_BOOTSTRAP_SERVERS).
 apiVersion: v1
 kind: Service
 metadata:
@@ -158,12 +179,51 @@ spec:
   type: LoadBalancer
   selector:
     app: kafka
+    statefulset.kubernetes.io/pod-name: kafka-0
   ports:
     - name: external
       port: 9092
       targetPort: external
 ---
-# Port of compose `kafka-init`: creates the two app event topics once kafka is Ready.
+# External listener: kafka-1 on 162.4.177.91:9093 (advertised EXTERNAL).
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-broker-1-external
+  namespace: ecommerce
+  labels:
+    app: kafka
+spec:
+  type: LoadBalancer
+  selector:
+    app: kafka
+    statefulset.kubernetes.io/pod-name: kafka-1
+  ports:
+    - name: external
+      port: 9093
+      targetPort: external
+---
+# External listener: kafka-2 on 162.4.177.91:9094 (advertised EXTERNAL).
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-broker-2-external
+  namespace: ecommerce
+  labels:
+    app: kafka
+spec:
+  type: LoadBalancer
+  selector:
+    app: kafka
+    statefulset.kubernetes.io/pod-name: kafka-2
+  ports:
+    - name: external
+      port: 9094
+      targetPort: external
+---
+# Creates the app event topics (RF=3) once the cluster is Ready.
+# NOTE: Job spec is immutable — `kubectl delete job kafka-init-topics` before
+# re-applying changes.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -190,12 +250,9 @@ spec:
             - /bin/sh
             - -ec
             - |
-              kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ecommerce.auth.events --partitions 3 --replication-factor 1
-              kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ecommerce.user.events --partitions 3 --replication-factor 1
-              kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic product-events --partitions 3 --replication-factor 1
-              kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic product-events.DLT --partitions 3 --replication-factor 1
-              kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic inventory-stock-movement-events --partitions 3 --replication-factor 1
-              kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic inventory-transfer-events --partitions 3 --replication-factor 1
+              for t in ecommerce.auth.events ecommerce.user.events product-events product-events.DLT product-search-projection.DLT inventory-stock-movement-events inventory-transfer-events inventory-return-approval-events inventory-return-approval-events.DLT; do
+                kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic "$t" --partitions 3 --replication-factor 3 --config min.insync.replicas=2
+              done
               kafka-topics --bootstrap-server kafka:29092 --list
           resources:
             requests:

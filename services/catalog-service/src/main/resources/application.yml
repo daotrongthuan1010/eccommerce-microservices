@@ -5,9 +5,35 @@ spring:
   application:
     name: catalog-service
 
-  # =========================================================
-  # REDIS
-  # =========================================================
+  cloud:
+    openfeign:
+      client:
+        config:
+          product-service:
+            connectTimeout: ${PRODUCT_API_CONNECT_TIMEOUT:1000}
+            readTimeout: ${PRODUCT_API_READ_TIMEOUT:2000}
+
+  security:
+    oauth2:
+      client:
+        registration:
+          catalog-search-reader:
+            provider: catalog-keycloak
+            client-id: ${CATALOG_SEARCH_CLIENT_ID:catalog-service}
+            client-secret: ${CATALOG_SEARCH_CLIENT_SECRET:}
+            authorization-grant-type: client_credentials
+        provider:
+          catalog-keycloak:
+            token-uri: ${KEYCLOAK_TOKEN_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/token}
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs}
+
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URL:http://162.4.177.91:9200}
+    connection-timeout: ${ELASTICSEARCH_CONNECT_TIMEOUT:1s}
+    socket-timeout: ${ELASTICSEARCH_SOCKET_TIMEOUT:2s}
+
   data:
     redis:
       host: ${REDIS_HOST:162.4.177.91}
@@ -15,9 +41,6 @@ spring:
       password: ${REDIS_PASSWORD:local_redis_change_me}
       timeout: 3s
 
-  # =========================================================
-  # POSTGRESQL
-  # =========================================================
   datasource:
     url: ${DB_URL:jdbc:postgresql://162.4.177.91:5432/catalog_db}
     username: ${DB_USERNAME:catalog_user}
@@ -30,29 +53,18 @@ spring:
       connection-timeout: 10000
       initialization-fail-timeout: 30000
 
-  # =========================================================
-  # JPA / HIBERNATE
-  # =========================================================
   jpa:
     hibernate:
       ddl-auto: update
-
     show-sql: true
-
     properties:
       hibernate:
         format_sql: true
 
-  # =========================================================
-  # SQL INIT
-  # =========================================================
   sql:
     init:
       mode: never
 
-  # =========================================================
-  # KAFKA
-  # =========================================================
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:162.4.177.91:9092}
 
@@ -60,58 +72,32 @@ spring:
       group-id: catalog-service
       auto-offset-reset: earliest
       enable-auto-commit: false
+      max-poll-records: 50
+    listener:
+      ack-mode: record
 
     producer:
       acks: all
-
       properties:
         enable.idempotence: true
 
-  # =========================================================
-  # KEYCLOAK / OAUTH2 RESOURCE SERVER
-  # =========================================================
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs}
-
-
-# =========================================================
-# EUREKA
-# =========================================================
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://162.4.177.91:8761/eureka/}
-
     registry-fetch-interval-seconds: 15
 
   instance:
     hostname: ${EUREKA_HOSTNAME:catalog-service}
     prefer-ip-address: false
 
-
-# =========================================================
-# gRPC SERVER
-# =========================================================
 grpc:
   server:
     port: ${GRPC_SERVER_PORT:9083}
 
-
-# =========================================================
-# FILE SERVICE
-# =========================================================
-# Catalog KHÔNG kết nối trực tiếp tới MinIO.
-# Catalog gọi File Service.
 file-service:
   url: ${FILE_SERVICE_URL:http://162.4.177.91:8095}
 
-
-# =========================================================
-# ACTUATOR / MONITORING
-# =========================================================
 management:
   endpoints:
     web:
@@ -121,7 +107,6 @@ management:
   endpoint:
     health:
       show-details: never
-
       probes:
         enabled: true
 
@@ -131,27 +116,50 @@ management:
 
   tracing:
     enabled: false
-
     sampling:
       probability: 1.0
-
   zipkin:
     tracing:
       endpoint: ${ZIPKIN_ENDPOINT:http://162.4.177.91:9411/api/v2/spans}
 
+resilience4j:
+  retry:
+    instances:
+      catalogSearch:
+        max-attempts: 2
+        wait-duration: 50ms
+        retry-exceptions:
+          - org.springframework.dao.DataAccessException
+  circuitbreaker:
+    instances:
+      catalogSearch:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 5s
+        permitted-number-of-calls-in-half-open-state: 3
+        record-exceptions:
+          - org.springframework.dao.DataAccessException
 
-# =========================================================
-# APPLICATION INFO
-# =========================================================
 info:
   app:
     name: catalog-service
     stage: scaffold
 
-
-# =========================================================
-# LOGGING
-# =========================================================
 logging:
   level:
     org.springframework.security: DEBUG
+
+catalog:
+  search:
+    index:
+      bootstrap-enabled: ${CATALOG_SEARCH_INDEX_BOOTSTRAP_ENABLED:false}
+    kafka:
+      replication-factor: ${CATALOG_SEARCH_KAFKA_REPLICATION_FACTOR:1}
+    replay:
+      max-events-per-second: ${CATALOG_SEARCH_REPLAY_MAX_EVENTS_PER_SECOND:5}
+    events:
+      product-topic: ${PRODUCT_EVENTS_TOPIC:product-events}
+      group-id: ${PRODUCT_SEARCH_PROJECTION_GROUP:catalog-product-search-projection}
+      concurrency: ${PRODUCT_EVENTS_CONCURRENCY:3}

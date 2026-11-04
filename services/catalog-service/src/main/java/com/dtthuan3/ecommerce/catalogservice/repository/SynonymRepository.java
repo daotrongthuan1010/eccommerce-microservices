@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Collection;
 
 public interface SynonymRepository
         extends JpaRepository<Synonym, String> {
@@ -33,4 +34,6 @@ public interface SynonymRepository
     );
 
     void deleteBySynonymSetId(String synonymSetId);
+
+    List<Synonym> findBySynonymSetIdIn(Collection<String> synonymSetIds);
 }

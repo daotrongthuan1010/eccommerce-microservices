@@ -10,7 +10,10 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** Hợp đồng truy vấn SQL cho việc ghi và đọc lịch sử movement. */
+/**
+ * Hợp đồng truy vấn SQL cho việc ghi và đọc lịch sử movement.
+ * Class/interface này chứa hợp đồng hoặc phần thực thi truy vấn SQL/JDBC tùy chỉnh như khóa dòng, cập nhật có điều kiện và phân trang; repository tập trung thao tác dữ liệu, không điều phối toàn bộ use case.
+ */
 @Repository
 public interface StockMovementRepositoryCustom {
     void insertMovement(StockMovement movement);

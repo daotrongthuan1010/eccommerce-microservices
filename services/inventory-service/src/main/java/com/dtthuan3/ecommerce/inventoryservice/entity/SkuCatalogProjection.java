@@ -11,7 +11,11 @@ import lombok.Setter;
 
 import java.time.Instant;
 
-/** Bản chiếu tối thiểu của SKU dùng để kiểm tra tồn mà không sở hữu dữ liệu Catalog/Product gốc. */
+/**
+ * Bản chiếu tối thiểu của SKU dùng để kiểm tra tồn mà không sở hữu dữ liệu Catalog/Product gốc.
+ * Class này biểu diễn trạng thái được lưu bền vững của Inventory service. Hibernate ánh xạ class với bảng
+ * tương ứng; ID tham chiếu service/bản ghi khác được lưu dạng scalar và khóa ngoại do database bảo đảm.
+ */
 @Entity
 @Table(name = "inventory_sku_projection")
 @Getter

@@ -11,7 +11,12 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.util.List;
 
-/** Dữ liệu xác nhận lượng tốt, hỏng và thất lạc khi nhận một đợt điều chuyển. */
+/**
+ * Dữ liệu xác nhận lượng tốt, hỏng và thất lạc khi nhận một đợt điều chuyển.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record ReceiveInventoryTransferRequest(
         /** Khóa chống áp dụng lặp cùng một lần nhận sau timeout. */
         @NotBlank(message = "operationId là bắt buộc")
@@ -28,7 +33,12 @@ public record ReceiveInventoryTransferRequest(
         @Size(max = 200, message = "Mỗi lần nhận tối đa 200 dòng")
         List<@Valid Line> lines
 ) {
-    /** Kết quả kiểm đếm của một dòng điều chuyển trong lần nhận hiện tại. */
+    /**
+     * Kết quả kiểm đếm của một dòng điều chuyển trong lần nhận hiện tại.
+     * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+     * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+     * bảng database.
+     */
     public record Line(
             /** ID dòng do API tạo phiếu điều chuyển trả về. */
             @NotBlank(message = "lineId là bắt buộc")

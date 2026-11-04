@@ -5,12 +5,17 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.request.ApproveSupplierReceip
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.UpdateSupplierReceiptActualsRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.PostSupplierReceiptRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.SubmitSupplierReceiptRequest;
+import com.dtthuan3.ecommerce.inventoryservice.dto.request.RejectSupplierReceiptRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptResponse;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.SupplierReceiptSummaryResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-/** Cổng nghiệp vụ cho các thao tác của phiếu nhập nhà cung cấp. */
+/**
+ * Cổng nghiệp vụ cho các thao tác của phiếu nhập nhà cung cấp.
+ * Interface này công bố các use case Inventory cho controller, worker và adapter gọi tới. Class triển khai
+ * nằm ở service/impl, vì vậy bên gọi phụ thuộc vào hợp đồng thay vì chi tiết xử lý.
+ */
 public interface SupplierReceiptService {
     /** Đọc header, các dòng hàng và chứng từ đính kèm của một phiếu nhập. */
     SupplierReceiptResponse getById(String receiptId);
@@ -29,6 +34,9 @@ public interface SupplierReceiptService {
 
     /** Duyệt phiếu SUBMITTED; lưu người duyệt và thời điểm duyệt nhưng chưa cộng tồn kho. */
     SupplierReceiptResponse approve(String receiptId, ApproveSupplierReceiptRequest request, String approvedBy);
+
+    /** Từ chối phiếu SUBMITTED; không cập nhật tồn kho. */
+    SupplierReceiptResponse reject(String receiptId, RejectSupplierReceiptRequest request, String rejectedBy);
 
     /** Ghi sổ phiếu APPROVED vào tồn kho sau khi gán Location cho từng dòng. */
     SupplierReceiptResponse post(String receiptId, PostSupplierReceiptRequest request, String performedBy);

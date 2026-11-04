@@ -6,6 +6,11 @@ import lombok.Getter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * Snapshot Inventory trả cho API, gồm số lượng theo từng trạng thái và version để đối soát cập nhật.
+ * Record này là hợp đồng dữ liệu trả về cho client. Service/controller chọn và tổng hợp các trường cần công
+ * khai, giúp API không phụ thuộc trực tiếp vào cấu trúc entity lưu trong database.
+ */
 @Builder
 public record InventoryResponse(
 

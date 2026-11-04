@@ -1,0 +1,11 @@
+{
+  "analysis": {
+    "analyzer": {
+      "catalog_text": {
+        "type": "custom",
+        "tokenizer": "standard",
+        "filter": ["lowercase", "asciifolding"]
+      }
+    }
+  }
+}

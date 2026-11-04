@@ -1,0 +1,14 @@
+# Điền giá trị kết nối Inventory và endpoint object storage ngoài cụm trước khi áp dụng.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inventory-offsite-backup-config
+  namespace: ecommerce
+data:
+  PGHOST: "postgres"
+  PGPORT: "5432"
+  PGDATABASE: "inventory_db"
+  PGUSER: "inventory_user"
+  BACKUP_S3_ENDPOINT: "https://REPLACE_WITH_OFFSITE_S3_ENDPOINT"
+  BACKUP_S3_BUCKET: "REPLACE_WITH_PRIVATE_BACKUP_BUCKET"
+  BACKUP_S3_PREFIX: "inventory/postgres"

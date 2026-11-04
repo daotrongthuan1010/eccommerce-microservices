@@ -7,7 +7,12 @@ import jakarta.validation.constraints.PositiveOrZero;
 
 import java.math.BigDecimal;
 
-/** Nhập thêm hàng vào một inventory đã tồn tại theo ID. */
+/**
+ * Nhập thêm hàng vào một inventory đã tồn tại theo ID.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record ReceiveInventoryRequest(
 
         /**

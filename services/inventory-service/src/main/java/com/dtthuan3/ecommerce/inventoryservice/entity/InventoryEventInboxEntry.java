@@ -11,7 +11,11 @@ import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 
-/** Dấu nhận sự kiện đã xử lý để Kafka redelivery không áp dụng lại thay đổi nghiệp vụ. */
+/**
+ * Dấu nhận sự kiện đã xử lý để Kafka redelivery không áp dụng lại thay đổi nghiệp vụ.
+ * Class này biểu diễn trạng thái được lưu bền vững của Inventory service. Hibernate ánh xạ class với bảng
+ * tương ứng; ID tham chiếu service/bản ghi khác được lưu dạng scalar và khóa ngoại do database bảo đảm.
+ */
 @Entity
 @Table(name = "inventory_event_inbox",
         uniqueConstraints = @UniqueConstraint(name = "uk_inventory_inbox_consumer_event",

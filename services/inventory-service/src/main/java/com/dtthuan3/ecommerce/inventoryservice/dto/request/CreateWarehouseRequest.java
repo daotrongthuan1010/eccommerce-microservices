@@ -4,7 +4,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-/** Dữ liệu tạo kho; bỏ id để Inventory tự sinh UUID, hoặc truyền id khi cần giữ mã kho sẵn có. */
+/**
+ * Dữ liệu tạo kho; bỏ id để Inventory tự sinh UUID, hoặc truyền id khi cần giữ mã kho sẵn có.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record CreateWarehouseRequest(
         /** ID tùy chọn để tương thích dữ liệu đã có; thông thường nên để trống. */
         @Size(max = 100, message = "id không được vượt quá 100 ký tự")

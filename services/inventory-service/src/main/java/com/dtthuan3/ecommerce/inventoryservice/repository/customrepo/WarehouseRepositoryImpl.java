@@ -15,6 +15,7 @@ import java.util.Optional;
 /**
  * SQL adapter cho Warehouse.
  * Truy vấn chọn cột tường minh để tránh hydrate entity không cần thiết; Hibernate vẫn quản lý DDL.
+ * Class/interface này chứa hợp đồng hoặc phần thực thi truy vấn SQL/JDBC tùy chỉnh như khóa dòng, cập nhật có điều kiện và phân trang; repository tập trung thao tác dữ liệu, không điều phối toàn bộ use case.
  */
 @Repository
 @RequiredArgsConstructor
@@ -44,13 +45,49 @@ public class WarehouseRepositoryImpl implements WarehouseRepository {
                 """, ROW_MAPPER, id).stream().findFirst();
     }
 
-    /** Trả các kho thuộc đúng enterprise theo thứ tự mã kho. */
+    /** Trả số dòng bị giới hạn để service phát hiện khi client cần chuyển sang phân trang. */
     @Override
-    public List<WarehouseRecord> findByEnterpriseId(String enterpriseId) {
+    public List<WarehouseRecord> findByEnterpriseId(String enterpriseId, int limit) {
+        return jdbcTemplate.query("""
+                SELECT id, enterprise_id, code, name, address, status, created_at, updated_at
+                FROM inventory_warehouse WHERE enterprise_id = ? ORDER BY code, id LIMIT ?
+                """, ROW_MAPPER, enterpriseId, limit);
+    }
+
+    /** Phân trang ổn định để tránh hydrate toàn bộ Warehouse của enterprise vào heap. */
+    @Override
+    public List<WarehouseRecord> findPageByEnterpriseId(String enterpriseId, int limit, long offset) {
         return jdbcTemplate.query("""
                 SELECT id, enterprise_id, code, name, address, status, created_at, updated_at
                 FROM inventory_warehouse WHERE enterprise_id = ? ORDER BY code, id
-                """, ROW_MAPPER, enterpriseId);
+                LIMIT ? OFFSET ?
+                """, ROW_MAPPER, enterpriseId, limit, offset);
+    }
+
+    /** Count riêng để API trang trả metadata mà không tải mọi bản ghi. */
+    @Override
+    public long countByEnterpriseId(String enterpriseId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM inventory_warehouse WHERE enterprise_id = ?", Long.class, enterpriseId);
+        return count == null ? 0 : count;
+    }
+
+    /** Keyset query ổn định; không quét/bỏ qua các dòng ở những trang sâu. */
+    @Override
+    public List<WarehouseRecord> findAfterByEnterpriseId(
+            String enterpriseId, String afterCode, String afterId, int limit) {
+        if (afterCode == null) {
+            return jdbcTemplate.query("""
+                    SELECT id, enterprise_id, code, name, address, status, created_at, updated_at
+                    FROM inventory_warehouse WHERE enterprise_id = ? ORDER BY code, id LIMIT ?
+                    """, ROW_MAPPER, enterpriseId, limit);
+        }
+        return jdbcTemplate.query("""
+                SELECT id, enterprise_id, code, name, address, status, created_at, updated_at
+                FROM inventory_warehouse
+                WHERE enterprise_id = ? AND (code > ? OR (code = ? AND id > ?))
+                ORDER BY code, id LIMIT ?
+                """, ROW_MAPPER, enterpriseId, afterCode, afterCode, afterId, limit);
     }
 
     /** Tạo kho ở trạng thái ban đầu ACTIVE; ID/code trùng được database báo về service. */

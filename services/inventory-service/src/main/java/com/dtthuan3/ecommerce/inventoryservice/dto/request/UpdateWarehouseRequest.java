@@ -4,7 +4,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-/** Request cập nhật thông tin hiển thị; enterprise sở hữu và trạng thái không đổi qua API này. */
+/**
+ * Request cập nhật thông tin hiển thị; enterprise sở hữu và trạng thái không đổi qua API này.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record UpdateWarehouseRequest(
         /** Mã kho mới, vẫn phải duy nhất trong enterprise đang sở hữu kho. */
         @NotBlank(message = "code là bắt buộc")
