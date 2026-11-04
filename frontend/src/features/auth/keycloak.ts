@@ -3,7 +3,7 @@ import Keycloak from 'keycloak-js';
 // Keycloak SSO (FE_AUTH_GATEWAY §2): public client ecommerce-app,
 // tokens chi giu trong memory (Redux authSlice), KHONG localStorage.
 export const keycloakUrl: string =
-  (import.meta.env.VITE_KEYCLOAK_URL as string | undefined) ?? 'http://162.4.177.91:7080';
+  (import.meta.env.VITE_KEYCLOAK_URL as string | undefined) ?? 'https://auth.shop-hatd.online';
 
 const keycloak = new Keycloak({
   url: keycloakUrl,
@@ -32,14 +32,12 @@ if (cryptoAny && typeof cryptoAny.randomUUID === 'undefined' && cryptoAny.getRan
     return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
   };
 }
-// DEV note: FE chay HTTP (http://162.4.177.91:8096) nen WebCrypto `subtle`
-// khong co (chi localhost/HTTPS moi la secure context) -> keycloak-js 26
-// KHONG tao duoc PKCE S256 (can subtle.digest, adapter 26 chi co S256/false).
-// Tat PKCE cho DEV (pkceMethod: false); khi FE len HTTPS thi bat lai 'S256'.
+// FE da len HTTPS (https://shop-hatd.online) = secure context, WebCrypto
+// `subtle` kha dung -> bat PKCE S256 (keycloak-js 26 can subtle.digest).
 export function initKeycloak(): Promise<boolean> {
   initPromise ??= keycloak.init({
     onLoad: 'login-required',
-    pkceMethod: false,
+    pkceMethod: 'S256',
     checkLoginIframe: false,
   });
   return initPromise;

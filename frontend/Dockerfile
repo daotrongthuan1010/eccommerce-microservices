@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 # FE_SCAFFOLD §3 — VITE_* la build-time: doi URL phai build lai image
 # voi --build-arg tuong ung (ConfigMap runtime khong co tac dung).
-ARG VITE_API_BASE_URL=http://162.4.177.91/api
-ARG VITE_KEYCLOAK_URL=http://162.4.177.91:7080
+ARG VITE_API_BASE_URL=https://shop-hatd.online/api
+ARG VITE_KEYCLOAK_URL=https://auth.shop-hatd.online
 FROM node:20-alpine AS build
 WORKDIR /web
 COPY frontend/package.json frontend/package-lock.json ./
