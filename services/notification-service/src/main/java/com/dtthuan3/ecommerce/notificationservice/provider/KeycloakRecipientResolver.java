@@ -7,6 +7,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import java.time.Instant;
@@ -53,8 +54,10 @@ public class KeycloakRecipientResolver {
     }
 
     /**
-     * Tra email cua user theo userId, hoac null khi khong resolve duoc
-     * (chua cau hinh admin client, Keycloak down, user khong co email).
+     * Tra email cua user theo userId, hoac null khi khong resolve duoc.
+     * Khac biet quan trong: tra "NOT_FOUND" (String) khi user khong ton tai
+     * (404 — permanent, khong thu lai) vs null khi loi tam thuat (Keycloak down,
+     * chua cau hinh — retryable).
      */
     public String resolveEmail(String userId) {
         if (!isEnabled() || userId == null || userId.isBlank()) return null;
@@ -69,6 +72,10 @@ public class KeycloakRecipientResolver {
             Object email = user.get("email");
             return email == null ? null : String.valueOf(email);
         } catch (RestClientException e) {
+            // 404 = user chac chan khong ton tai -> permanent (NOTI-06: dia chi sai khong thu lai)
+            if (e instanceof HttpClientErrorException.NotFound) {
+                return "NOT_FOUND";
+            }
             log.warn("[MAIL] Resolve email userId={} that bai: {}", userId, e.getMessage());
             return null;
         }

@@ -110,7 +110,9 @@ public class NotificationRequestProcessor {
                 }
                 case "FAILED_FINAL" -> {
                     request.setStatus("FAILED_FINAL");
-                    request.setLastError(truncate(result.errorMessage()));
+                    request.setLastError(truncate(
+                            result.errorCode() == null ? result.errorMessage()
+                                    : result.errorCode() + ": " + result.errorMessage()));
                     request.setNextAttemptAt(null);
                     moveToDeadLetter(request, "PERMANENT_FAILURE", result.errorMessage());
                     outcome = "final";
@@ -132,8 +134,13 @@ public class NotificationRequestProcessor {
             return SendResult.permanent("UNSUPPORTED_CHANNEL", "Kenh " + request.getChannel() + " chua ho tro");
         }
         String to = recipientResolver.resolveEmail(request.getRecipientId());
+        if ("NOT_FOUND".equals(to)) {
+            // User khong ton tai trong Keycloak (404): permanent, khong thu lai (NOTI-06)
+            return SendResult.permanent("RECIPIENT_NOT_FOUND",
+                    "User " + request.getRecipientId() + " khong ton tai trong Keycloak");
+        }
         if (to == null || to.isBlank()) {
-            // Chua cau hinh Keycloak admin hoac user khong co email: thu lai sau, ly do ro rang
+            // Chua cau hinh Keycloak admin hoac Keycloak down: thu lai sau, ly do ro rang
             return SendResult.retryable("RECIPIENT_UNRESOLVED",
                     "Khong resolve duoc email cho userId=" + request.getRecipientId());
         }

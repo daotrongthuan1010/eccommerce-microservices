@@ -67,7 +67,7 @@ def run_kafka(args) -> None:
         acks=1,  # load test: all lam cham; at-least-once la du cho demo
         linger_ms=50,
         batch_size=64 * 1024,
-        compression_type="lz4",
+        compression_type="gzip",  # lz4 can pip package tren Windows; gzip co san
     )
     sent = 0
     report_every = max(1, total // 10)

@@ -195,6 +195,22 @@ class NotificationWorkerTest {
     }
 
     @Test
+    @DisplayName("User khong ton tai Keycloak (404): FAILED_FINAL ngay, khong thu lai 5 lan")
+    void recipientNotFoundPermanent() {
+        NotificationRequest request = queuedRequest(0);
+        when(requests.findByIdForUpdate("req-1")).thenReturn(Optional.of(request));
+        when(recipientResolver.resolveEmail("user-1")).thenReturn("NOT_FOUND");
+
+        processor.processOne("req-1");
+
+        assertThat(request.getStatus()).isEqualTo("FAILED_FINAL");
+        assertThat(request.getLastError()).contains("RECIPIENT_NOT_FOUND");
+        verify(deadLetters).save(any());
+        // Khong bao gio goi SMTP cho user khong ton tai
+        verify(mailProvider, never()).send(anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
     @DisplayName("Request da DELIVERED (worker khac xu ly truoc): bo qua, khong gui lai")
     void alreadyDeliveredSkipped() {
         NotificationRequest request = queuedRequest(1);
