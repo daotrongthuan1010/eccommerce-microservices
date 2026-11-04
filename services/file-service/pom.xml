@@ -272,6 +272,12 @@
             <version>1.3.2</version>
         </dependency>
 
+        <!-- Test: junit5 + mockito + assertj (spring-boot-starter-test) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
 
     </dependencies>
 

@@ -39,10 +39,27 @@ export interface UrlResponse {
   [k: string]: unknown;
 }
 
+/**
+ * Contract 2026-11-05: presign-upload YEU CAU sizeBytes (bytes) — BE tao PostPolicy
+ * MinIO gioi content-length-range; response tra formData (policy/signature) de POST
+ * multipart kem file, khong con PUT single URL.
+ */
 export interface PresignUploadRequest {
-  fileName: string;
-  contentType?: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
   folder?: string;
+  expirySeconds?: number;
+  [k: string]: unknown;
+}
+
+export interface PresignUploadResponse {
+  key: string;
+  uploadUrl: string;
+  contentType: string;
+  formData?: Record<string, string>;
+  sizeBytes?: number;
+  expiresInSeconds?: number;
   [k: string]: unknown;
 }
 
@@ -84,8 +101,8 @@ export const fileApi = createApi({
         params: { key, expirySeconds },
       }),
     }),
-    // real 2026-10-22: POST /api/file/files/presign-upload
-    presignUpload: build.mutation<ApiResponse<UrlResponse>, PresignUploadRequest>({
+    // real 2026-11-05: POST /api/file/files/presign-upload (sizeBytes bat buoc; response co formData PostPolicy)
+    presignUpload: build.mutation<ApiResponse<PresignUploadResponse>, PresignUploadRequest>({
       query: (body) => ({ url: '/file/files/presign-upload', method: 'post', data: body }),
     }),
     // real 2026-10-22: DELETE /api/file/files?key=

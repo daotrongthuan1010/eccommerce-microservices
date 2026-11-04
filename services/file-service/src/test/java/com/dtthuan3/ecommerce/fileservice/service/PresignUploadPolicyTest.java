@@ -64,7 +64,7 @@ class PresignUploadPolicyTest {
 
     @Test
     @DisplayName("Presign hop le: tra formData PostPolicy + size da duyet + URL bucket")
-    void presignOk() {
+    void presignOk() throws Exception {
         when(presignMinioClient.getPresignedPostFormData(any(PostPolicy.class)))
                 .thenReturn(Map.of("policy", "abc", "x-amz-signature", "sig"));
 
@@ -80,7 +80,7 @@ class PresignUploadPolicyTest {
 
     @Test
     @DisplayName("Size du kien thieu: tu choi — khong cap URL mù (FILE-07 + ch.14 §385)")
-    void missingSizeRejected() {
+    void missingSizeRejected() throws Exception {
         PresignUploadRequest r = request(0);
         assertThatThrownBy(() -> service.presignUpload(r))
                 .isInstanceOf(FileValidationException.class)
