@@ -1,4 +1,4 @@
-package com.dtthuan3.ecommerce.reviewservice.Util;
+package com.dtthuan3.ecommerce.reviewservice.util;
 
 import com.dtthuan3.ecommerce.reviewservice.dto.response.ReconcileResponse;
 import com.dtthuan3.ecommerce.reviewservice.entity.RatingAggregate;

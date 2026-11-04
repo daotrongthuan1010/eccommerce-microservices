@@ -1,4 +1,4 @@
-package com.dtthuan3.ecommerce.reviewservice.Util;
+package com.dtthuan3.ecommerce.reviewservice.util;
 
 import com.dtthuan3.ecommerce.reviewservice.enums.OutboxStatus;
 import com.dtthuan3.ecommerce.reviewservice.enums.RevisionStatus;

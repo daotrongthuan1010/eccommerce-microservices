@@ -1,9 +1,9 @@
-package com.dtthuan3.ecommerce.reviewservice.Util;
+package com.dtthuan3.ecommerce.reviewservice.util;
 
 
 import com.dtthuan3.ecommerce.reviewservice.dto.request.ReviewMediaRequest;
 import com.dtthuan3.ecommerce.reviewservice.enums.ReviewMediaType;
-import com.dtthuan3.ecommerce.reviewservice.exception.BusinessException;
+import com.dtthuan3.ecommerce.common.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -97,6 +97,6 @@ public class ReviewRules {
     }
 
     private static BusinessException bad(String code, String message) {
-        return new BusinessException(HttpStatus.BAD_REQUEST, code, message);
+        return new BusinessException(code, HttpStatus.BAD_REQUEST, message);
     }
 }
