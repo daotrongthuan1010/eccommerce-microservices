@@ -7,7 +7,11 @@ import com.dtthuan3.ecommerce.inventoryservice.dto.response.LocationResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-/** Hợp đồng nghiệp vụ cho quản lý Location thuộc Inventory. */
+/**
+ * Hợp đồng nghiệp vụ cho quản lý Location thuộc Inventory.
+ * Interface này công bố các use case Inventory cho controller, worker và adapter gọi tới. Class triển khai
+ * nằm ở service/impl, vì vậy bên gọi phụ thuộc vào hợp đồng thay vì chi tiết xử lý.
+ */
 public interface LocationManagementService {
     /** Tạo Location mới trong Warehouse nội bộ đang hoạt động. */
     LocationResponse createLocation(CreateLocationRequest request);

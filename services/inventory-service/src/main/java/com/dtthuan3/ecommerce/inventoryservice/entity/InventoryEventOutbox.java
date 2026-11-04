@@ -10,7 +10,11 @@ import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 
-/** Bản ghi outbox bền vững để phát sự kiện kho sau khi transaction nghiệp vụ đã commit. */
+/**
+ * Bản ghi outbox bền vững để phát sự kiện kho sau khi transaction nghiệp vụ đã commit.
+ * Class này biểu diễn trạng thái được lưu bền vững của Inventory service. Hibernate ánh xạ class với bảng
+ * tương ứng; ID tham chiếu service/bản ghi khác được lưu dạng scalar và khóa ngoại do database bảo đảm.
+ */
 @Entity
 @Table(name = "inventory_event_outbox",
         indexes = {
@@ -26,6 +30,10 @@ public class InventoryEventOutbox {
     @Id
     @Column(name = "event_id", nullable = false, length = 36)
     private String eventId;
+
+    /** Thứ tự cấp phát toàn cục của event; dùng phân xử chính xác thứ tự cùng aggregate khi timestamp trùng. */
+    @Column(name = "sequence_id", insertable = false, updatable = false)
+    private Long sequenceId;
 
     /** Topic đích được chụp tại thời điểm ghi outbox. */
     @Column(nullable = false, length = 200)
@@ -50,6 +58,10 @@ public class InventoryEventOutbox {
     /** Mốc sớm nhất publisher được phép thử gửi; đồng thời làm lease khi claim. */
     @Column(name = "available_at", nullable = false)
     private Instant availableAt;
+
+    /** Token nhận diện lease hiện tại; callback của lease cũ không được sửa trạng thái mới. */
+    @Column(name = "lease_token", length = 36)
+    private String leaseToken;
 
     /** Số lần publisher đã claim để gửi. */
     @Column(nullable = false)

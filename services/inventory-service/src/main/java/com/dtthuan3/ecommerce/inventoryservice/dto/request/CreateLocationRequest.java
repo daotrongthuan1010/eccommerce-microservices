@@ -4,7 +4,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-/** Dữ liệu đầu vào để tạo Location; các ràng buộc được kiểm tra trước khi gọi service layer. */
+/**
+ * Dữ liệu đầu vào để tạo Location; các ràng buộc được kiểm tra trước khi gọi service layer.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record CreateLocationRequest(
         /** ID tùy chọn do caller cung cấp; bỏ trống để Inventory tự sinh UUID. */
         @Size(max = 100, message = "id không được dài quá 100 ký tự") String id,

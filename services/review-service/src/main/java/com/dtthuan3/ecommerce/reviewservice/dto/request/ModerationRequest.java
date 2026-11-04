@@ -1,7 +1,11 @@
 package com.dtthuan3.ecommerce.reviewservice.dto.request;
 
 import jakarta.validation.constraints.NotNull;
-import lombok.*;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @Builder
@@ -12,9 +16,10 @@ public class ModerationRequest {
     @NotNull(message = "Quyết định kiểm duyệt không được để trống")
     private Boolean isApproved;
 
-    // Mã lỗi hệ thống (VD: "SPAM", "PROFANITY", "INAPPROPRIATE_IMAGE")
+    /** Bắt buộc khi từ chối (SPAM, PROFANITY, INAPPROPRIATE_IMAGE...). */
+    @Size(max = 50, message = "Mã lý do tối đa 50 ký tự")
     private String reasonCode;
 
-    // Ghi chú chi tiết của Admin (VD: "Khách hàng chửi bậy ở đoạn 2")
+    @Size(max = 1000, message = "Ghi chú tối đa 1000 ký tự")
     private String reasonNote;
 }

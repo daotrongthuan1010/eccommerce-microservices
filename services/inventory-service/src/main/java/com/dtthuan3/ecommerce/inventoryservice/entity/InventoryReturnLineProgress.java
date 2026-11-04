@@ -41,6 +41,14 @@ public class InventoryReturnLineProgress {
     @Column(name = "order_line_id", nullable = false, length = 100)
     private String orderLineId;
 
+    /** Enterprise của order line được Return Service phê duyệt; nhận parcel phải khớp chính xác giá trị này. */
+    @Column(name = "enterprise_id", length = 100)
+    private String enterpriseId;
+
+    /** SKU chuẩn của order line được phê duyệt; client không được thay SKU khi gửi parcel về kho. */
+    @Column(name = "sku", length = 100)
+    private String sku;
+
     /** Hạn mức được duyệt cho dòng hàng; được lưu làm snapshot để so sánh ở các lần nhận sau. */
     @Column(name = "approved_quantity", nullable = false, precision = 19, scale = 4)
     private BigDecimal approvedQuantity;
@@ -48,6 +56,14 @@ public class InventoryReturnLineProgress {
     /** Tổng số lượng đã nhận qua các parcel; không được vượt approvedQuantity. */
     @Column(name = "received_quantity", nullable = false, precision = 19, scale = 4)
     private BigDecimal receivedQuantity;
+
+    /** Version tăng đơn điệu do Return Service phát; event cũ không được ghi đè quyết định mới. */
+    @Column(name = "source_version")
+    private Long sourceVersion;
+
+    /** Event ID nguồn đã phê duyệt hạn mức; null nhận diện dữ liệu legacy chưa được xác minh nguồn. */
+    @Column(name = "approval_event_id", length = 200)
+    private String approvalEventId;
 
     /** Thời điểm tạo bản ghi tiến độ nhận. */
     @Column(name = "created_at", nullable = false)

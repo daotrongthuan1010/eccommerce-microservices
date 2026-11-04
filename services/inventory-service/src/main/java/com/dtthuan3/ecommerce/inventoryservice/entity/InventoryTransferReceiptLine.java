@@ -12,7 +12,11 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 
-/** Chi tiết kiểm đếm của một dòng trong một operation nhận phiếu điều chuyển. */
+/**
+ * Chi tiết kiểm đếm của một dòng trong một operation nhận phiếu điều chuyển.
+ * Class này biểu diễn trạng thái được lưu bền vững của Inventory service. Hibernate ánh xạ class với bảng
+ * tương ứng; ID tham chiếu service/bản ghi khác được lưu dạng scalar và khóa ngoại do database bảo đảm.
+ */
 @Entity
 @Table(name = "inventory_transfer_receipt_line",
         uniqueConstraints = @UniqueConstraint(name = "uk_transfer_receipt_operation_line",

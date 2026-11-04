@@ -12,6 +12,7 @@ import com.dtthuan3.ecommerce.catalogservice.entity.ProductCategory;
 import com.dtthuan3.ecommerce.catalogservice.mapper.ProductCategoryMapper;
 import com.dtthuan3.ecommerce.catalogservice.repository.CategoryRepository;
 import com.dtthuan3.ecommerce.catalogservice.repository.ProductCategoryRepository;
+import com.dtthuan3.ecommerce.catalogservice.service.ProductCategoryService;
 import com.dtthuan3.ecommerce.common.exception.BusinessException;
 import com.dtthuan3.ecommerce.common.exception.ErrorCode;
 import com.dtthuan3.ecommerce.common.exception.ResourceNotFoundException;
@@ -27,7 +28,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ProductCategoryServiceImpl
-        implements com.dtthuan3.ecommerce.catalogservice.service.ProductCategoryService {
+        implements ProductCategoryService {
 
     private final ProductCategoryRepository productCategoryRepository;
 
@@ -36,6 +37,11 @@ public class ProductCategoryServiceImpl
     private final ProductCategoryMapper productCategoryMapper;
 
     private final ProductServiceClient productServiceClient;
+
+
+    // =========================================================
+    // GET PRODUCT CATEGORIES
+    // =========================================================
 
     @Override
     @Transactional(readOnly = true)
@@ -48,24 +54,16 @@ public class ProductCategoryServiceImpl
         List<ProductCategory> mappings =
                 productCategoryRepository.findByProductId(productId);
 
-        List<ProductCategoryResponse> responses =
-                mappings.stream()
-                        .map(productCategoryMapper::toResponse)
-                        .toList();
-
-        String primaryCategoryId =
-                mappings.stream()
-                        .filter(ProductCategory::getPrimary)
-                        .map(ProductCategory::getCategoryId)
-                        .findFirst()
-                        .orElse(null);
-
-        return ProductCategoriesResponse.builder()
-                .productId(productId)
-                .primaryCategoryId(primaryCategoryId)
-                .categories(responses)
-                .build();
+        return buildProductCategoriesResponse(
+                productId,
+                mappings
+        );
     }
+
+
+    // =========================================================
+    // UPDATE PRODUCT CATEGORIES
+    // =========================================================
 
     @Override
     @Transactional
@@ -74,8 +72,14 @@ public class ProductCategoryServiceImpl
             ProductCategoryUpdateRequest request
     ) {
 
+        /*
+         * 1. Kiểm tra Product tồn tại.
+         */
         validateProductExists(productId);
 
+        /*
+         * 2. Validate request.
+         */
         validateRequest(request);
 
         List<String> categoryIds =
@@ -84,13 +88,23 @@ public class ProductCategoryServiceImpl
         String primaryCategoryId =
                 request.primaryCategoryId();
 
+        /*
+         * 3. Primary bắt buộc nằm trong categoryIds.
+         */
         validatePrimaryCategory(
                 categoryIds,
                 primaryCategoryId
         );
 
+        /*
+         * 4. Tất cả category phải tồn tại
+         *    và đang ACTIVE.
+         */
         validateCategories(categoryIds);
 
+        /*
+         * 5. Lấy mapping hiện tại.
+         */
         List<ProductCategory> existingMappings =
                 productCategoryRepository.findByProductId(productId);
 
@@ -102,18 +116,20 @@ public class ProductCategoryServiceImpl
                         ));
 
         /*
-         * Xóa những mapping cũ không còn nằm trong request.
+         * 6. Xóa mapping không còn nằm trong request.
          */
         for (ProductCategory existing : existingMappings) {
 
-            if (!categoryIds.contains(existing.getCategoryId())) {
+            if (!categoryIds.contains(
+                    existing.getCategoryId()
+            )) {
 
                 productCategoryRepository.delete(existing);
             }
         }
 
         /*
-         * Tạo mới hoặc update mapping.
+         * 7. Tạo mới / cập nhật mapping.
          */
         for (String categoryId : categoryIds) {
 
@@ -125,6 +141,7 @@ public class ProductCategoryServiceImpl
                 mapping = new ProductCategory();
 
                 mapping.setProductId(productId);
+
                 mapping.setCategoryId(categoryId);
             }
 
@@ -135,8 +152,25 @@ public class ProductCategoryServiceImpl
             productCategoryRepository.save(mapping);
         }
 
-        return getProductCategories(productId);
+        /*
+         * 8. Đọc lại từ DB.
+         *
+         * Không gọi validateProductExists()
+         * lần thứ hai.
+         */
+        List<ProductCategory> updatedMappings =
+                productCategoryRepository.findByProductId(productId);
+
+        return buildProductCategoriesResponse(
+                productId,
+                updatedMappings
+        );
     }
+
+
+    // =========================================================
+    // SET PRIMARY CATEGORY
+    // =========================================================
 
     @Override
     @Transactional
@@ -145,10 +179,20 @@ public class ProductCategoryServiceImpl
             String categoryId
     ) {
 
+        /*
+         * 1. Product phải tồn tại.
+         */
         validateProductExists(productId);
 
+        /*
+         * 2. Category phải tồn tại + ACTIVE.
+         */
         validateCategory(categoryId);
 
+        /*
+         * 3. Product phải đang được gán
+         *    vào category này.
+         */
         ProductCategory mapping =
                 productCategoryRepository
                         .findByProductIdAndCategoryId(
@@ -161,12 +205,17 @@ public class ProductCategoryServiceImpl
                                 )
                         );
 
+        /*
+         * 4. Tìm primary hiện tại.
+         */
         Optional<ProductCategory> currentPrimary =
                 productCategoryRepository
-                        .findByProductIdAndPrimaryTrue(productId);
+                        .findByProductIdAndPrimaryTrue(
+                                productId
+                        );
 
         /*
-         * Bỏ primary cũ.
+         * 5. Bỏ primary cũ.
          */
         if (currentPrimary.isPresent()
                 && !currentPrimary.get()
@@ -182,14 +231,21 @@ public class ProductCategoryServiceImpl
         }
 
         /*
-         * Set primary mới.
+         * 6. Set primary mới.
          */
         mapping.setPrimary(true);
 
         productCategoryRepository.save(mapping);
 
-        return productCategoryMapper.toResponse(mapping);
+        return productCategoryMapper.toResponse(
+                mapping
+        );
     }
+
+
+    // =========================================================
+    // REMOVE PRODUCT FROM CATEGORY
+    // =========================================================
 
     @Override
     @Transactional
@@ -198,8 +254,14 @@ public class ProductCategoryServiceImpl
             String categoryId
     ) {
 
+        /*
+         * 1. Product phải tồn tại.
+         */
         validateProductExists(productId);
 
+        /*
+         * 2. Mapping phải tồn tại.
+         */
         ProductCategory mapping =
                 productCategoryRepository
                         .findByProductIdAndCategoryId(
@@ -213,15 +275,16 @@ public class ProductCategoryServiceImpl
                         );
 
         /*
-         * Không cho xóa primary nếu Product vẫn còn
-         * các category khác mà chưa chọn primary mới.
+         * 3. Nếu xóa primary mà Product còn
+         *    category khác thì bắt buộc chọn primary mới.
          */
-        if (Boolean.TRUE.equals(mapping.getPrimary())) {
+        if (Boolean.TRUE.equals(
+                mapping.getPrimary()
+        )) {
 
             long count =
                     productCategoryRepository
-                            .findByProductId(productId)
-                            .size();
+                            .countByProductId(productId);
 
             if (count > 1) {
 
@@ -233,8 +296,16 @@ public class ProductCategoryServiceImpl
             }
         }
 
+        /*
+         * 4. Xóa mapping.
+         */
         productCategoryRepository.delete(mapping);
     }
+
+
+    // =========================================================
+    // GET CATEGORY PRODUCTS
+    // =========================================================
 
     @Override
     @Transactional(readOnly = true)
@@ -242,6 +313,9 @@ public class ProductCategoryServiceImpl
             String categoryId
     ) {
 
+        /*
+         * Category phải tồn tại.
+         */
         validateCategory(categoryId);
 
         List<ProductCategory> mappings =
@@ -259,17 +333,64 @@ public class ProductCategoryServiceImpl
                 .build();
     }
 
+
     // =========================================================
-    // VALIDATION
+    // BUILD RESPONSE
     // =========================================================
 
-    private void validateProductExists(UUID productId) {
+    private ProductCategoriesResponse
+    buildProductCategoriesResponse(
+            UUID productId,
+            List<ProductCategory> mappings
+    ) {
+
+        List<ProductCategoryResponse> responses =
+                mappings.stream()
+                        .map(productCategoryMapper::toResponse)
+                        .toList();
+
+        String primaryCategoryId =
+                mappings.stream()
+                        .filter(ProductCategory::getPrimary)
+                        .map(ProductCategory::getCategoryId)
+                        .findFirst()
+                        .orElse(null);
+
+        return ProductCategoriesResponse.builder()
+                .productId(productId)
+                .primaryCategoryId(
+                        primaryCategoryId
+                )
+                .categories(responses)
+                .build();
+    }
+
+
+    // =========================================================
+    // PRODUCT VALIDATION
+    // =========================================================
+
+    private void validateProductExists(
+            UUID productId
+    ) {
+
+        if (productId == null) {
+
+            throw new BusinessException(
+                    ErrorCode.BAD_REQUEST,
+                    "Product id không được null"
+            );
+        }
 
         try {
 
             ApiResponse<ProductExistsResponse> response =
                     productServiceClient.getById(productId);
 
+            /*
+             * Product Service trả response nhưng
+             * không có data -> Product không tồn tại.
+             */
             if (response == null
                     || response.getData() == null
                     || response.getData().getId() == null) {
@@ -285,12 +406,23 @@ public class ProductCategoryServiceImpl
 
         } catch (Exception ex) {
 
+            /*
+             * Không được coi lỗi Product Service
+             * là Product không tồn tại.
+             *
+             * Đây là lỗi dependency.
+             */
             throw new BusinessException(
                     ErrorCode.DEPENDENCY_ERROR,
                     "Không thể kiểm tra Product từ product-service"
             );
         }
     }
+
+
+    // =========================================================
+    // CATEGORY VALIDATION
+    // =========================================================
 
     private void validateCategories(
             List<String> categoryIds
@@ -302,9 +434,19 @@ public class ProductCategoryServiceImpl
         }
     }
 
+
     private Category validateCategory(
             String categoryId
     ) {
+
+        if (categoryId == null
+                || categoryId.isBlank()) {
+
+            throw new BusinessException(
+                    ErrorCode.BAD_REQUEST,
+                    "Category id không được để trống"
+            );
+        }
 
         Category category =
                 categoryRepository.findById(categoryId)
@@ -315,7 +457,8 @@ public class ProductCategoryServiceImpl
                                 )
                         );
 
-        if (category.getStatus() != CategoryStatus.ACTIVE) {
+        if (category.getStatus()
+                != CategoryStatus.ACTIVE) {
 
             throw new BusinessException(
                     ErrorCode.BAD_REQUEST,
@@ -327,9 +470,22 @@ public class ProductCategoryServiceImpl
         return category;
     }
 
+
+    // =========================================================
+    // REQUEST VALIDATION
+    // =========================================================
+
     private void validateRequest(
             ProductCategoryUpdateRequest request
     ) {
+
+        if (request == null) {
+
+            throw new BusinessException(
+                    ErrorCode.BAD_REQUEST,
+                    "Request không được null"
+            );
+        }
 
         List<String> categoryIds =
                 request.categoryIds();
@@ -359,12 +515,28 @@ public class ProductCategoryServiceImpl
         }
     }
 
+
+    // =========================================================
+    // PRIMARY CATEGORY VALIDATION
+    // =========================================================
+
     private void validatePrimaryCategory(
             List<String> categoryIds,
             String primaryCategoryId
     ) {
 
-        if (!categoryIds.contains(primaryCategoryId)) {
+        if (primaryCategoryId == null
+                || primaryCategoryId.isBlank()) {
+
+            throw new BusinessException(
+                    ErrorCode.BAD_REQUEST,
+                    "Primary category id không được để trống"
+            );
+        }
+
+        if (!categoryIds.contains(
+                primaryCategoryId
+        )) {
 
             throw new BusinessException(
                     ErrorCode.BAD_REQUEST,

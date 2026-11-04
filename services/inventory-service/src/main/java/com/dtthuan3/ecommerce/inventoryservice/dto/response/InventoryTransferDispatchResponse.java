@@ -4,7 +4,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
-/** Kết quả xuất chuyển; từng dòng đã rời tồn khả dụng và đang được theo dõi ở trạng thái in-transit. */
+/**
+ * Kết quả xuất chuyển; từng dòng đã rời tồn khả dụng và đang được theo dõi ở trạng thái in-transit.
+ * Record này là hợp đồng dữ liệu trả về cho client. Service/controller chọn và tổng hợp các trường cần công
+ * khai, giúp API không phụ thuộc trực tiếp vào cấu trúc entity lưu trong database.
+ */
 public record InventoryTransferDispatchResponse(
         /** ID phiếu điều chuyển đã được xuất. */
         String transferId,
@@ -26,7 +30,11 @@ public record InventoryTransferDispatchResponse(
         /** Danh sách dòng đã được xuất cùng ID tồn nguồn để đối soát bước nhận. */
         List<Line> lines
 ) {
-    /** Số lượng xuất và version tồn nguồn sau lần cập nhật. */
+    /**
+     * Số lượng xuất và version tồn nguồn sau lần cập nhật.
+     * Record này là hợp đồng dữ liệu trả về cho client. Service/controller chọn và tổng hợp các trường cần công
+     * khai, giúp API không phụ thuộc trực tiếp vào cấu trúc entity lưu trong database.
+     */
     public record Line(
             String lineId,
             int lineNumber,

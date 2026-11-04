@@ -4,7 +4,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
-/** Sự kiện outbox phát sau khi tồn hai đầu và kết quả nhận điều chuyển đã commit. */
+/**
+ * Sự kiện outbox phát sau khi tồn hai đầu và kết quả nhận điều chuyển đã commit.
+ * Class này gom trách nhiệm khởi tạo và chạy ứng dụng Inventory, đăng ký cấu hình cần thiết để Spring tạo
+ * các bean trước khi nhận request.
+ */
 public record InventoryTransferReceivedEvent(
         String eventId,
         String eventType,
@@ -15,7 +19,11 @@ public record InventoryTransferReceivedEvent(
         Long transferVersion,
         List<Line> lines
 ) {
-    /** Kết quả đối soát đã ghi nhận cho một dòng của phiếu. */
+    /**
+     * Kết quả đối soát đã ghi nhận cho một dòng của phiếu.
+     * Class này gom trách nhiệm khởi tạo và chạy ứng dụng Inventory, đăng ký cấu hình cần thiết để Spring tạo
+     * các bean trước khi nhận request.
+     */
     public record Line(String lineId, String sku, BigDecimal goodQuantity,
                        BigDecimal damagedQuantity, BigDecimal missingQuantity,
                        String discrepancyReason, String destinationInventoryId) {}

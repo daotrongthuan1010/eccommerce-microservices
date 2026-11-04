@@ -1,0 +1,62 @@
+# Mẫu chạy load test ghi theo tuần trong staging; không áp dụng vào namespace production.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: inventory-reservation-load-test
+  namespace: ecommerce-staging
+  labels:
+    app: inventory-load-test
+spec:
+  schedule: "0 3 * * 1"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 1800
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app: inventory-load-test
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 12345
+            runAsGroup: 12345
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: k6
+              image: grafana/k6:2.3.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-ec"]
+              args: ["k6 run /scripts/reservation-contention.js"]
+              envFrom:
+                - configMapRef:
+                    name: inventory-load-test-config
+                - secretRef:
+                    name: inventory-load-test-credentials
+              volumeMounts:
+                - name: test-script
+                  mountPath: /scripts
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: test-script
+              configMap:
+                name: inventory-load-test-script

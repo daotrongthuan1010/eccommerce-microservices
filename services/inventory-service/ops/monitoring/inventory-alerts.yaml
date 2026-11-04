@@ -1,0 +1,95 @@
+# Mẫu rule Prometheus dành riêng cho Inventory; chưa được tự động nạp vào cụm.
+# Điều chỉnh nhãn namespace/service theo cách Prometheus của môi trường đang scrape.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: inventory-service-alerts
+  namespace: ecommerce
+  labels:
+    app: inventory-service
+spec:
+  groups:
+    - name: inventory-service-availability
+      rules:
+        - alert: InventoryHttpServerErrors
+          expr: sum(rate(http_server_requests_seconds_count{application="inventory-service",status=~"5.."}[5m])) > 0.5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Inventory đang trả nhiều lỗi HTTP 5xx
+            description: Tỷ lệ 5xx vượt 0.5 request/giây trong 5 phút; kiểm tra log, PostgreSQL, Redis và service phụ thuộc.
+
+        - alert: InventoryDatabasePoolWaiting
+          expr: max(hikaricp_connections_pending{application="inventory-service"}) > 0
+          for: 3m
+          labels:
+            severity: warning
+          annotations:
+            summary: Request Inventory đang chờ connection PostgreSQL
+            description: Kiểm tra pool theo từng replica, số pod, query chậm và giới hạn connection của database.
+
+    - name: inventory-service-events
+      rules:
+        - alert: InventoryOutboxOldestEventDelayed
+          expr: max(inventory_event_outbox_oldest_age_seconds{application="inventory-service"}) > 300
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Inventory outbox đang tồn event quá 5 phút
+            description: Kiểm tra Kafka broker, ACL/TLS, publisher lỗi và trạng thái lease trong PostgreSQL.
+
+        - alert: InventoryOutboxBacklogGrowing
+          expr: max(inventory_event_outbox_pending{application="inventory-service"}) > 10000
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Backlog outbox Inventory vượt 10.000 event
+            description: Kiểm tra tốc độ publish, broker throttling và ngân sách in-flight trước khi tăng replica.
+
+        - alert: InventoryCacheInvalidationDelayed
+          expr: max(inventory_cache_invalidation_oldest_age_seconds{application="inventory-service"}) > 30
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: Cache invalidation Inventory bị trễ
+            description: Kiểm tra Redis, cache outbox poller và metric inventory.cache.invalidation.failures.
+
+        - alert: InventoryCacheInvalidationFailing
+          expr: sum(rate(inventory_cache_invalidation_failures_total{application="inventory-service"}[5m])) > 0.02
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Inventory liên tục lỗi xóa cache Redis
+            description: Cache invalidation được retry; kiểm tra Redis availability, timeout và backlog trước khi TTL hết hạn.
+
+        - alert: InventoryKafkaConsumerRetrying
+          expr: sum(rate(inventory_kafka_consumer_retries_total{application="inventory-service"}[5m])) > 0.2
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Kafka consumer Inventory retry liên tục
+            description: Kiểm tra payload, lỗi DB, DLT và event có bị producer phát sai hợp đồng không.
+
+        - alert: InventoryKafkaDeadLetterIncreasing
+          expr: sum(increase(inventory_kafka_consumer_dead_letter_total{application="inventory-service"}[15m])) > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: Có Kafka event Inventory bị chuyển vào DLT
+            description: Đối soát topic/partition/offset, kiểm tra nguyên nhân rồi mới replay; không xóa DLT tự động.
+
+        - alert: InventoryKafkaConsumerGroupLag
+          expr: max(kafka_consumergroup_lag{consumergroup="inventory-service"}) > 1000
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Kafka consumer group Inventory bị lag
+            description: Rule này cần Kafka exporter cung cấp kafka_consumergroup_lag; đối chiếu số partition, concurrency và tốc độ xử lý.

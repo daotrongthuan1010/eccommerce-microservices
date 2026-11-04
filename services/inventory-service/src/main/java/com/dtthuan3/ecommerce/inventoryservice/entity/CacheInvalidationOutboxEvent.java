@@ -11,7 +11,11 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 import java.util.UUID;
 
-/** Durable Redis cache invalidation command, committed atomically with its Location change. */
+/**
+ * Lệnh xóa cache bền vững, commit nguyên tử cùng thay đổi metadata Warehouse hoặc Location.
+ * Class này biểu diễn trạng thái được lưu bền vững của Inventory service. Hibernate ánh xạ class với bảng
+ * tương ứng; ID tham chiếu service/bản ghi khác được lưu dạng scalar và khóa ngoại do database bảo đảm.
+ */
 @Entity
 @Table(name = "cache_invalidation_outbox",
         indexes = @Index(name = "idx_cache_invalidation_available", columnList = "available_at, created_at"))

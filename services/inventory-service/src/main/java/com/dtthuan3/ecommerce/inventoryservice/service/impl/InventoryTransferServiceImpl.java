@@ -3,6 +3,7 @@ package com.dtthuan3.ecommerce.inventoryservice.service.impl;
 import com.dtthuan3.ecommerce.common.exception.BusinessException;
 import com.dtthuan3.ecommerce.common.exception.ErrorCode;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.CreateInventoryTransferRequest;
+import com.dtthuan3.ecommerce.inventoryservice.dto.request.ApproveInventoryTransferRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.DispatchInventoryTransferRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.request.ReceiveInventoryTransferRequest;
 import com.dtthuan3.ecommerce.inventoryservice.dto.response.InventoryTransferResponse;
@@ -21,6 +22,7 @@ import com.dtthuan3.ecommerce.inventoryservice.repository.StockMovementRepositor
 import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryTransferRepository;
 import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryTransferRepository.ReceiptProgressUpdate;
 import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryTransferRepository.TransferHeaderRecord;
+import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryTransferRepository.ApprovalRecord;
 import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryTransferRepository.TransferLineRecord;
 import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryTransferRepository.TransferReceiptOperationLineRecord;
 import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryTransferRepository.TransferReceiptOperationRecord;
@@ -33,6 +35,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,7 +59,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.UUID;
 
-/** Điều phối tạo phiếu điều chuyển nháp, xác thực phụ thuộc và ghi header/lines nguyên tử. */
+/**
+ * Điều phối tạo phiếu điều chuyển nháp, xác thực phụ thuộc và ghi header/lines nguyên tử.
+ * Class này hiện thực use case hoặc tác vụ nền của Inventory, phối hợp kiểm tra nghiệp vụ, repository và
+ * tích hợp cần thiết để hoàn tất một bước xử lý; adapter bên ngoài không tự thao tác dữ liệu.
+ */
 @Service
 @RequiredArgsConstructor
 public class InventoryTransferServiceImpl implements InventoryTransferService {
@@ -67,9 +75,29 @@ public class InventoryTransferServiceImpl implements InventoryTransferService {
     private final ObjectMapper objectMapper;
     private final InventoryEventOutboxRepository eventOutboxRepository;
     private final TransactionTemplate transactionTemplate;
+    private final DeadlockRetryExecutor deadlockRetryExecutor;
 
-    @Value("${inventory.kafka.transfer-events-topic:inventory-transfer-events}")
+    @Value("${inventory.kafka.transfer-events-topic}")
     private String transferEventsTopic;
+
+    /** Đọc snapshot header và các dòng hiện tại để client dùng đúng trạng thái/version mới nhất. */
+    @Override
+    @Transactional(readOnly = true)
+    public InventoryTransferResponse getById(String transferId) {
+        TransferHeaderRecord header = transferRepository.findById(transferId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "Không tìm thấy phiếu điều chuyển: " + transferId));
+        return toResponse(header, transferRepository.findLines(transferId));
+    }
+
+    /** Lấy trang phiếu theo doanh nghiệp; dữ liệu dòng được truy vấn theo batch ID để hạn chế N+1. */
+    @Override
+    @Transactional(readOnly = true)
+    public Page<InventoryTransferResponse> list(String enterpriseId, String status, Pageable pageable) {
+        String normalizedStatus = status == null || status.isBlank() ? null : status.trim().toUpperCase();
+        return transferRepository.search(enterpriseId.trim(), normalizedStatus, pageable)
+                .map(header -> toResponse(header, transferRepository.findLines(header.id())));
+    }
 
     /**
      * Retry được xử lý trước khi gọi Product Service; kiểm tra SKU chạy ngoài transaction DB.
@@ -78,8 +106,10 @@ public class InventoryTransferServiceImpl implements InventoryTransferService {
     @Override
     public InventoryTransferResponse create(CreateInventoryTransferRequest request, String createdBy) {
         NormalizedRequest normalized = normalize(request);
+        // Hash sau chuẩn hóa để so nội dung nghiệp vụ, không phụ thuộc khoảng trắng hoặc scale của BigDecimal.
         String payloadHash = calculatePayloadHash(normalized);
 
+        // Retry được trả sớm trước khi gọi Product Service; cùng operationId nhưng payload khác bị từ chối.
         TransferHeaderRecord previous = transferRepository.findByOperationId(normalized.operationId()).orElse(null);
         if (previous != null) {
             return replayOrReject(previous, payloadHash);
@@ -91,15 +121,77 @@ public class InventoryTransferServiceImpl implements InventoryTransferService {
         return transactionTemplate.execute(status -> createInsideTransaction(normalized, payloadHash, createdBy));
     }
 
+    /** Duyệt tách người lập và người duyệt; khóa header để hai request không thể duyệt/dispatch cùng lúc. */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public InventoryTransferResponse approve(String transferId, ApproveInventoryTransferRequest request,
+                                             String approvedBy) {
+        String actor = approvedBy == null ? "" : approvedBy.trim();
+        String operationId = request.operationId().trim();
+        String reason = request.reason() == null ? "" : request.reason().trim();
+        String payloadHash = sha256(String.join("\n", transferId.trim(), operationId,
+                request.expectedVersion().toString(), reason));
+
+        TransferHeaderRecord header = transferRepository.findByIdForUpdate(transferId.trim())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "Không tìm thấy phiếu điều chuyển: " + transferId));
+
+        // Nếu phản hồi lần đầu bị mất, cùng operation và payload trả lại trạng thái đã duyệt.
+        ApprovalRecord previousApproval = transferRepository.findApproval(header.id()).orElse(null);
+        if (previousApproval != null) {
+            if (previousApproval.operationId().equals(operationId)
+                    && MessageDigest.isEqual(previousApproval.payloadHash().getBytes(StandardCharsets.US_ASCII),
+                    payloadHash.getBytes(StandardCharsets.US_ASCII))) {
+                return toResponse(header, transferRepository.findLines(header.id()));
+            }
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "Phiếu đã được duyệt bằng thao tác khác; không thể duyệt lại");
+        }
+        if (!"CREATED".equals(header.status())) {
+            throw new BusinessException(ErrorCode.INVALID_RESOURCE_STATE,
+                    "Chỉ được duyệt phiếu điều chuyển ở trạng thái CREATED");
+        }
+        if (header.version() != request.expectedVersion()) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT,
+                    "Phiếu điều chuyển đã thay đổi; hãy tải lại version mới nhất");
+        }
+        if (actor.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_OPERATION,
+                    "Không xác định được người duyệt từ thông tin xác thực");
+        }
+        if (actor.equalsIgnoreCase(header.createdBy())) {
+            throw new BusinessException(ErrorCode.INVALID_OPERATION,
+                    "Người tạo phiếu không được tự duyệt phiếu của mình");
+        }
+
+        Instant approvedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        if (!transferRepository.approve(header.id(), request.expectedVersion(), operationId,
+                payloadHash, actor, approvedAt)) {
+            // UPDATE có điều kiện là chốt compare-and-set tại database, kể cả nếu state đổi sau bước đọc header.
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT,
+                    "Phiếu vừa được cập nhật bởi thao tác khác; hãy tải lại trạng thái mới nhất");
+        }
+        TransferHeaderRecord approved = transferRepository.findById(header.id())
+                .orElseThrow(() -> new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "Không đọc lại được phiếu sau khi duyệt"));
+        return toResponse(approved, transferRepository.findLines(header.id()));
+    }
+
     /**
      * Xuất toàn bộ phiếu trong một transaction cục bộ. Header được khóa trước, các dòng tồn được
      * khóa theo ID tăng dần, rồi một câu UPDATE theo lô trừ physical và tăng in-transit có điều kiện.
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public InventoryTransferDispatchResponse dispatch(String transferId,
                                                        DispatchInventoryTransferRequest request,
                                                        String dispatchedBy) {
+        return deadlockRetryExecutor.execute("dispatch điều chuyển " + transferId,
+                () -> dispatchInTransaction(transferId, request, dispatchedBy));
+    }
+
+    private InventoryTransferDispatchResponse dispatchInTransaction(String transferId,
+                                                                      DispatchInventoryTransferRequest request,
+                                                                      String dispatchedBy) {
         String operationId = request.operationId().trim();
         TransferHeaderRecord header = transferRepository.findByIdForUpdate(transferId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
@@ -107,6 +199,7 @@ public class InventoryTransferServiceImpl implements InventoryTransferService {
 
         // Cùng lệnh sau timeout trả lại snapshot đã lưu, kể cả khi trạng thái phiếu đã tiến xa hơn.
         if (header.dispatchOperationId() != null) {
+            // Retry chỉ hợp lệ nếu khớp cả operationId và version ban đầu; response dùng snapshot dispatch đã lưu.
             if (header.dispatchOperationId().equals(operationId)
                     && Objects.equals(header.dispatchExpectedVersion(), request.expectedVersion())) {
                 return toDispatchResponse(header, transferRepository.findLines(transferId));
@@ -114,9 +207,9 @@ public class InventoryTransferServiceImpl implements InventoryTransferService {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "Phiếu đã được dispatch bằng operationId khác hoặc request retry không khớp");
         }
-        if (!"CREATED".equals(header.status())) {
+        if (!"CREATED".equals(header.status()) && !"APPROVED".equals(header.status())) {
             throw new BusinessException(ErrorCode.INVALID_RESOURCE_STATE,
-                    "Chỉ được dispatch phiếu điều chuyển đang ở trạng thái CREATED");
+                    "Chỉ được dispatch phiếu điều chuyển ở trạng thái CREATED hoặc APPROVED");
         }
         if (header.version() != request.expectedVersion()) {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT,
@@ -187,7 +280,7 @@ public class InventoryTransferServiceImpl implements InventoryTransferService {
                     .reason(header.reason())
                     .performedBy(dispatchedBy)
                     .performedBySubject(dispatchedBy)
-                    .build());
+                    .build().withBalanceSnapshot(before, after));
             dispatchedLines.add(new TransferLineRecord(line.lineId(), line.lineNumber(), line.sku(),
                     line.plannedQuantity(), after.getId(), line.plannedQuantity(), after.getVersion(),
                     zeroIfNull(line.receivedGoodQuantity()), zeroIfNull(line.receivedDamagedQuantity()),
@@ -218,10 +311,16 @@ public class InventoryTransferServiceImpl implements InventoryTransferService {
 
     /** Nhận hàng theo từng đợt; balance, tiến độ dòng, movement, outbox và trạng thái cùng commit. */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public InventoryTransferReceiveResponse receive(String transferId,
                                                      ReceiveInventoryTransferRequest request,
                                                      String receivedBy) {
+        return deadlockRetryExecutor.execute("nhận điều chuyển " + transferId,
+                () -> receiveInTransaction(transferId, request, receivedBy));
+    }
+
+    private InventoryTransferReceiveResponse receiveInTransaction(String transferId,
+                                                                   ReceiveInventoryTransferRequest request,
+                                                                   String receivedBy) {
         NormalizedReceiveRequest normalized = normalizeReceive(transferId, request);
         String payloadHash = calculateReceivePayloadHash(normalized, request.expectedVersion());
 
@@ -363,7 +462,7 @@ public class InventoryTransferServiceImpl implements InventoryTransferService {
                                 ? header.reason() : receiptLine.discrepancyReason())
                         .performedBy(receivedBy)
                         .performedBySubject(receivedBy)
-                        .build());
+                        .build().withBalanceSnapshot(destinationBefore, destinationAfter));
             }
 
             operationLines.add(new TransferReceiptOperationLineRecord(
@@ -441,6 +540,7 @@ public class InventoryTransferServiceImpl implements InventoryTransferService {
 
     /** Cùng operationId và payload trả phiếu đã lưu; khác payload bị từ chối để không nhập nhằng chứng từ. */
     private InventoryTransferResponse replayOrReject(TransferHeaderRecord existing, String requestedHash) {
+        // So hash constant-time; chỉ cùng khóa và cùng nội dung mới được coi là retry an toàn.
         if (!MessageDigest.isEqual(existing.payloadHash().getBytes(StandardCharsets.US_ASCII),
                 requestedHash.getBytes(StandardCharsets.US_ASCII))) {
             throw new BusinessException(ErrorCode.CONFLICT,
@@ -459,6 +559,16 @@ public class InventoryTransferServiceImpl implements InventoryTransferService {
                 header.enterpriseId(), header.sourceWarehouseId(), header.sourceLocationId(),
                 header.destinationWarehouseId(), header.destinationLocationId(), header.referenceCode(),
                 header.reason(), header.version(), header.createdBy(), header.createdAt(), responseLines);
+    }
+
+    /** Hash nội dung duyệt để operationId chỉ được dùng lại với đúng request ban đầu. */
+    private String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 không có sẵn trong JVM", exception);
+        }
     }
 
     /** Dựng response ổn định từ header/line đã lưu, không đọc lại số dư có thể đã đổi về sau. */
@@ -519,11 +629,14 @@ public class InventoryTransferServiceImpl implements InventoryTransferService {
             messages.add(new OutboxMessage(discrepancyEventId, transferEventsTopic,
                     discrepancyEvent.eventType(), operation.transferId(), serializeEvent(discrepancyEvent), 0));
         }
+        // Insert outbox cùng transaction nhận hàng: rollback nghiệp vụ thì event cũng mất, commit thì publisher sẽ
+        // gửi sau.
         eventOutboxRepository.appendBatch(messages);
     }
 
     /** Tạo event ID ổn định để thao tác retry không sinh thêm event nghiệp vụ. */
     private String deterministicEventId(String transferId, String operationId, String eventKind) {
+        // Cùng lần nhận và cùng loại event luôn có cùng ID, để downstream khử duplicate khi outbox phải gửi lại.
         String value = "inventory-transfer:" + eventKind + ":" + transferId + ":" + operationId;
         return UUID.nameUUIDFromBytes(value.getBytes(StandardCharsets.UTF_8)).toString();
     }
@@ -600,6 +713,8 @@ public class InventoryTransferServiceImpl implements InventoryTransferService {
 
     /** Hash payload nhận đã chuẩn hóa để cùng operationId không thể mang số lượng khác. */
     private String calculateReceivePayloadHash(NormalizedReceiveRequest request, Long expectedVersion) {
+        // Hash gồm version và số lượng đã chuẩn hóa; cùng operationId không thể được dùng lại cho kết quả kiểm đếm
+        // khác.
         try {
             List<HashReceiptLine> lines = request.lines().stream()
                     .map(line -> new HashReceiptLine(line.lineId(), line.goodQuantity().stripTrailingZeros(),

@@ -274,6 +274,17 @@ public class SupplierReceiptRepositoryImpl implements SupplierReceiptRepository 
                 approvedBy, Timestamp.from(approvedAt), receiptId, expectedVersion) == 1;
     }
 
+    @Override
+    public boolean markRejected(String receiptId, long expectedVersion, String rejectedBy,
+                                String rejectionReason, Instant rejectedAt) {
+        return jdbcTemplate.update("""
+                UPDATE inventory_supplier_receipt
+                SET status = 'REJECTED', version = version + 1,
+                    rejected_by = ?, rejection_reason = ?, rejected_at = ?
+                WHERE id = ? AND status = 'SUBMITTED' AND version = ?
+                """, rejectedBy, rejectionReason, Timestamp.from(rejectedAt), receiptId, expectedVersion) == 1;
+    }
+
     /** Chuyển DRAFT sang SUBMITTED nguyên tử; version cũ hoặc trạng thái khác sẽ không cập nhật. */
     @Override
     public boolean markSubmitted(String receiptId, long expectedVersion) {

@@ -21,7 +21,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.UUID;
 
-/** Phân loại parcel đã nhận, cập nhật bucket tồn và ghi audit trong cùng transaction. */
+/**
+ * Phân loại parcel đã nhận, cập nhật bucket tồn và ghi audit trong cùng transaction.
+ * Class này hiện thực use case hoặc tác vụ nền của Inventory, phối hợp kiểm tra nghiệp vụ, repository và
+ * tích hợp cần thiết để hoàn tất một bước xử lý; adapter bên ngoài không tự thao tác dữ liệu.
+ */
 @Service
 @RequiredArgsConstructor
 public class InventoryReturnInspectionServiceImpl implements InventoryReturnInspectionService {
@@ -30,6 +34,21 @@ public class InventoryReturnInspectionServiceImpl implements InventoryReturnInsp
     private final InventoryReturnInspectionRepository inspectionRepository;
     private final InventoryRepository inventoryRepository;
     private final StockMovementRepository stockMovementRepository;
+
+    /** Đọc kết quả inspection đã ghi; không trả thành công giả khi parcel còn ở khu cách ly. */
+    @Override
+    @Transactional(readOnly = true)
+    public ReturnInspectionResponse getByReceiptId(String receiptId) {
+        String normalizedReceiptId = receiptId.trim();
+        if (receiptRepository.findReceiptById(normalizedReceiptId).isEmpty()) {
+            throw new BusinessException(ErrorCode.NOT_FOUND,
+                    "Không tìm thấy biên nhận hàng trả: " + receiptId);
+        }
+        InspectionRecord inspection = inspectionRepository.findByReceiptId(normalizedReceiptId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_RESOURCE_STATE,
+                        "Biên nhận chưa được kiểm tra chất lượng"));
+        return toResponse(inspection);
+    }
 
     /**
      * Chốt một lần kiểm tra cho toàn bộ parcel: hàng đạt chuẩn rời pending để thành khả dụng,
@@ -94,7 +113,7 @@ public class InventoryReturnInspectionServiceImpl implements InventoryReturnInsp
                 .reason(request.reason())
                 .performedBy(inspectedBy)
                 .performedBySubject(inspectedBy)
-                .build());
+                .build().withBalanceSnapshot(before, after));
 
         InspectionRecord saved = inspectionRepository.insert(new InspectionRecord(
                 UUID.randomUUID().toString(), receipt.id(), request.operationId(), after.getId(), after.getSku(),

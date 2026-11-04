@@ -51,6 +51,10 @@ public interface SupplierReceiptRepository {
     /** Chuyển SUBMITTED sang APPROVED, ghi người/thời điểm duyệt và tăng version nguyên tử. */
     boolean markApproved(String receiptId, long expectedVersion, String approvedBy, Instant approvedAt);
 
+    /** Chuyển SUBMITTED sang REJECTED và lưu người từ chối, lý do, thời điểm cùng version mới. */
+    boolean markRejected(String receiptId, long expectedVersion, String rejectedBy,
+                         String rejectionReason, Instant rejectedAt);
+
     /** Chuyển DRAFT sang SUBMITTED bằng compare-and-set sau khi service đã hoàn tất mọi kiểm tra. */
     boolean markSubmitted(String receiptId, long expectedVersion);
 

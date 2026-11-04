@@ -1,231 +1,148 @@
 package com.dtthuan3.ecommerce.reviewservice.mapper;
 
-import com.dtthuan3.ecommerce.reviewservice.dto.request.ModerationRequest;
-import com.dtthuan3.ecommerce.reviewservice.dto.request.ReviewRequest;
+import com.dtthuan3.ecommerce.reviewservice.util.ReviewRules;
+import com.dtthuan3.ecommerce.reviewservice.client.OrderLineClient;
+import com.dtthuan3.ecommerce.reviewservice.dto.request.ReviewCreateRequest;
+import com.dtthuan3.ecommerce.reviewservice.dto.request.ReviewMediaRequest;
+import com.dtthuan3.ecommerce.reviewservice.dto.response.AbuseReportResponse;
+import com.dtthuan3.ecommerce.reviewservice.dto.response.ReviewMediaResponse;
 import com.dtthuan3.ecommerce.reviewservice.dto.response.ReviewResponse;
 import com.dtthuan3.ecommerce.reviewservice.entity.*;
-import com.dtthuan3.ecommerce.reviewservice.enums.ModerationAction;
-import com.dtthuan3.ecommerce.reviewservice.enums.OutboxStatus;
+import com.dtthuan3.ecommerce.reviewservice.enums.EligibilityStatus;
 import com.dtthuan3.ecommerce.reviewservice.enums.ReviewStatus;
 import com.dtthuan3.ecommerce.reviewservice.enums.RevisionStatus;
+import com.dtthuan3.ecommerce.reviewservice.service.impl.ReviewServiceImpl;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.IntStream;
 
 @Component
 public class ReviewMapper {
-
-    public ReviewResponse toResponse(Review review) {
-        if (review == null) return null;
-
-        return ReviewResponse.builder()
-                .id(review.getId())
-                .productId(review.getProductId())
-                .reviewerDisplayName(review.getReviewerDisplayName())
-                .status(review.getStatus() != null ? review.getStatus().name() : null)
-                .revisionNo(review.getLatestRevisionNo())
-                .helpfulCount(review.getHelpfulCount())
-                .submittedAt(review.getSubmittedAt())
-                .publishedAt(review.getPublishedAt())
-                .editableUntil(review.getEditableUntil())
-                .version(review.getVersion())
-                .build();
-    }
-
-    public ReviewResponse toFullDetailResponse(Review review,
-                                               ReviewRevision revision,
-                                               List<ReviewImage> images,
-                                               ReviewReply reply) {
-        if (review == null) return null;
-
-        return ReviewResponse.builder()
-                .id(review.getId())
-                .productId(review.getProductId())
-                .reviewerDisplayName(review.getReviewerDisplayName())
-                .verifiedPurchase(true)
-                .status(review.getStatus() != null ? review.getStatus().name() : null)
-                .revisionNo(review.getLatestRevisionNo())
-                .helpfulCount(review.getHelpfulCount())
-                .submittedAt(review.getSubmittedAt())
-                .publishedAt(review.getPublishedAt())
-                .editableUntil(review.getEditableUntil())
-                .version(review.getVersion())
-                .rating(revision != null ? revision.getRating() : review.getRating())
-                .content(revision != null ? revision.getContent() : null)
-                .images(images == null ? List.of() : images.stream()
-                        .map(ReviewImage::getFileId)
-                        .toList())
-                .reply(reply != null ? ReviewResponse.ReviewReplyDto.builder()
-                        .content(reply.getContent())
-                        .publishedAt(reply.getCreatedAt())
-                        .build() : null)
-                .build();
-    }
-
-    // ==========================================
-    // 2. NHÓM HÀM KHỞI TẠO ENTITY (TẠO MỚI)
-    // ==========================================
-
-    public Review createReviewEntity(String userId, String finalDisplayName,
-                                     EligibilityProjection eligibility,
-                                     ReviewRequest req, boolean hasPhoto) {
-        LocalDateTime now = LocalDateTime.now();
+    /**
+     * Review mới luôn ở PENDING_MODERATION, chưa tính vào điểm tổng.
+     */
+    public Review createReviewEntity(String userId, String userName, EligibilityProjection eligibility,
+                                     ReviewCreateRequest request, String content, int mediaCount,
+                                     LocalDateTime now) {
+        boolean anonymous = request.getIsAnonymous() == null || request.getIsAnonymous();
         return Review.builder()
-                .lineId(req.getLineId())
+                .lineId(request.getLineId())
                 .orderId(eligibility.getOrderId())
                 .userId(userId)
                 .productId(eligibility.getProductId())
                 .skuId(eligibility.getSkuId())
-                .reviewerDisplayName(finalDisplayName)
-                .status(ReviewStatus.PENDING_MODERATION) // Chờ duyệt
-                .rating(req.getRating())
-                .hasPhoto(hasPhoto)
-                .latestRevisionNo(1) // Mặc định tạo mới là phiên bản 1
+                .reviewerDisplayName(anonymous ? maskDisplayName(userName) : displayName(userName))
+                .anonymous(anonymous)
+                .status(ReviewStatus.PENDING_MODERATION)
+                .rating(request.getRating())
+                .hasPhoto(mediaCount > 0)
+                .hasComment(ReviewRules.hasText(content))
+                .latestRevisionNo(1)
                 .helpfulCount(0)
                 .submittedAt(now)
-                .editableUntil(now.plusDays(7)) // Cho phép sửa trong 7 ngày
+                .editableUntil(now.plusDays(ReviewServiceImpl.EDIT_WINDOW_DAYS))
                 .build();
     }
 
-    public ReviewRevision createInitialRevision(String reviewId, ReviewRequest req) {
+    public String displayName(String rawName) {
+        return ReviewRules.hasText(rawName) ? rawName.trim() : "Khách hàng";
+    }
+
+    public String maskDisplayName(String rawName) {
+        if (!ReviewRules.hasText(rawName)) {
+            return "Khách hàng";
+        }
+        String name = rawName.trim();
+        if (name.length() <= 2) {
+            return name.charAt(0) + "***";
+        }
+        return name.charAt(0) + "***" + name.charAt(name.length() - 1);
+    }
+
+    public ReviewRevision createRevision(String reviewId, int revisionNo, Integer rating, String content,
+                                         LocalDateTime now) {
         return ReviewRevision.builder()
                 .reviewId(reviewId)
-                .revisionNo(1)
-                .rating(req.getRating())
-                .content(req.getContent())
+                .revisionNo(revisionNo)
+                .rating(rating)
+                .content(content)
                 .status(RevisionStatus.PENDING_MODERATION)
-                .submittedAt(LocalDateTime.now())
-                .build();
-    }
-
-    public List<ReviewImage> createReviewImages(String revisionId, List<String> fileIds) {
-        if (fileIds == null || fileIds.isEmpty()) return List.of();
-
-        return IntStream.range(0, fileIds.size())
-                .mapToObj(i -> ReviewImage.builder()
-                        .revisionId(revisionId)
-                        .fileId(fileIds.get(i))
-                        .sortOrder(i)
-                        .build())
-                .toList();
-    }
-
-    public OutboxEvent createReviewSubmittedEvent(Review review) {
-        String payload = String.format("{\"reviewId\":\"%s\",\"productId\":\"%s\"}",
-                review.getId(), review.getProductId());
-
-        return OutboxEvent.builder()
-                .eventId(UUID.randomUUID().toString())
-                .aggregateType("REVIEW")
-                .aggregateId(review.getId())
-                .aggregateVersion(1L)
-                .eventType("ReviewSubmitted")
-                .schemaVersion(1)
-                .payload(payload)
-                .status(OutboxStatus.PENDING)
-                .build();
-    }
-
-    // ==========================================
-    // 3. NHÓM HÀM CẬP NHẬT ENTITY (SỬA ĐÁNH GIÁ)
-    // ==========================================
-
-    public void updateReviewEntity(Review review, ReviewRequest req, boolean hasPhoto) {
-        review.setRating(req.getRating());
-        review.setHasPhoto(hasPhoto);
-        review.setStatus(ReviewStatus.PENDING_MODERATION); // Sửa xong phải chờ duyệt lại
-        review.setLatestRevisionNo(review.getLatestRevisionNo() + 1); // Tăng version hiển thị
-    }
-
-    public ReviewRevision createNewRevision(Review review, ReviewRequest req) {
-        return ReviewRevision.builder()
-                .reviewId(review.getId())
-                .revisionNo(review.getLatestRevisionNo()) // Số revision mới nhất
-                .rating(req.getRating())
-                .content(req.getContent())
-                .status(RevisionStatus.PENDING_MODERATION)
-                .submittedAt(LocalDateTime.now())
-                .build();
-    }
-    public OutboxEvent createReviewUpdatedEvent(Review review) {
-        String payload = String.format("{\"reviewId\":\"%s\",\"productId\":\"%s\",\"revisionNo\":%d}",
-                review.getId(), review.getProductId(), review.getLatestRevisionNo());
-
-        return OutboxEvent.builder()
-                .eventId(java.util.UUID.randomUUID().toString())
-                .aggregateType("REVIEW")
-                .aggregateId(review.getId())
-                .aggregateVersion(review.getVersion()) // Đính kèm version mới nhất
-                .eventType("ReviewUpdated") // Khác với lúc Create (ReviewSubmitted)
-                .schemaVersion(1)
-                .payload(payload)
-                .status(OutboxStatus.PENDING)
-                .build();
-    }
-    public OutboxEvent createReviewDeletedEvent(Review review) {
-        // Payload đính kèm số sao cũ để hệ thống cộng dồn (Aggregator) biết đường trừ đi
-        String payload = String.format("{\"reviewId\":\"%s\",\"productId\":\"%s\",\"rating\":%d}",
-                review.getId(), review.getProductId(), review.getRating());
-
-        return OutboxEvent.builder()
-                .eventId(UUID.randomUUID().toString())
-                .aggregateType("REVIEW")
-                .aggregateId(review.getId())
-                .aggregateVersion(review.getVersion() + 1) // Cộng version lên 1
-                .eventType("ReviewDeleted") // Sự kiện báo hệ thống khác biết để trừ điểm
-                .schemaVersion(1)
-                .payload(payload)
-                .status(OutboxStatus.PENDING)
-                .build();
-    }
-    // ==========================================
-    // 5. NHÓM HÀM KIỂM DUYỆT (MODERATION)
-    // ==========================================
-
-    // ==========================================
-    // 5. NHÓM HÀM KIỂM DUYỆT (MODERATION)
-    // ==========================================
-
-    public ModerationDecision createModerationDecision(String reviewId, String revisionId,
-                                                       String adminId, ModerationRequest req) {
-
-        String rCode = req.getIsApproved() ? "MANUAL_APPROVAL" : req.getReasonCode();
-
-        return ModerationDecision.builder()
-                .reviewId(reviewId)
-                .revisionId(revisionId)
-                .decidedBy(adminId)
-                // Đã đổi thành APPROVE và REJECT theo đúng Enum của bạn
-                .decision(req.getIsApproved() ? ModerationAction.APPROVE : ModerationAction.REJECT)
-                .reasonCode(rCode)
-                .reasonNote(req.getReasonNote())
-                .decidedAt(LocalDateTime.now())
+                .submittedAt(now)
                 .build();
     }
 
     /**
-     * Sự kiện bắn lên Kafka sau khi kiểm duyệt xong
+     * Thứ tự hiển thị = thứ tự trong mảng client gửi.
      */
-    public OutboxEvent createReviewModeratedEvent(Review review, boolean isApproved) {
-        // Nếu duyệt: báo ReviewPublished để hệ thống Rating cộng điểm
-        // Nếu từ chối: báo ReviewRejected để hệ thống Notification gửi email/thông báo cho khách
-        String eventType = isApproved ? "ReviewPublished" : "ReviewRejected";
+    public List<ReviewMedia> createMediaList(String reviewId, String revisionId, List<ReviewMediaRequest> requests) {
+        List<ReviewMedia> list = new ArrayList<>(requests.size());
+        for (int i = 0; i < requests.size(); i++) {
+            ReviewMediaRequest r = requests.get(i);
+            list.add(ReviewMedia.builder()
+                    .reviewId(reviewId)
+                    .revisionId(revisionId)
+                    .fileId(r.getFileId())
+                    .mediaType(r.getMediaType())
+                    .sortOrder(i)
+                    .build());
 
-        String payload = String.format("{\"reviewId\":\"%s\",\"productId\":\"%s\",\"rating\":%d}",
-                review.getId(), review.getProductId(), review.getRating());
 
-        return OutboxEvent.builder()
-                .eventId(UUID.randomUUID().toString())
-                .aggregateType("REVIEW")
-                .aggregateId(review.getId())
-                .aggregateVersion(review.getVersion() + 1)
-                .eventType(eventType)
-                .schemaVersion(1)
-                .payload(payload)
-                .status(OutboxStatus.PENDING)
+        }
+        return list;
+    }
+    public void applyEditToUnpublished(Review review, Integer rating, String content, int mediaCount) {
+        review.setStatus(ReviewStatus.PENDING_MODERATION);
+        review.setRating(rating);
+        review.setHasPhoto(mediaCount > 0);
+        review.setHasComment(ReviewRules.hasText(content));
+    }
+    /** Dòng đơn lấy từ order-service (fallback) -> projection. Event Kafka thật có version >= 1 sẽ ghi đè. */
+    public EligibilityProjection toProjection(OrderLineClient.OrderLineInfo line, String lineId,
+                                              LocalDateTime deliveredAt) {
+        return EligibilityProjection.builder()
+                .lineId(lineId)
+                .userId(line.userId())
+                .orderId(line.orderId())
+                .productId(line.productId())
+                .skuId(line.skuId())
+                .status(EligibilityStatus.ELIGIBLE)
+                .deliveredAt(deliveredAt)
+                .eligibleUntil(deliveredAt.plusDays(ReviewServiceImpl.ELIGIBILITY_WINDOW_DAYS))
+                .sourceEventId(UUID.randomUUID().toString())
+                .sourceVersion(0L)
+                .build();
+    }
+    public ReviewResponse.ReviewReplyDto toReplyDto(ReviewReply reply) {
+        return ReviewResponse.ReviewReplyDto.builder()
+                .id(reply.getId())
+                .content(reply.getContent())
+                .publishedAt(reply.getCreatedAt())
+                .build();
+    }
+    public ReviewMediaResponse toMediaResponse(ReviewMedia media) {
+        return ReviewMediaResponse.builder()
+                .fileId(media.getFileId())
+                .mediaType(media.getMediaType())
+                .mediaUrl(media.getMediaUrl())
+                .thumbnailUrl(media.getThumbnailUrl())
+                .sortOrder(media.getSortOrder())
+                .build();
+    }
+    public List<ReviewMediaResponse> toMediaResponses(List<ReviewMedia> media) {
+        return media == null ? List.of() : media.stream().map(this::toMediaResponse).toList();
+    }
+    public AbuseReportResponse toReportResponse(AbuseReport report) {
+        return AbuseReportResponse.builder()
+                .id(report.getId())
+                .reviewId(report.getReviewId())
+                .reasonCode(report.getReasonCode())
+                .note(report.getNote())
+                .status(report.getStatus().name())
+                .createdAt(report.getCreatedAt())
+                .resolvedAt(report.getResolvedAt())
                 .build();
     }
 }

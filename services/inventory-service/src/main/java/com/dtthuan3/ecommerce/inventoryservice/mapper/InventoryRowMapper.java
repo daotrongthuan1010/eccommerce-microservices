@@ -7,7 +7,11 @@ import org.springframework.stereotype.Component;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-/** Chuyển một dòng kết quả JDBC (tên cột snake_case) thành entity Inventory. */
+/**
+ * Chuyển một dòng kết quả JDBC (tên cột snake_case) thành entity Inventory.
+ * Class này tập trung ánh xạ giữa dữ liệu persistence và DTO nghiệp vụ/API, tránh lặp logic chuyển đổi ở
+ * controller và service.
+ */
 @Component
 public class InventoryRowMapper implements RowMapper<Inventory> {
 

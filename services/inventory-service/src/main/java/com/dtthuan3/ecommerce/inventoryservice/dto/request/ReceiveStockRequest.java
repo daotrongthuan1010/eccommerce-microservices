@@ -7,7 +7,12 @@ import jakarta.validation.constraints.PositiveOrZero;
 
 import java.math.BigDecimal;
 
-/** Dữ liệu nhập hàng theo vị trí; service tạo inventory nếu tổ hợp vị trí/SKU chưa tồn tại. */
+/**
+ * Dữ liệu nhập hàng theo vị trí; service tạo inventory nếu tổ hợp vị trí/SKU chưa tồn tại.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record ReceiveStockRequest(
 
         /** Các trường tạo thành khóa nghiệp vụ của một vị trí tồn. */

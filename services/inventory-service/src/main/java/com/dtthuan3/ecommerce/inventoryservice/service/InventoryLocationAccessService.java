@@ -28,6 +28,8 @@ import java.util.stream.Collectors;
 public class InventoryLocationAccessService implements ActiveWarehouseValidator {
     /** Repository port dùng đọc projection và Location theo lô, không phụ thuộc Spring Data JPA. */
     private final InventoryLocationAccessRepository accessRepository;
+    /** ACL phạm vi kho; role ADMIN được bypass, principal khác phải có grant theo warehouse. */
+    private final InventoryWarehouseAuthorizationService warehouseAuthorizationService;
 
     /** Dựng một vị trí từ Inventory và dùng chung quy tắc kiểm tra theo lô. */
     @Transactional
@@ -115,6 +117,7 @@ public class InventoryLocationAccessService implements ActiveWarehouseValidator 
         if (warehouse == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy Warehouse: " + warehouseId);
         }
+        warehouseAuthorizationService.requireWarehouseAccess(warehouseId);
         if (!"ACTIVE".equals(warehouse.status())) {
             throw new BusinessException(ErrorCode.RESOURCE_INACTIVE, "Warehouse không hoạt động: " + warehouseId);
         }
@@ -124,6 +127,10 @@ public class InventoryLocationAccessService implements ActiveWarehouseValidator 
         }
     }
 
-    /** Bộ khóa tối thiểu để xác định một vị trí cần kiểm tra. */
+    /**
+     * Bộ khóa tối thiểu để xác định một vị trí cần kiểm tra.
+     * Record này gói các giá trị nghiệp vụ liên quan thành một kiểu có cấu trúc để các bước kiểm tra quyền/vị
+     * trí truyền dữ liệu rõ ràng, không phải dựa vào chuỗi hoặc tham số rời.
+     */
     public record Position(String enterpriseId, String warehouseId, String locationId) {}
 }

@@ -30,7 +30,12 @@ public record UpdateSupplierReceiptActualsRequest(
         @Size(max = 100, message = "Không được đính kèm quá 100 chứng từ bổ sung")
         List<@NotBlank @Size(max = 160) String> evidenceAssetIds
 ) {
-    /** Kết quả kiểm đếm và phân loại của một dòng phiếu. */
+    /**
+     * Kết quả kiểm đếm và phân loại của một dòng phiếu.
+     * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+     * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+     * bảng database.
+     */
     public record Line(
             /** ID dòng do API tạo phiếu nháp trả về; không nhận lineNumber để tránh cập nhật nhầm dòng. */
             @NotBlank(message = "lineId là bắt buộc")

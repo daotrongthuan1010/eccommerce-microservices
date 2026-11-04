@@ -29,10 +29,8 @@
       <scope>provided</scope>
     </dependency>
 
-    <!-- Persistence: JPA + Flyway + PostgreSQL -->
+    <!-- Persistence: Hibernate/JPA và PostgreSQL; Hibernate quản lý schema qua ddl-auto. -->
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-jpa</artifactId></dependency>
-    <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-core</artifactId></dependency>
-    <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-database-postgresql</artifactId></dependency>
     <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><scope>runtime</scope></dependency>
 
     <!-- Cache / messaging -->

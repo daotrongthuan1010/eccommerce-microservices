@@ -6,7 +6,12 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
 
-/** Dữ liệu chuyển một SKU từ inventory nguồn sang inventory đích. */
+/**
+ * Dữ liệu chuyển một SKU từ inventory nguồn sang inventory đích.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record TransferInventoryRequest(
         /** ID inventory bị trừ tồn. */
         @NotBlank(message = "fromInventoryId là bắt buộc") String fromInventoryId,

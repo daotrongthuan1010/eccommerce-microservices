@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package ecommerce.shipping.v1;
+
+option java_multiple_files = true;
+option java_package = "com.dtthuan3.ecommerce.shippingservice.grpc";
+option java_outer_classname = "ShippingProto";
+
+// Base contract only — replace Ping with real shipping RPCs when implementing.
+service ShippingService {
+  rpc Ping(PingRequest) returns (PingResponse);
+}
+
+message PingRequest {
+  string message = 1;
+}
+
+message PingResponse {
+  string message = 1;
+}

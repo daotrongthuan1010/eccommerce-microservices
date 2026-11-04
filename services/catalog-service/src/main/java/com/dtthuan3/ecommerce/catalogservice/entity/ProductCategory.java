@@ -53,18 +53,26 @@ public class ProductCategory extends BaseEntity {
     )
     private String id;
 
-
+    /**
+     * ID Product thuộc Product Service.
+     *
+     * Catalog chỉ lưu reference, không sở hữu Product.
+     */
     @Column(name = "product_id", nullable = false)
     private UUID productId;
 
     /**
-     * ID Category do catalog-service sở hữu.
+     * ID Category do Catalog Service sở hữu.
      */
-    @Column(name = "category_id", nullable = false, length = 36)
+    @Column(
+            name = "category_id",
+            nullable = false,
+            length = 36
+    )
     private String categoryId;
 
     /**
-     * Một product chỉ có tối đa 1 primary category.
+     * Một Product chỉ có tối đa một primary category.
      */
     @Column(name = "is_primary", nullable = false)
     private Boolean primary = false;

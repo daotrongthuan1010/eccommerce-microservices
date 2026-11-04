@@ -11,7 +11,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Location thuộc Warehouse nội bộ; warehouseId là scalar ID với khóa ngoại do database quản lý. */
+/**
+ * Location thuộc Warehouse nội bộ; warehouseId là scalar ID với khóa ngoại do database quản lý.
+ * Class này biểu diễn trạng thái được lưu bền vững của Inventory service. Hibernate ánh xạ class với bảng
+ * tương ứng; ID tham chiếu service/bản ghi khác được lưu dạng scalar và khóa ngoại do database bảo đảm.
+ */
 @Entity
 @Table(name = "inventory_location",
         uniqueConstraints = @UniqueConstraint(

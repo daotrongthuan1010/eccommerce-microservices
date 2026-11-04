@@ -7,7 +7,12 @@ import jakarta.validation.constraints.PositiveOrZero;
 
 import java.math.BigDecimal;
 
-/** Yêu cầu xuất hàng từ phần tồn khả dụng. */
+/**
+ * Yêu cầu xuất hàng từ phần tồn khả dụng.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record IssueInventoryRequest(
 
         /**
@@ -23,6 +28,7 @@ public record IssueInventoryRequest(
         @Positive(message = "quantity phải lớn hơn 0")
         BigDecimal quantity,
         /** Version client đã đọc; giúp phát hiện dữ liệu tồn đã thay đổi trước khi xử lý. */
+        @NotNull
         @PositiveOrZero(message = "expectedVersion phải lớn hơn hoặc bằng 0") Long expectedVersion
 ) {
 }

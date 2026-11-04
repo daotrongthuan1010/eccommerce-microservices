@@ -86,6 +86,11 @@ spec:
                 secretKeyRef:
                   name: infra-postgres-secrets
                   key: review-db-password
+            - name: SHIPPING_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-postgres-secrets
+                  key: shipping-db-password
             - name: ANALYTICS_DB_PASSWORD
               valueFrom:
                 secretKeyRef:

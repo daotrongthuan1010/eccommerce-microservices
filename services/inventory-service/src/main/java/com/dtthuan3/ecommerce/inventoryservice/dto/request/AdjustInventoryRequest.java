@@ -6,7 +6,12 @@ import jakarta.validation.constraints.PositiveOrZero;
 
 import java.math.BigDecimal;
 
-/** Dữ liệu điều chỉnh tồn theo kết quả kiểm kê thực tế. */
+/**
+ * Dữ liệu điều chỉnh tồn theo kết quả kiểm kê thực tế.
+ * Record này là hợp đồng dữ liệu đầu vào giữa client và Inventory. Các trường thể hiện thông tin cần cho
+ * use case; validation ngăn dữ liệu thiếu hoặc sai trước khi service xử lý và record không đại diện cho
+ * bảng database.
+ */
 public record AdjustInventoryRequest(
 
         // ID inventory cần điều chỉnh.

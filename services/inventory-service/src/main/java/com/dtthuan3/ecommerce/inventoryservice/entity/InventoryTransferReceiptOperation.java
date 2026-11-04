@@ -12,7 +12,11 @@ import lombok.Setter;
 
 import java.time.Instant;
 
-/** Lưu khóa retry và snapshot trạng thái của từng lần nhận một phần phiếu điều chuyển. */
+/**
+ * Lưu khóa retry và snapshot trạng thái của từng lần nhận một phần phiếu điều chuyển.
+ * Class này biểu diễn trạng thái được lưu bền vững của Inventory service. Hibernate ánh xạ class với bảng
+ * tương ứng; ID tham chiếu service/bản ghi khác được lưu dạng scalar và khóa ngoại do database bảo đảm.
+ */
 @Entity
 @Table(name = "inventory_transfer_receipt_operation",
         uniqueConstraints = @UniqueConstraint(name = "uk_transfer_receipt_operation",
