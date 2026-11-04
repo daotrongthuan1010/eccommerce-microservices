@@ -250,7 +250,7 @@ spec:
             - /bin/sh
             - -ec
             - |
-              for t in ecommerce.auth.events ecommerce.user.events product-events product-events.DLT product-search-projection.DLT inventory-stock-movement-events inventory-transfer-events inventory-return-approval-events inventory-return-approval-events.DLT; do
+              for t in ecommerce.auth.events ecommerce.user.events product-events product-events.DLT product-search-projection.DLT inventory-stock-movement-events inventory-transfer-events inventory-return-approval-events inventory-return-approval-events.DLT order-events payment-events shipping-events; do
                 kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic "$t" --partitions 3 --replication-factor 3 --config min.insync.replicas=2
               done
               kafka-topics --bootstrap-server kafka:29092 --list

@@ -18,3 +18,11 @@ data:
   DB_USERNAME: "notification_user"
   KEYCLOAK_JWK_SET_URI: "http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs"
   ZIPKIN_ENDPOINT: "http://tempo:9411/api/v2/spans"
+  # Mailpit (mail gia lap, k8s/infra/mailpit.yaml): SMTP gui, API tra cuu UNKNOWN.
+  MAILPIT_API_BASE: "http://mailpit:8025"
+  MAILPIT_SMTP_HOST: "mailpit"
+  MAILPIT_SMTP_PORT: "1025"
+  NOTIFICATION_FROM: "shop@shop-hatd.online"
+  # Resolve userId -> email qua Keycloak Admin API (service account view-users).
+  # Secret KEYCLOAK_ADMIN_CLIENT_ID/SECRET nam trong notification-secrets.
+  KEYCLOAK_SERVER_URL: "http://162.4.177.91:7080"

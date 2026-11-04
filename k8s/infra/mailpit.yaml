@@ -1,0 +1,103 @@
+# Mailpit: mail server gia lap cho notification-service (docs ch.15 — SMTP kiem tra rieng).
+# Nhan SMTP :1025 (khong auth), UI + API :8025. KHONG gui ra internet.
+# Nhan hang tram nghin mail: in-memory la mac dinh; bat DB sqlite (PVC) de khong mat
+# khi restart va truy van duoc. Gioi han bo nho qua JAVA_TOOL_OPTIONS khong dung voi
+# Mailpit (Go binary) — Mailpit co co che prune tu dong (max-messages).
+# Deploy: kubectl apply -f k8s/infra/mailpit.yaml (nam trong infra, apply tay nhu infra khac).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mailpit-data
+  namespace: ecommerce
+  labels:
+    app: mailpit
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailpit
+  namespace: ecommerce
+  labels:
+    app: mailpit
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # sqlite tren RWO volume
+  selector:
+    matchLabels:
+      app: mailpit
+  template:
+    metadata:
+      labels:
+        app: mailpit
+    spec:
+      containers:
+        - name: mailpit
+          image: axllent/mailpit:v1.22
+          imagePullPolicy: IfNotPresent
+          args:
+            - --database=/data/mailpit.db
+            - --smtp=0.0.0.0:1025
+            - --listen=0.0.0.0:8025
+            # Giu toi da 200k message (demo hang tram nghin mail), prune cu nhat.
+            - --max=200000
+          ports:
+            - name: smtp
+              containerPort: 1025
+            - name: http
+              containerPort: 8025
+          resources:
+            requests:
+              cpu: 30m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mailpit-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailpit
+  namespace: ecommerce
+  labels:
+    app: mailpit
+spec:
+  selector:
+    app: mailpit
+  ports:
+    - name: smtp
+      port: 1025
+      targetPort: smtp
+    - name: http
+      port: 8025
+      targetPort: http
+---
+# Chi expose SMTP noi bo; UI/API chi qua port-forward SSH (khong public Internet).
+# Truy cap UI: ssh -L 8025:localhost:8025 root@162.4.177.91 -p 24700
+#   kubectl port-forward -n ecommerce svc/mailpit 8025:8025
