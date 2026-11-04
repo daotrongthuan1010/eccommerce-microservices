@@ -1,4 +1,4 @@
-package com.dtthuan3.ecommerce.reviewservice.util;
+package com.dtthuan3.ecommerce.reviewservice.Util;
 
 import com.dtthuan3.ecommerce.reviewservice.enums.OutboxStatus;
 import com.dtthuan3.ecommerce.reviewservice.enums.RevisionStatus;
@@ -51,6 +51,7 @@ public class ReviewMetrics {
                 .register(registry);
     }
 
+    /** Submit bị chặn: not_eligible | syncing | expired | already_exists. */
     public void submitBlocked(String reason) {
         registry.counter("review.submit.blocked", "reason", reason).increment();
     }

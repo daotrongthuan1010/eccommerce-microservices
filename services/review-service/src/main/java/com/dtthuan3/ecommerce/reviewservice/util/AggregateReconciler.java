@@ -1,4 +1,4 @@
-package com.dtthuan3.ecommerce.reviewservice.util;
+package com.dtthuan3.ecommerce.reviewservice.Util;
 
 import com.dtthuan3.ecommerce.reviewservice.dto.response.ReconcileResponse;
 import com.dtthuan3.ecommerce.reviewservice.entity.RatingAggregate;
@@ -15,6 +15,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Đối chiếu rating_aggregate với tập review APPROVED (mục 6.3 / 9.2) và sửa nếu lệch.
+ * Rebuild chỉ ghi lại aggregate + phát ReviewRatingChanged với version mới; KHÔNG tạo review hay notification.
+ * Khóa phân tán giữa các instance: pg_try_advisory_xact_lock (mục 11.6 cho phép chọn @Scheduled + khóa).
+ */
 @Slf4j
 @Component
 public class AggregateReconciler {
@@ -40,6 +45,7 @@ public class AggregateReconciler {
         this.tx = new TransactionTemplate(txManager);
     }
 
+    /** Đối chiếu một sản phẩm; {@code repair=true} thì sửa aggregate theo tập APPROVED. */
     @Transactional
     public ReconcileResponse reconcileProduct(String productId, boolean repair) {
         LocalDateTime now = LocalDateTime.now();
@@ -100,6 +106,7 @@ public class AggregateReconciler {
         return result.repaired(repaired).build();
     }
 
+    /** Đối chiếu toàn bộ sản phẩm theo từng trang (mỗi trang một transaction, chỉ một instance chạy). */
     public void reconcileAll() {
         int pageSize = PAGE_SIZE;
         String cursor = "";

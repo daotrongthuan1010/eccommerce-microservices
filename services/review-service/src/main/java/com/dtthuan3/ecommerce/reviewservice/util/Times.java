@@ -1,4 +1,4 @@
-package com.dtthuan3.ecommerce.reviewservice.util;
+package com.dtthuan3.ecommerce.reviewservice.Util;
 
 import java.time.DateTimeException;
 import java.time.LocalDateTime;
