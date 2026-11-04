@@ -15,6 +15,11 @@ spring:
       group-id: notification-service
       auto-offset-reset: earliest
       enable-auto-commit: false
+      # Giu batch poll nho: 500 mac dinh lam worker pha (8 threads x batch 100)
+      # phin RAM khi consumer don 200k event don dap (da gay OOMKilled 512Mi).
+      max-poll-records: 50
+      properties:
+        max.poll.interval.ms: 120000
     producer:
       acks: all
       properties:
