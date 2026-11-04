@@ -8,6 +8,7 @@ resources:
   - mysql.yaml
   - redis.yaml
   - kafka.yaml
+  - kafka-ui.yaml # Kafka web console :8090 (small heap/limits — see file header)
   - elasticsearch.yaml
   - minio.yaml
   - keycloak.yaml

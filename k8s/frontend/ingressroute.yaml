@@ -1,0 +1,77 @@
+# Frontend qua domain shop-hatd.online (mua 2026-11-04, DNS tai iNET).
+# DNS can co: A @ -> 162.4.177.91 va A www -> 162.4.177.91 (khong dung MX/TXT cua oxmail).
+#
+# HTTP (web): moi request theo Host domain -> 301 sang HTTPS (Middleware redirect-https).
+#   Priority 50: phai CAO hon route gateway PathPrefix("/") (~16, tinh theo do dai rule)
+#   de thang route do, va ACME challenge /.well-known/acme-challenge/... do chinh
+#   Traefik ACME xu ly noi bo truoc ca router nen khong bi redirect chan.
+# HTTPS (websecure): /api/* -> api-gateway, con lai -> frontend (svc 8096).
+#   Cert: Traefik ACME (certResolver `letsencrypt`, cau hinh o HelmChartConfig
+#   tren server /root/traefik-acme + backup /root/backup-2026-11-04-traefik-acme/)
+#   tu xin/gia han Let's Encrypt khi co request HTTPS dau tien — dieu kien:
+#   DNS A cua domain da tro ve 162.4.177.91. KHONG dung cert-manager cho domain
+#   (webhook cua cert-manager o cluster nay chan CertificateRequest moi — xem
+#   huong-dan-ha-tang.md muc 20.8).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: ecommerce
+  labels:
+    app: frontend
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: frontend
+  namespace: ecommerce
+  labels:
+    app: frontend
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`shop-hatd.online`) || Host(`www.shop-hatd.online`)
+      kind: Rule
+      priority: 50
+      middlewares:
+        - name: redirect-https
+      services:
+        - name: frontend
+          port: 8096
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: frontend-tls
+  namespace: ecommerce
+  labels:
+    app: frontend
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`shop-hatd.online`) && PathPrefix(`/api`)
+      kind: Rule
+      priority: 200
+      services:
+        - name: api-gateway
+          port: 8080
+    - match: Host(`www.shop-hatd.online`) && PathPrefix(`/api`)
+      kind: Rule
+      priority: 200
+      services:
+        - name: api-gateway
+          port: 8080
+    - match: Host(`shop-hatd.online`) || Host(`www.shop-hatd.online`)
+      kind: Rule
+      priority: 100
+      services:
+        - name: frontend
+          port: 8096
+  tls:
+    certResolver: letsencrypt
