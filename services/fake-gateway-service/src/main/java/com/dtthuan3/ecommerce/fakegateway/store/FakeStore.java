@@ -1,5 +1,6 @@
 package com.dtthuan3.ecommerce.fakegateway.store;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -31,7 +32,10 @@ public class FakeStore {
 
     private final Map<String, FakePaymentOrder> payments = new ConcurrentHashMap<>();
     private final Map<String, FakeCarrierShipment> shipments = new ConcurrentHashMap<>();
-    private final AtomicLong carrierSequence = new AtomicLong(1000);
+    // Epoch-second giu nguyen qua restart trong vong ~50 nam; counter con lai
+    // (1e9/s) du dai de khong trung: tranh duplicate carrier_code khi fake-gateway
+    // restart mat RAM nhung shipping-service van giu ma cu trong DB.
+    private final AtomicLong carrierSequence = new AtomicLong(Instant.now().getEpochSecond());
 
     public void putPayment(FakePaymentOrder order) { payments.put(order.provider + ":" + order.txnRef, order); }
     public FakePaymentOrder payment(String provider, String txnRef) { return payments.get(provider + ":" + txnRef); }
