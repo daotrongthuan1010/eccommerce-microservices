@@ -6,10 +6,10 @@ import com.dtthuan3.ecommerce.common.exception.ErrorCode;
 import com.dtthuan3.ecommerce.common.exception.ResourceNotFoundException;
 import com.dtthuan3.ecommerce.common.response.PageResponse;
 
-import com.dtthuan3.ecommerce.reviewservice.Util.OutboxWriter;
-import com.dtthuan3.ecommerce.reviewservice.Util.RatingAggregateService;
-import com.dtthuan3.ecommerce.reviewservice.Util.ReviewPublisher;
-import com.dtthuan3.ecommerce.reviewservice.Util.ReviewRules;
+import com.dtthuan3.ecommerce.reviewservice.util.OutboxWriter;
+import com.dtthuan3.ecommerce.reviewservice.util.RatingAggregateService;
+import com.dtthuan3.ecommerce.reviewservice.util.ReviewPublisher;
+import com.dtthuan3.ecommerce.reviewservice.util.ReviewRules;
 import com.dtthuan3.ecommerce.reviewservice.dto.request.ModerationActionRequest;
 import com.dtthuan3.ecommerce.reviewservice.dto.request.ModerationRequest;
 import com.dtthuan3.ecommerce.reviewservice.dto.request.SellerReplyRequest;
