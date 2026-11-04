@@ -17,6 +17,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Một nơi duy nhất để "duyệt một revision và đưa lên công khai" (dùng cho tự động duyệt lẫn kiểm duyệt viên).
+ * Phải gọi trong transaction đang mở, review đã được khóa (findForUpdate).
+ * Thứ tự: kiểm/ghi binding ảnh -> đổi trạng thái -> phát ReviewApproved -> cập nhật rating_aggregate
+ * (chỉ phần chênh lệch nên không đếm hai revision của cùng một review).
+ */
 @Component
 @RequiredArgsConstructor
 public class ReviewPublisher {

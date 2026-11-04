@@ -1,0 +1,55 @@
+# FAKE gateway/carrier — chi hoc/test, khong tien that. Khong DB/Kafka/Eureka nen rat nhe:
+# request 50m/128Mi la chu dich toi uu de chua them vao VPS dang 93% CPU request.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fake-gateway-service
+  namespace: ecommerce
+  labels:
+    app: fake-gateway-service
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: fake-gateway-service
+  template:
+    metadata:
+      labels:
+        app: fake-gateway-service
+    spec:
+      imagePullSecrets:
+        - name: dockerhub-pull
+      containers:
+        - name: fake-gateway-service
+          image: daotrongthuan/fake-gateway-service:__IMAGE_TAG__
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8099
+          envFrom:
+            - configMapRef:
+                name: fake-gateway-config
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10

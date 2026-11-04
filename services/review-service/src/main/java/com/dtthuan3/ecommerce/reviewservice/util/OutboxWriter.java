@@ -15,7 +15,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
-
+/**
+ * Ghi event vào bảng outbox CÙNG transaction với thay đổi nghiệp vụ (Transactional Outbox).
+ * Phải gọi sau khi entity đã flush để aggregateVersion phản ánh đúng version hiện tại.
+ * Mọi payload đều có productId: relay dùng làm khóa phân vùng Kafka (giữ thứ tự theo sản phẩm).
+ */
 @Component
 @RequiredArgsConstructor
 public class OutboxWriter {
@@ -31,6 +35,7 @@ public class OutboxWriter {
     private final OutboxEventRepository outboxRepository;
     private final ObjectMapper objectMapper;
 
+    /** Event của một review (aggregate = REVIEW). */
     public void enqueue(String eventType, Review review, Map<String, Object> extra) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("reviewId", review.getId());
@@ -42,6 +47,7 @@ public class OutboxWriter {
         save(eventType, "REVIEW", review.getId(), review.getVersion() == null ? 0L : review.getVersion(), payload);
     }
 
+    /** ReviewRatingChanged: snapshot aggregate kèm aggregateVersion (Catalog bỏ version cũ hơn). */
     public void enqueueRatingChanged(RatingAggregate aggregate, String reason) {
         Map<String, Object> distribution = new LinkedHashMap<>();
         for (int star = 5; star >= 1; star--) {

@@ -18,3 +18,8 @@ data:
   DB_USERNAME: "payment_user"
   KEYCLOAK_JWK_SET_URI: "http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs"
   ZIPKIN_ENDPOINT: "http://tempo:9411/api/v2/spans"
+  PAYMENT_PUBLIC_BASE_URL: "http://payment-service:8086"
+  FAKE_GATEWAY_URL: "http://fake-gateway-service:8099"
+  # Secret gia lap (khong phai tien that) — phai trung gia tri ben fake-gateway config.
+  FAKE_VNPAY_SECRET: "local_fake_vnpay_change_me"
+  FAKE_ZALOPAY_SECRET: "local_fake_zalopay_change_me"

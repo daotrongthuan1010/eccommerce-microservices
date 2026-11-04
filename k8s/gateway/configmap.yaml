@@ -16,6 +16,7 @@ data:
   INVENTORY_SERVICE_URL: "lb://inventory-service"
   ORDER_SERVICE_URL: "lb://order-service"
   PAYMENT_SERVICE_URL: "lb://payment-service"
+  SHIPPING_SERVICE_URL: "lb://shipping-service"
   NOTIFICATION_SERVICE_URL: "lb://notification-service"
   SEARCH_SERVICE_URL: "lb://search-service"
   PRODUCT_SERVICE_URL: "lb://product-service"

@@ -70,6 +70,12 @@ spring:
             - Path=/api/payment/**
             filters:
             - StripPrefix=2
+          - id: shipping-service
+            uri: ${SHIPPING_SERVICE_URL:lb://shipping-service}
+            predicates:
+            - Path=/api/shipping/**
+            filters:
+            - StripPrefix=2
           - id: notification-service
             uri: ${NOTIFICATION_SERVICE_URL:lb://notification-service}
             predicates:

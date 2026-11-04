@@ -51,6 +51,7 @@ public class ReviewMetrics {
                 .register(registry);
     }
 
+    /** Submit bị chặn: not_eligible | syncing | expired | already_exists. */
     public void submitBlocked(String reason) {
         registry.counter("review.submit.blocked", "reason", reason).increment();
     }

@@ -22,6 +22,8 @@ on:
           - inventory-service
           - order-service
           - payment-service
+          - shipping-service
+          - fake-gateway-service
           - notification-service
           - search-service
           - product-service
@@ -32,7 +34,7 @@ on:
 env:
   REGISTRY: docker.io
   IMAGE_NAMESPACE: daotrongthuan
-  ALL_SERVICES: '["discovery-service","api-gateway","auth-service","user-service","catalog-service","inventory-service","order-service","payment-service","notification-service","search-service","product-service","review-service","analytics-service","file-service"]'
+  ALL_SERVICES: '["discovery-service","api-gateway","auth-service","user-service","catalog-service","inventory-service","order-service","payment-service","notification-service","search-service","product-service","review-service","analytics-service","file-service","shipping-service","fake-gateway-service"]'
 
 jobs:
   changes:
@@ -61,6 +63,10 @@ jobs:
               - 'services/order-service/**'
             payment-service:
               - 'services/payment-service/**'
+            shipping-service:
+              - 'services/shipping-service/**'
+            fake-gateway-service:
+              - 'services/fake-gateway-service/**'
             notification-service:
               - 'services/notification-service/**'
             search-service:

@@ -30,8 +30,7 @@ public class ProductCategoryController {
         return ResponseEntity.ok(
                 ApiResponse.ok(
                         "Lấy danh sách category của product thành công",
-                        productCategoryService
-                                .getProductCategories(productId)
+                        productCategoryService.getProductCategories(productId)
                 )
         );
     }
@@ -41,7 +40,6 @@ public class ProductCategoryController {
     public ResponseEntity<ApiResponse<ProductCategoriesResponse>>
     updateProductCategories(
             @PathVariable UUID productId,
-
             @Valid
             @RequestBody
             ProductCategoryUpdateRequest request
@@ -51,10 +49,7 @@ public class ProductCategoryController {
                 ApiResponse.ok(
                         "Cập nhật category của product thành công",
                         productCategoryService
-                                .updateProductCategories(
-                                        productId,
-                                        request
-                                )
+                                .updateProductCategories(productId, request)
                 )
         );
     }

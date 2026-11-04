@@ -36,10 +36,6 @@ public class ManufacturerController {
     }
 
 
-    // =========================================================
-    // GET BY ID
-    // =========================================================
-
     @GetMapping("/{id}")
     public ApiResponse<ManufacturerResponse> getById(
             @PathVariable String id
@@ -49,11 +45,6 @@ public class ManufacturerController {
                 manufacturerService.getById(id)
         );
     }
-
-
-    // =========================================================
-    // GET LIST
-    // =========================================================
 
     @GetMapping
     public ApiResponse<PageResponse<ManufacturerResponse>>
@@ -83,10 +74,6 @@ public class ManufacturerController {
     }
 
 
-    // =========================================================
-    // GET ACTIVE
-    // =========================================================
-
     @GetMapping("/active")
     public ApiResponse<List<ManufacturerResponse>>
     getActiveManufacturers() {
@@ -96,10 +83,6 @@ public class ManufacturerController {
         );
     }
 
-
-    // =========================================================
-    // SEARCH
-    // =========================================================
 
     @GetMapping("/search")
     public ApiResponse<List<ManufacturerResponse>>
@@ -112,10 +95,6 @@ public class ManufacturerController {
         );
     }
 
-
-    // =========================================================
-    // UPDATE
-    // =========================================================
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
@@ -133,10 +112,6 @@ public class ManufacturerController {
     }
 
 
-    // =========================================================
-    // UPDATE STATUS
-    // =========================================================
-
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<ManufacturerResponse> updateStatus(
@@ -151,11 +126,6 @@ public class ManufacturerController {
                 )
         );
     }
-
-
-    // =========================================================
-    // DELETE
-    // =========================================================
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
