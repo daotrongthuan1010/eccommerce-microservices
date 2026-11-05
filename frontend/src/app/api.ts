@@ -60,14 +60,16 @@ api.interceptors.response.use(
           PUBLIC_PATHS.includes(window.location.pathname) ||
           /^\/products\/[^/]+$/.test(window.location.pathname);
         if (!isPublic && window.location.pathname !== '/login') {
-          window.location.assign('/login');
+          const isAdminArea =
+            window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/staff');
+          window.location.assign(isAdminArea ? '/admin/login' : '/login');
         }
         return Promise.reject(err);
       }
     }
     if (err.response?.status === 401) {
       store.dispatch({ type: 'auth/loggedOut' });
-      // Chi redirect sang /login khi dang o khu vuc CAN login (backoffice,
+      // Chi redirect sang login khi dang o khu vuc CAN login (backoffice,
       // cart, checkout, orders...). Trang public marketplace (/, /products,
       // /products/:id) guest xem duoc — 401 cua API can login khong duoc
       // keo user ra khoi trang mua hang (bug: mo / bi nay sang /login).
@@ -76,7 +78,9 @@ api.interceptors.response.use(
         PUBLIC_PATHS.includes(window.location.pathname) ||
         /^\/products\/[^/]+$/.test(window.location.pathname);
       if (!isPublic && window.location.pathname !== '/login') {
-        window.location.assign('/login');
+        // Khu backoffice -> login quan tri; khu shopper can login -> /login.
+        const isAdminArea = window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/staff');
+        window.location.assign(isAdminArea ? '/admin/login' : '/login');
       }
     }
     return Promise.reject(err);

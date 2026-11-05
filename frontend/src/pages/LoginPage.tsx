@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Spin, Typography } from 'antd';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import keycloak, { initKeycloak, keycloakTokens } from '../features/auth/keycloak';
 import { fetchMe, keycloakAuthenticated, loggedOut } from '../features/auth/authSlice';
@@ -8,12 +8,37 @@ import logoUrl from '../assets/logo.png';
 
 // FE_AUTH_GATEWAY: chi dang nhap qua Keycloak SSO (PKCE S256), KHONG con form
 // username/password. Vao /login la tu redirect sang Keycloak; man hinh nay chi
-// la trang cho kieu MISA trong luc redirect (logo HTAD + spinner).
-const BRAND = '#0F4C81';
+// la trang cho trong luc redirect (logo + spinner).
+//
+// 2 bien the (2026-11-05 tach login shopper / quan tri):
+// - shopper (default, /login): tông cam marketplace, copy mua sam, sau SSO ve "/"
+// - admin (/admin/login): tông navy backoffice, copy quan tri, sau SSO ve "/admin"
+// Cung 1 flow Keycloak — chi khac theme + landing.
+const SHOPPER = {
+  brand: '#e8543f',
+  gradient:
+    'radial-gradient(1100px 500px at 85% -10%, rgba(255,255,255,0.16), transparent 60%), linear-gradient(135deg, #b3301f 0%, #e8543f 60%, #f07a4b 100%)',
+  title: 'Mua sắm cùng HTAD',
+  subtitle: 'Hàng ngàn sản phẩm chính hãng — giá tốt mỗi ngày.',
+  spinner: 'Đang chuyển đến trang đăng nhập...',
+  landing: '/',
+};
 
-export default function LoginPage() {
+const ADMIN = {
+  brand: '#0F4C81',
+  gradient:
+    'radial-gradient(1100px 500px at 85% -10%, rgba(255,255,255,0.14), transparent 60%), linear-gradient(135deg, #0a3559 0%, #0F4C81 60%, #14619f 100%)',
+  title: 'Hằng Tuấn An Đạt',
+  subtitle: 'Ecommerce — quản trị bán hàng, kho vận và đơn hàng trên một nền tảng.',
+  spinner: 'Đang chuyển đến trang quản trị...',
+  landing: '/admin',
+};
+
+export default function LoginPage({ variant = 'shopper' }: { variant?: 'shopper' | 'admin' }) {
+  const t = variant === 'admin' ? ADMIN : SHOPPER;
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const status = useAppSelector((s) => s.auth.status);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -41,7 +66,7 @@ export default function LoginPage() {
               setNeedVerify(true);
               return;
             }
-            navigate('/', { replace: true });
+            navigate(t.landing, { replace: true });
             return;
           }
         }
@@ -55,7 +80,8 @@ export default function LoginPage() {
     return () => {
       cancelled = true;
     };
-  }, [dispatch, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatch, navigate, location.pathname]);
 
   const retry = async () => {
     setBusy(true);
@@ -78,8 +104,7 @@ export default function LoginPage() {
           justifyContent: 'center',
           padding: 48,
           color: '#fff',
-          background:
-            'radial-gradient(1100px 500px at 85% -10%, rgba(255,255,255,0.14), transparent 60%), linear-gradient(135deg, #0a3559 0%, #0F4C81 60%, #14619f 100%)',
+          background: t.gradient,
         }}
       >
         <div style={{ maxWidth: 460 }}>
@@ -88,10 +113,8 @@ export default function LoginPage() {
             alt="HTAD"
             style={{ height: 76, background: '#fff', borderRadius: 12, padding: '8px 14px', marginBottom: 28 }}
           />
-          <h1 style={{ fontSize: 34, margin: '0 0 12px' }}>Hằng Tuấn An Đạt</h1>
-          <p style={{ fontSize: 16, opacity: 0.92 }}>
-            Ecommerce — quản trị bán hàng, kho vận và đơn hàng trên một nền tảng.
-          </p>
+          <h1 style={{ fontSize: 34, margin: '0 0 12px' }}>{t.title}</h1>
+          <p style={{ fontSize: 16, opacity: 0.92 }}>{t.subtitle}</p>
         </div>
       </div>
       <div
@@ -111,7 +134,7 @@ export default function LoginPage() {
             maxWidth: 420,
             background: '#fff',
             borderRadius: 14,
-            boxShadow: '0 12px 40px rgba(15,76,129,0.12)',
+            boxShadow: `0 12px 40px ${t.brand}22`,
             padding: '36px',
             textAlign: 'center',
           }}
@@ -128,7 +151,7 @@ export default function LoginPage() {
               <Button
                 type="primary"
                 block
-                style={{ background: BRAND, borderColor: BRAND, marginTop: 16, height: 44 }}
+                style={{ background: t.brand, borderColor: t.brand, marginTop: 16, height: 44 }}
                 onClick={() => window.location.reload()}
               >
                 Tôi đã xác thực — thử lại
@@ -144,14 +167,14 @@ export default function LoginPage() {
                 block
                 loading={busy}
                 onClick={retry}
-                style={{ background: BRAND, borderColor: BRAND, marginTop: 16, height: 44 }}
+                style={{ background: t.brand, borderColor: t.brand, marginTop: 16, height: 44 }}
               >
                 Thử lại
               </Button>
             </>
           ) : (
             <>
-              <Spin tip="Đang chuyển đến trang đăng nhập..." style={{ margin: '12px 0' }} />
+              <Spin tip={t.spinner} style={{ margin: '12px 0' }} />
               <Typography.Paragraph type="secondary" style={{ marginTop: 12 }}>
                 {status === 'loading'
                   ? 'Đang tải thông tin tài khoản...'
@@ -162,7 +185,7 @@ export default function LoginPage() {
                 block
                 loading={busy}
                 onClick={retry}
-                style={{ background: BRAND, borderColor: BRAND, marginTop: 8, height: 44 }}
+                style={{ background: t.brand, borderColor: t.brand, marginTop: 8, height: 44 }}
               >
                 Đăng nhập bằng Keycloak
               </Button>

@@ -47,6 +47,9 @@ const wrap = (el: React.ReactNode) => <Suspense fallback={fallback}>{el}</Suspen
 
 export const router = createBrowserRouter([
   { path: '/login', element: wrap(<LoginPage />) },
+  // Login quan tri rieng (tong navy, landing /admin sau SSO) — tach khoi
+  // login shopper (tong cam, landing /) 2026-11-05.
+  { path: '/admin/login', element: wrap(<LoginPage variant="admin" />) },
   // Marketplace (buyer/seller kieu Shopee/Tiki) tu dang ky + verify mail
   // qua POST /api/auth/register; staff do cap tren tao o /admin/users.
   { path: '/register', element: wrap(<RegisterPage />) },

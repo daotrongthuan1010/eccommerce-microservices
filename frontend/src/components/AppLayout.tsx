@@ -215,7 +215,7 @@ export default function AppLayout() {
   }, [me?.picture, triggerFileUrl]);
 
   const doLogout = () => {
-    void dispatch(logout()).finally(() => navigate('/login'));
+    void dispatch(logout()).finally(() => navigate('/admin/login'));
   };
 
   const myMenusQuery = useGetMyMenusQuery(undefined, { skip: !username });
@@ -234,7 +234,7 @@ export default function AppLayout() {
           key: '__guest',
           label: (
             <span>
-              Đăng nhập để xem menu. <Link to="/login">Đăng nhập</Link>
+              Đăng nhập để xem menu. <Link to="/admin/login">Đăng nhập</Link>
             </span>
           ),
         },
@@ -338,7 +338,7 @@ export default function AppLayout() {
               </Space>
             </Dropdown>
           ) : (
-            <Link to="/login">Đăng nhập</Link>
+            <Link to="/admin/login">Đăng nhập</Link>
           )}
         </Header>
         <Content style={{ margin: 16 }}>
