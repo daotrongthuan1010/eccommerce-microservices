@@ -53,15 +53,22 @@ api.interceptors.response.use(
         return api(orig);
       } catch {
         store.dispatch({ type: 'auth/loggedOut' });
-        // Giong nhanh 401 duoi: khong keo user ra khoi trang public marketplace
-        // khi refresh fail — chi dang xuat lang le.
+        // Refresh fail: dang xuat lang le. Neu dang o trang public marketplace
+        // → RETRY request KHONG kem Authorization (guest mode): API public
+        // (browse/categories) tra 200 cho guest, data van hien. Token chet trong
+        // header lam Spring Security tu choi ca endpoint public (401).
         const PUBLIC_PATHS = ['/', '/products', '/login', '/register'];
         const isPublic =
           PUBLIC_PATHS.includes(window.location.pathname) ||
           /^\/products\/[^/]+$/.test(window.location.pathname);
-        if (!isPublic && window.location.pathname !== '/login') {
-          const isAdminArea =
-            window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/staff');
+        if (isPublic) {
+          const guestConfig = { ...orig, headers: { ...orig.headers } };
+          delete (guestConfig.headers as Record<string, unknown>).Authorization;
+          return api(guestConfig);
+        }
+        const isAdminArea =
+          window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/staff');
+        if (window.location.pathname !== '/login') {
           window.location.assign(isAdminArea ? '/admin/login' : '/login');
         }
         return Promise.reject(err);
@@ -69,15 +76,20 @@ api.interceptors.response.use(
     }
     if (err.response?.status === 401) {
       store.dispatch({ type: 'auth/loggedOut' });
-      // Chi redirect sang login khi dang o khu vuc CAN login (backoffice,
-      // cart, checkout, orders...). Trang public marketplace (/, /products,
-      // /products/:id) guest xem duoc — 401 cua API can login khong duoc
-      // keo user ra khoi trang mua hang (bug: mo / bi nay sang /login).
+      // Token chet lam Spring Security tu choi ca endpoint public khi header
+      // Authorization con kem theo. Trang public marketplace (/, /products,
+      // /products/:id): retry request KHONG token (guest) de data van hien;
+      // khu can login: redirect dung login theo khu vuc.
       const PUBLIC_PATHS = ['/', '/products', '/login', '/register'];
       const isPublic =
         PUBLIC_PATHS.includes(window.location.pathname) ||
         /^\/products\/[^/]+$/.test(window.location.pathname);
-      if (!isPublic && window.location.pathname !== '/login') {
+      if (isPublic) {
+        const guestConfig = { ...orig, headers: { ...orig.headers } };
+        delete (guestConfig.headers as Record<string, unknown>).Authorization;
+        return api(guestConfig);
+      }
+      if (window.location.pathname !== '/login' && window.location.pathname !== '/admin/login') {
         // Khu backoffice -> login quan tri; khu shopper can login -> /login.
         const isAdminArea = window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/staff');
         window.location.assign(isAdminArea ? '/admin/login' : '/login');
