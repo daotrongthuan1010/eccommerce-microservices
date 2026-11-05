@@ -3,7 +3,7 @@ import { Alert, Button, Spin, Typography } from 'antd';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import keycloak, { initKeycloak, keycloakTokens } from '../features/auth/keycloak';
-import { fetchMe, keycloakAuthenticated, loggedOut } from '../features/auth/authSlice';
+import { fetchMe, keycloakAuthenticated, loggedOut, logout } from '../features/auth/authSlice';
 import logoUrl from '../assets/logo.png';
 
 // FE_AUTH_GATEWAY: chi dang nhap qua Keycloak SSO (PKCE S256), KHONG con form
@@ -45,6 +45,9 @@ export default function LoginPage({ variant = 'shopper' }: { variant?: 'shopper'
   // Gate xac thuc email: tai khoan tu dang ky chua verify -> khong vao app,
   // hien man huong dan kiem tra email thay vi redirect loop vo ich.
   const [needVerify, setNeedVerify] = useState(false);
+  // Variant admin: user da login SSO nhung KHONG CO role ADMIN — khong dieu
+  // huong (se bi /403 roi hut ve trang mua hang), hien canh bao tai cho.
+  const [noAdminRole, setNoAdminRole] = useState(false);
 
   // Vao /login: neu Keycloak da authenticated (tro ve tu redirect) thi nap
   // tokens + GET /api/auth/me lay roles roi vao app; chua thi redirect thang.
@@ -64,6 +67,12 @@ export default function LoginPage({ variant = 'shopper' }: { variant?: 'shopper'
               // giu man huong dan cho user thay vi vao app that bai lan sau.
               dispatch(loggedOut());
               setNeedVerify(true);
+              return;
+            }
+            // Admin login: chi ADMIN moi duoc vao khu quan tri. User thuong
+            // (buyer) co session SSO song cung khong duoc hut vao /admin → 403.
+            if (variant === 'admin' && !me.admin) {
+              setNoAdminRole(true);
               return;
             }
             navigate(t.landing, { replace: true });
@@ -140,7 +149,26 @@ export default function LoginPage({ variant = 'shopper' }: { variant?: 'shopper'
           }}
         >
           <img src={logoUrl} alt="HTAD Ecommerce" style={{ height: 64, marginBottom: 14 }} />
-          {needVerify ? (
+          {noAdminRole ? (
+            <>
+              <Alert
+                type="error"
+                showIcon
+                message="Tài khoản không có quyền quản trị"
+                description="Tài khoản hiện tại không có role ADMIN. Hãy đăng xuất tài khoản mua sắm và đăng nhập bằng tài khoản quản trị (do hệ thống cấp)."
+              />
+              <Button
+                block
+                style={{ marginTop: 16, height: 44 }}
+                onClick={async () => {
+                  await dispatch(logout()).catch(() => undefined);
+                  window.location.reload();
+                }}
+              >
+                Đăng xuất tài khoản này để đổi tài khoản quản trị
+              </Button>
+            </>
+          ) : needVerify ? (
             <>
               <Alert
                 type="warning"
