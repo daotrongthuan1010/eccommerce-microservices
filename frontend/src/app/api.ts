@@ -53,7 +53,15 @@ api.interceptors.response.use(
         return api(orig);
       } catch {
         store.dispatch({ type: 'auth/loggedOut' });
-        window.location.assign('/login');
+        // Giong nhanh 401 duoi: khong keo user ra khoi trang public marketplace
+        // khi refresh fail — chi dang xuat lang le.
+        const PUBLIC_PATHS = ['/', '/products', '/login', '/register'];
+        const isPublic =
+          PUBLIC_PATHS.includes(window.location.pathname) ||
+          /^\/products\/[^/]+$/.test(window.location.pathname);
+        if (!isPublic && window.location.pathname !== '/login') {
+          window.location.assign('/login');
+        }
         return Promise.reject(err);
       }
     }
