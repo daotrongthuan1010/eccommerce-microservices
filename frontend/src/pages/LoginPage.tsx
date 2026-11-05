@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Button, Spin, Typography } from 'antd';
+import { Alert, Button, Spin, Typography } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import keycloak, { initKeycloak, keycloakTokens } from '../features/auth/keycloak';
-import { fetchMe, keycloakAuthenticated } from '../features/auth/authSlice';
+import { fetchMe, keycloakAuthenticated, loggedOut } from '../features/auth/authSlice';
 import logoUrl from '../assets/logo.png';
 
 // FE_AUTH_GATEWAY: chi dang nhap qua Keycloak SSO (PKCE S256), KHONG con form
@@ -17,6 +17,9 @@ export default function LoginPage() {
   const status = useAppSelector((s) => s.auth.status);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Gate xac thuc email: tai khoan tu dang ky chua verify -> khong vao app,
+  // hien man huong dan kiem tra email thay vi redirect loop vo ich.
+  const [needVerify, setNeedVerify] = useState(false);
 
   // Vao /login: neu Keycloak da authenticated (tro ve tu redirect) thi nap
   // tokens + GET /api/auth/me lay roles roi vao app; chua thi redirect thang.
@@ -30,7 +33,14 @@ export default function LoginPage() {
           const tokens = keycloakTokens();
           if (tokens) {
             dispatch(keycloakAuthenticated(tokens));
-            await dispatch(fetchMe()).unwrap();
+            const me = await dispatch(fetchMe()).unwrap();
+            if (me.emailVerified === false) {
+              // Chua xac thuc email: thoat SSO (xoa token Keycloak + memory),
+              // giu man huong dan cho user thay vi vao app that bai lan sau.
+              dispatch(loggedOut());
+              setNeedVerify(true);
+              return;
+            }
             navigate('/', { replace: true });
             return;
           }
@@ -107,7 +117,24 @@ export default function LoginPage() {
           }}
         >
           <img src={logoUrl} alt="HTAD Ecommerce" style={{ height: 64, marginBottom: 14 }} />
-          {failed ? (
+          {needVerify ? (
+            <>
+              <Alert
+                type="warning"
+                showIcon
+                message="Tài khoản chưa xác thực email"
+                description="Chúng tôi đã gửi liên kết xác nhận đến email của bạn. Vui lòng kiểm tra hộp thư (kể cả mục Spam) và nhấn liên kết để kích hoạt tài khoản trước khi đăng nhập."
+              />
+              <Button
+                type="primary"
+                block
+                style={{ background: BRAND, borderColor: BRAND, marginTop: 16, height: 44 }}
+                onClick={() => window.location.reload()}
+              >
+                Tôi đã xác thực — thử lại
+              </Button>
+            </>
+          ) : failed ? (
             <>
               <Typography.Text type="danger">
                 Không kết nối được Keycloak, vui lòng thử lại sau.

@@ -21,6 +21,8 @@ export interface MeResponse {
   email?: string;
   roles: string[];
   admin: boolean;
+  /** BE /auth/me tra them khi Keycloak admin enabled — false = chua xac thuc email. */
+  emailVerified?: boolean;
 }
 
 export interface RegisterPayload {

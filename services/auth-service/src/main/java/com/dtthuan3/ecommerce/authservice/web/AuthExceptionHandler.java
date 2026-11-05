@@ -134,6 +134,30 @@ public class AuthExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(body);
     }
 
+    @ExceptionHandler(AuthController.EmailNotVerifiedException.class)
+    public ResponseEntity<Map<String, Object>> handleEmailNotVerified(AuthController.EmailNotVerifiedException ex) {
+        // 403 + code on dinh de FE hien man "kiem tra email" thay vi toast sai mat khau.
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", "email_not_verified");
+        body.put("message", "Tai khoan chua xac thuc email. Vui long kiem tra hop thu va bam lien ket xac nhan.");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
+    @ExceptionHandler(StaffUserController.NotMySubordinateException.class)
+    public ResponseEntity<Map<String, Object>> handleNotMySubordinate(
+            StaffUserController.NotMySubordinateException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", "not_your_subordinate", "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(StaffUserController.RoleNotGrantableException.class)
+    public ResponseEntity<Map<String, Object>> handleRoleNotGrantable(
+            StaffUserController.RoleNotGrantableException ex) {
+        // 403: khong duoc cap quyen ngang hoac cao hon cap cua minh.
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", "role_not_grantable", "message", ex.getMessage()));
+    }
+
     private String extractKeycloakDescription(String body) {
         if (body == null || body.isBlank()) {
             return "Keycloak request failed";

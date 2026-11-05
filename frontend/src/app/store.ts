@@ -7,6 +7,7 @@ import { inventoryApi } from '../features/inventory/inventoryApi';
 import { reviewApi } from '../features/review/reviewApi';
 import { fileApi } from '../features/file/fileApi';
 import { userApi } from '../features/user/userApi';
+import { staffApi } from '../features/user/staffApi';
 import { adminApi } from '../features/admin/adminApi';
 import { iamApi } from '../features/admin/iamApi';
 import { browseApi } from '../features/marketplace/browseApi';
@@ -25,6 +26,7 @@ export const store = configureStore({
     [reviewApi.reducerPath]: reviewApi.reducer,
     [fileApi.reducerPath]: fileApi.reducer,
     [userApi.reducerPath]: userApi.reducer,
+    [staffApi.reducerPath]: staffApi.reducer,
     [adminApi.reducerPath]: adminApi.reducer,
     [iamApi.reducerPath]: iamApi.reducer,
     [browseApi.reducerPath]: browseApi.reducer,
@@ -38,6 +40,7 @@ export const store = configureStore({
       reviewApi.middleware,
       fileApi.middleware,
       userApi.middleware,
+      staffApi.middleware,
       adminApi.middleware,
       iamApi.middleware,
       browseApi.middleware,

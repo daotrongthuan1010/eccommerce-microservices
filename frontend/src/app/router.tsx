@@ -39,6 +39,7 @@ const AdminGroupsPage = React.lazy(() => import('../pages/AdminGroupsPage'));
 const RegisterPage = React.lazy(() => import('../pages/RegisterPage'));
 const PublishingPage = React.lazy(() => import('../pages/PublishingPage'));
 const ReviewsPage = React.lazy(() => import('../pages/ReviewsPage'));
+const StaffUsersPage = React.lazy(() => import('../pages/StaffUsersPage'));
 
 const fallback = <Skeleton active paragraph={{ rows: 8 }} style={{ padding: 24 }} />;
 
@@ -160,6 +161,14 @@ export const router = createBrowserRouter([
         path: 'admin/reviews',
         element: (
           <RequireRole roles={['ADMIN', 'MODERATOR']}>{wrap(<ReviewsPage />)}</RequireRole>
+        ),
+      },
+      {
+        // Cap tren quan ly cap duoi truc tiep (chuoi doanh nghiep) — khac
+        // /admin/users (ADMIN toan he thong). BE: StaffUserController.
+        path: 'staff/users',
+        element: (
+          <RequireRole roles={['ADMIN', 'MODERATOR']}>{wrap(<StaffUsersPage />)}</RequireRole>
         ),
       },
     ],

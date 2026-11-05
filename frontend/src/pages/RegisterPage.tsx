@@ -26,9 +26,7 @@ export default function RegisterPage() {
     try {
       const res = await dispatch(register(values)).unwrap();
       setDone(
-        values.seller
-          ? `Đã tạo tài khoản bán hàng ${res.username}. Vui lòng kiểm tra email để xác minh rồi đăng nhập.`
-          : `Đã tạo tài khoản ${res.username}. Vui lòng kiểm tra email để xác minh rồi đăng nhập.`,
+        `Đã tạo tài khoản ${res.username}. Vui lòng kiểm tra email ${values.email} (kể cả mục Spam) và nhấn liên kết xác nhận — tài khoản chỉ đăng nhập được sau khi email đã xác thực.`,
       );
     } catch (e) {
       const err = e as AuthError;

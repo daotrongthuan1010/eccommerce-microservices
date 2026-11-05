@@ -251,7 +251,18 @@ public class KeycloakAdminClient {
             boolean emailVerified,
             List<String> roles,
             List<String> requiredActions,
-            String picture) {}
+            String picture,
+            String accountType,
+            String managerId) {
+        /** AdminUser cu (10 truong) — de giu code goi cuong van bien dich. */
+        public AdminUser(
+                String id, String username, String email, String firstName, String lastName,
+                boolean enabled, boolean emailVerified, List<String> roles,
+                List<String> requiredActions, String picture) {
+            this(id, username, email, firstName, lastName, enabled, emailVerified,
+                    roles, requiredActions, picture, null, null);
+        }
+    }
 
     /** Realm role kem so member, tra ve cho Admin Roles API. */
     public record RealmRole(String name, String description, long memberCount) {}
@@ -329,7 +340,9 @@ public class KeycloakAdminClient {
                 Boolean.TRUE.equals(user.get("emailVerified")),
                 roles == null ? List.of() : List.copyOf(roles),
                 strList(user.get("requiredActions")),
-                firstAttribute(user.get("attributes"), "picture"));
+                firstAttribute(user.get("attributes"), "picture"),
+                firstAttribute(user.get("attributes"), "accountType"),
+                firstAttribute(user.get("attributes"), "managerId"));
     }
 
     /** Lay gia tri dau tien cua attribute Keycloak (VD attributes.picture=[file-key]). */
@@ -796,5 +809,127 @@ public class KeycloakAdminClient {
         } catch (HttpClientErrorException.NotFound ex) {
             throw new RealmRoleNotFoundException(roleName);
         }
+    }
+
+    // ==================== STAFF HIERARCHY (chuoi cap tren - cap duoi) ====================
+
+    /**
+     * Tao user kem attributes (accountType/managerId). Moi user deu co
+     * accountType: SELF (tu dang ky) | ENTERPRISE_STAFF (cap tren tao).
+     * managerId = sub cua nguoi tao -> chuoi "ai tao cho ai" chi 1 cap
+     * (ADMIN tao MODERATOR, MODERATOR tao USER), khong de quy.
+     */
+    public String createUserWithAttributes(String username, String email, String firstName,
+                                           String lastName, String password,
+                                           Map<String, List<String>> attributes) {
+        requireEnabled();
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("username", username);
+        body.put("email", email);
+        body.put("firstName", firstName);
+        body.put("lastName", lastName);
+        body.put("enabled", true);
+        body.put("emailVerified", false);
+        body.put("credentials", List.of(Map.of("type", "password", "value", password, "temporary", false)));
+        if (attributes != null && !attributes.isEmpty()) {
+            body.put("attributes", attributes);
+        }
+        try {
+            var response = restClient
+                    .post()
+                    .uri(adminBase() + "/users")
+                    .headers(h -> h.addAll(bearerHeaders()))
+                    .body(body)
+                    .retrieve()
+                    .toBodilessEntity();
+            String location = response.getHeaders().getFirst(HttpHeaders.LOCATION);
+            if (location == null || location.isBlank()) {
+                String fallbackId = findUserId(username);
+                if (fallbackId == null || fallbackId.isBlank()) {
+                    throw new IllegalStateException(
+                            "Keycloak created user but returned no Location header: " + username);
+                }
+                return fallbackId;
+            }
+            return location.substring(location.lastIndexOf('/') + 1);
+        } catch (HttpClientErrorException.Conflict ex) {
+            throw new UserAlreadyExistsException(username);
+        }
+    }
+
+    /**
+     * Gan/dinh kem nhieu attributes mot luc (GET-merge-PUT, khong lam mat
+     * attributes cu). Value null = xoa key.
+     */
+    public void setUserAttributes(String userId, Map<String, String> attributes) {
+        requireEnabled();
+        withRetry(() -> {
+            try {
+                Map<String, Object> raw = getRawUser(userId);
+                Map<String, List<String>> attrs = new LinkedHashMap<>();
+                if (raw.get("attributes") instanceof Map<?, ?> existing) {
+                    existing.forEach((k, v) -> {
+                        List<String> vals = toStringList(v);
+                        if (!vals.isEmpty()) {
+                            attrs.put(String.valueOf(k), vals);
+                        }
+                    });
+                }
+                attributes.forEach((key, value) -> {
+                    if (value == null || value.isBlank()) {
+                        attrs.remove(key);
+                    } else {
+                        attrs.put(key, List.of(value));
+                    }
+                });
+                raw.put("attributes", attrs);
+                restClient
+                        .put()
+                        .uri(adminBase() + "/users/" + userId)
+                        .headers(h -> h.addAll(bearerHeaders()))
+                        .body(raw)
+                        .retrieve()
+                        .toBodilessEntity();
+            } catch (HttpClientErrorException.NotFound ex) {
+                throw new UserNotFoundException(userId);
+            }
+            return null;
+        });
+    }
+
+    /**
+     * Danh sach cap duoi truc tiep cua mot manager (attribute managerId = sub).
+     * Keycloak khong index attribute -> q=managerId:"..." quet full, chi phu hop
+     * quy mo DEV/quan ly nhom nho. KHONG de quy: khong thay cap chau.
+     */
+    public List<AdminUser> listDirectSubordinates(String managerId) {
+        requireEnabled();
+        return withRetry(() -> {
+            List<Map<String, Object>> users = restClient
+                    .get()
+                    .uri(adminBase() + "/users?briefRepresentation=false&max=500&q=managerId:"
+                            + URLEncoder.encode(managerId, StandardCharsets.UTF_8))
+                    .headers(h -> h.addAll(bearerHeaders()))
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {});
+            if (users == null || users.isEmpty()) {
+                return List.of();
+            }
+            List<AdminUser> result = new ArrayList<>(users.size());
+            for (Map<String, Object> user : users) {
+                String id = str(user.get("id"));
+                // Chi la cap duoi khi attribute managerId dung bang sub cua manager
+                // (q= co the match substring nen phai xac nhan lai chinh xac).
+                if (managerId.equals(firstAttribute(user.get("attributes"), "managerId"))) {
+                    result.add(toAdminUser(user, id == null ? List.of() : fetchRoleNames(id)));
+                }
+            }
+            return result;
+        });
+    }
+
+    /** Kiem tra user co ton tai va tra ve AdminUser; nem 404 khi khong. */
+    public AdminUser requireUser(String userId) {
+        return getUserWithRoles(userId);
     }
 }

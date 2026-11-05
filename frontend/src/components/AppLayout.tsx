@@ -57,6 +57,7 @@ const KNOWN_SIDER_PATHS = new Set<string>([
   '/admin/iam-roles',
   '/admin/groups',
   '/admin/reviews',
+  '/staff/users',
 ]);
 
 // Chuoi icon tu DB (Menu.icon) -> @ant-design/icons. Khong map duoc -> null

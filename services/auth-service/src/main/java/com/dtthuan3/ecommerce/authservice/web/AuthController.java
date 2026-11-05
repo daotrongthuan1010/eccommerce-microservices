@@ -47,7 +47,7 @@ public class AuthController {
     private String clientId;
 
     @PostMapping(value = "/login", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public Map<String, Object> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginRequest request) {
         // Ghi chu P2: giu password grant proxy (khong chuyen Authorization Code + PKCE)
         // cho den khi co frontend that dam nhan redirect flow.
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
@@ -55,7 +55,15 @@ public class AuthController {
         form.add("client_id", clientId);
         form.add("username", request.username());
         form.add("password", request.password());
-        return postTokenForm(form);
+        Map<String, Object> token = postTokenForm(form);
+        // Gate xac thuc email: tai khoan tu dang ky phai verify email truoc khi
+        // login. Parse claim email_verified tu access token vua cap (khong goi
+        // them Admin API - token la nguon chan ly ve trang thai user).
+        if (Boolean.FALSE.equals(token.get("email_verified"))) {
+            log.info("Login blocked: user {} has not verified email", request.username());
+            throw new EmailNotVerifiedException(request.username());
+        }
+        return ResponseEntity.ok(token);
     }
 
     @PostMapping(value = "/refresh", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -107,8 +115,11 @@ public class AuthController {
     @PostMapping(value = "/register", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest request) {
         keycloakAdmin.requireEnabled();
-        String userId = keycloakAdmin.createUser(
-                request.username(), request.email(), request.firstName(), request.lastName(), request.password());
+        // accountType=SELF: nguoi dung tu tao (khac ENTERPRISE_STAFF do cap tren tao
+        // qua /auth/staff/users). Gan ngay luc tao de phan biet 2 luong dang ky.
+        String userId = keycloakAdmin.createUserWithAttributes(
+                request.username(), request.email(), request.firstName(), request.lastName(),
+                request.password(), java.util.Map.of("accountType", java.util.List.of("SELF")));
         // Gan role USER mac dinh cho tai khoan moi tu dang ky (best-effort: khong chan dang ky).
         keycloakAdmin.assignRealmRoleBestEffort(userId, "USER");
         if (Boolean.TRUE.equals(request.seller())) {
@@ -327,6 +338,13 @@ public class AuthController {
     public static class MailNotConfiguredException extends RuntimeException {
         public MailNotConfiguredException() {
             super("Keycloak SMTP is not configured, cannot send email");
+        }
+    }
+
+    /** Tai khoan chua xac thuc email - login bi chan cho den khi verify. */
+    public static class EmailNotVerifiedException extends RuntimeException {
+        public EmailNotVerifiedException(String username) {
+            super("Email has not been verified for user: " + username);
         }
     }
 }

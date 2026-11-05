@@ -13,4 +13,18 @@ public record CurrentUser(String subject, String username, String email, List<St
     public boolean isAdmin() {
         return hasRole("ADMIN");
     }
+
+    /**
+     * Role cao nhat theo thu bac ADMIN > MODERATOR > USER — dung quyet dinh
+     * role nao duoc gan cho cap duoi (chong leo thang quyen).
+     */
+    public String highestRole() {
+        if (hasRole("ADMIN")) {
+            return "ADMIN";
+        }
+        if (hasRole("MODERATOR")) {
+            return "MODERATOR";
+        }
+        return "USER";
+    }
 }
