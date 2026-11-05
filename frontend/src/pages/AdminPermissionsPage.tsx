@@ -64,7 +64,7 @@ export default function AdminPermissionsPage() {
       <ApiErrorAlert message={mutationError ?? null} />
       <SummaryRow
         items={[
-          { label: 'Tổng permission', value: permsQuery.data?.total ?? '—', icon: <SafetyOutlined />, color: '#0F4C81', hint: activeMenu ? `menu ${activeMenu.code}` : undefined },
+          { label: 'Tổng permission', value: permsQuery.data?.total ?? '—', icon: <SafetyOutlined />, color: '#00214f', hint: activeMenu ? `menu ${activeMenu.code}` : undefined },
         ]}
       />
       {loading ? <ListSkeleton /> : menus.length === 0 ? (

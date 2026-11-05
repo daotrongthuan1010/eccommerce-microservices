@@ -2,8 +2,9 @@ import type { ThemeConfig } from 'antd';
 
 // DESIGN_GUIDE §4 — nguon duy nhat cua token. Doi brand = sua file nay.
 // 2026-11-05 fe-marketplace D7: shopper marketplace dung tông do cam
-// (#e8543f — cam hoi Shopee nhung nhan dien rieng, khong copy y hech),
-// backoffice giu xanh navy goc trong themeAdmin.
+// (#e8543f — cam hoi Shopee nhung nhan dien rieng, khong copy y hech).
+// 2026-11-05 brand-logo: backoffice chuan hoa theo logo du an (logo.png):
+// navy dam #00214f + accent vang #f89818 — thay cho #0F4C81 cu.
 export const marketplaceToken = {
   colorPrimary: '#e8543f',
   colorSuccess: '#1A7F37',
@@ -18,7 +19,8 @@ export const marketplaceToken = {
 } as const;
 
 export const themeToken = {
-  colorPrimary: '#0F4C81',
+  // Navy dam trich tu logo HTAD (512x512: #00214f chu dao + #f89818 accent).
+  colorPrimary: '#00214f',
   colorSuccess: '#1A7F37',
   colorWarning: '#9A6700',
   colorError: '#C13515',
@@ -29,6 +31,9 @@ export const themeToken = {
   fontFamily:
     "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
 } as const;
+
+/** Accent vang cam tu logo — dung highlight nho (badge, tag khuyen mai). */
+export const brandAccent = '#f89818' as const;
 
 const baseTokens = {
   colorSuccess: themeToken.colorSuccess,

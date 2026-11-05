@@ -97,8 +97,8 @@ export function EmptyIllustration({ variant = 'users' }: { variant?: 'users' | '
           <path d="M32 54c3-9 9-13 16-13s13 4 16 13" fill="#fff" />
         </g>
       )}
-      <circle cx="76" cy="50" r="10" fill="#0F4C81" opacity="0.12" />
-      <path d="M72 50h8M76 46v8" stroke="#0F4C81" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="76" cy="50" r="10" fill="#00214f" opacity="0.12" />
+      <path d="M72 50h8M76 46v8" stroke="#00214f" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -122,7 +122,7 @@ export function TableEmpty({ description = 'Không có dữ liệu', actionText,
 // hinh khi chua co anh dai dien that (picture tu PUT /auth/me/avatar,
 // resolve URL qua file-service GET /files/url).
 const AVATAR_COLORS = [
-  '#0F4C81', '#1D6F42', '#7C3AED', '#B42318', '#9A6700',
+  '#00214f', '#1D6F42', '#7C3AED', '#B42318', '#9A6700',
   '#026AA2', '#6B21A8', '#0E7490', '#4D7C0F', '#BE123C',
 ];
 

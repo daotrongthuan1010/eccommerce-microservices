@@ -25,9 +25,9 @@ const SHOPPER = {
 };
 
 const ADMIN = {
-  brand: '#0F4C81',
+  brand: '#00214f',
   gradient:
-    'radial-gradient(1100px 500px at 85% -10%, rgba(255,255,255,0.14), transparent 60%), linear-gradient(135deg, #0a3559 0%, #0F4C81 60%, #14619f 100%)',
+    'radial-gradient(1100px 500px at 85% -10%, rgba(255,255,255,0.14), transparent 60%), linear-gradient(135deg, #0a3559 0%, #00214f 60%, #14619f 100%)',
   title: 'Hằng Tuấn An Đạt',
   subtitle: 'Ecommerce — quản trị bán hàng, kho vận và đơn hàng trên một nền tảng.',
   spinner: 'Đang chuyển đến trang quản trị...',

@@ -99,7 +99,7 @@ export default function AdminIamRolesPage() {
       <SummaryRow
         items={[
           { label: 'Số vai trò', value: roles.length, icon: <KeyOutlined /> },
-          { label: 'Tổng lượt cấp permission', value: totalGrants, icon: <SafetyOutlined />, color: '#0F4C81', hint: 'vai trò × permission' },
+          { label: 'Tổng lượt cấp permission', value: totalGrants, icon: <SafetyOutlined />, color: '#00214f', hint: 'vai trò × permission' },
         ]}
       />
       {rolesQuery.isLoading ? <ListSkeleton /> : roles.length === 0 ? (

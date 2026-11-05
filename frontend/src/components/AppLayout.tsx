@@ -280,17 +280,23 @@ export default function AppLayout() {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider breakpoint="lg" collapsedWidth="0">
+      {/* Sider navy dam trich tu logo HTAD (#00214f) — brand-logo 2026-11-05,
+          thay cho dark mac dinh AntD (#001529) khong lien quan brand. */}
+      <Sider
+        breakpoint="lg"
+        collapsedWidth="0"
+        style={{ background: '#00214f' }}
+      >
         <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <img src={logoUrl} alt="Ecommerce logo" style={{ height: 32 }} />
-          <span style={{ color: '#fff', fontWeight: 600 }}>Ecommerce</span>
+          <img src={logoUrl} alt="HTAD logo" style={{ height: 32 }} />
+          <span style={{ color: '#fff', fontWeight: 600 }}>HTAD</span>
         </div>
         <Menu
-          theme="dark"
           mode="inline"
           selectedKeys={[activeMenuKey]}
           defaultOpenKeys={collectOpenKeys(myMenus, location.pathname)}
           items={items}
+          style={{ background: 'transparent', borderInlineEnd: 'none' }}
         />
       </Sider>
       <Layout>

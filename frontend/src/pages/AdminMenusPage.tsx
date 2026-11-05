@@ -247,7 +247,7 @@ export default function AdminMenusPage() {
       <SummaryRow
         items={[
           { label: 'Số menu', value: menus.length, icon: <AppstoreOutlined /> },
-          { label: 'Số action', value: actions.length, icon: <ThunderboltOutlined />, color: '#0F4C81', hint: 'VIEW/CREATE/EDIT/DELETE/APPROVE', link: '/admin/permissions' },
+          { label: 'Số action', value: actions.length, icon: <ThunderboltOutlined />, color: '#00214f', hint: 'VIEW/CREATE/EDIT/DELETE/APPROVE', link: '/admin/permissions' },
         ]}
       />
       <Tabs

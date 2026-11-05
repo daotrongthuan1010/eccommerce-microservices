@@ -153,7 +153,7 @@ export default function AdminGroupsPage() {
       <SummaryRow
         items={[
           { label: 'Số nhóm', value: displayGroups.length, icon: <TeamOutlined /> },
-          { label: 'Cây phân cấp', value: tree.length > 0 ? `${tree.length} gốc` : '—', icon: <ApartmentOutlined />, color: '#0F4C81', hint: 'GET /groups/tree' },
+          { label: 'Cây phân cấp', value: tree.length > 0 ? `${tree.length} gốc` : '—', icon: <ApartmentOutlined />, color: '#00214f', hint: 'GET /groups/tree' },
         ]}
       />
       {groupsQuery.isLoading ? <ListSkeleton /> : displayGroups.length === 0 ? (

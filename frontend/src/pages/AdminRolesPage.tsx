@@ -172,7 +172,7 @@ export default function AdminRolesPage() {
       <SummaryRow
         items={[
           { label: 'Số vai trò', value: roles.length, icon: <KeyOutlined />, hint: 'realm roles Keycloak' },
-          { label: 'Tổng lượt gán', value: totalAssignments, icon: <TeamOutlined />, color: '#0F4C81', hint: 'người dùng × vai trò · xem người dùng', link: '/admin/users' },
+          { label: 'Tổng lượt gán', value: totalAssignments, icon: <TeamOutlined />, color: '#00214f', hint: 'người dùng × vai trò · xem người dùng', link: '/admin/users' },
         ]}
       />
 

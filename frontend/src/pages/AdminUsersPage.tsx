@@ -273,7 +273,7 @@ export default function AdminUsersPage() {
         items={[
           { label: 'Tổng số', value: total, icon: <TeamOutlined />, hint: 'tài khoản trong hệ thống' },
           { label: 'Vô hiệu hóa', value: disabledCount, icon: <StopOutlined />, color: '#C13515', hint: 'trang hiện tại' },
-          { label: 'ADMIN', value: adminCount, icon: <UserAddOutlined />, color: '#0F4C81', hint: 'trang hiện tại · xem vai trò', link: '/admin/roles' },
+          { label: 'ADMIN', value: adminCount, icon: <UserAddOutlined />, color: '#00214f', hint: 'trang hiện tại · xem vai trò', link: '/admin/roles' },
         ]}
       />
       <FilterBar>
