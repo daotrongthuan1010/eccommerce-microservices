@@ -1,15 +1,17 @@
 -- Order service v1: carts, orders, order lines, idempotent checkout, transactional outbox, inbox dedup.
 -- Tien: VND so nguyen (BIGINT). Thoi gian: UTC.
--- Order la orchestrator duy nhất (PAYMENT_SHIPPING_PLAN D1): payment/shipping khong goi nguoc order.
+-- Order la orchestrator duy nhat (PAYMENT_SHIPPING_PLAN D1): payment/shipping khong goi nguoc order.
+-- PostgreSQL syntax (order_db = PostgreSQL 17) — ban dau viet nham kieu MySQL
+-- (UNIQUE KEY/KEY/DATETIME) lam Flyway fail "syntax error at or near KEY".
 
 CREATE TABLE carts (
     id          VARCHAR(36)  NOT NULL,
     user_id     VARCHAR(64)  NOT NULL,
     status      VARCHAR(16)  NOT NULL DEFAULT 'ACTIVE',
-    created_at  DATETIME(6)  NOT NULL,
-    updated_at  DATETIME(6)  NOT NULL,
+    created_at  TIMESTAMP(6) NOT NULL,
+    updated_at  TIMESTAMP(6) NOT NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_carts_user_active (user_id, status)
+    CONSTRAINT uk_carts_user_active UNIQUE (user_id, status)
 );
 
 CREATE TABLE cart_items (
@@ -19,10 +21,10 @@ CREATE TABLE cart_items (
     product_name VARCHAR(255) NOT NULL,
     unit_price  BIGINT       NOT NULL,
     quantity    INT          NOT NULL,
-    created_at  DATETIME(6)  NOT NULL,
-    updated_at  DATETIME(6)  NOT NULL,
+    created_at  TIMESTAMP(6) NOT NULL,
+    updated_at  TIMESTAMP(6) NOT NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_cart_items_cart_sku (cart_id, sku_id),
+    CONSTRAINT uk_cart_items_cart_sku UNIQUE (cart_id, sku_id),
     CONSTRAINT fk_cart_items_cart FOREIGN KEY (cart_id) REFERENCES carts (id)
 );
 
@@ -43,14 +45,14 @@ CREATE TABLE orders (
     request_hash        VARCHAR(64)  NOT NULL,
     cancel_reason       VARCHAR(512) NULL,
     version             BIGINT       NOT NULL DEFAULT 0,
-    created_at          DATETIME(6)  NOT NULL,
-    updated_at          DATETIME(6)  NOT NULL,
+    created_at          TIMESTAMP(6) NOT NULL,
+    updated_at          TIMESTAMP(6) NOT NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_orders_code (order_code),
-    UNIQUE KEY uk_orders_idempotency (idempotency_key),
-    KEY idx_orders_user (user_id, created_at),
-    KEY idx_orders_status (status)
+    CONSTRAINT uk_orders_code UNIQUE (order_code),
+    CONSTRAINT uk_orders_idempotency UNIQUE (idempotency_key)
 );
+CREATE INDEX idx_orders_user ON orders (user_id, created_at);
+CREATE INDEX idx_orders_status ON orders (status);
 
 CREATE TABLE order_lines (
     id          VARCHAR(36)  NOT NULL,
@@ -62,7 +64,7 @@ CREATE TABLE order_lines (
     quantity    INT          NOT NULL,
     line_amount BIGINT       NOT NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_order_lines_order_line (order_id, line_no),
+    CONSTRAINT uk_order_lines_order_line UNIQUE (order_id, line_no),
     CONSTRAINT fk_order_lines_order FOREIGN KEY (order_id) REFERENCES orders (id)
 );
 
@@ -74,17 +76,17 @@ CREATE TABLE order_outbox (
     topic        VARCHAR(128) NOT NULL,
     payload      TEXT         NOT NULL,
     attempts     INT          NOT NULL DEFAULT 0,
-    published_at DATETIME(6)  NULL,
-    created_at   DATETIME(6)  NOT NULL,
-    PRIMARY KEY (event_id),
-    KEY idx_order_outbox_pub (published_at, created_at)
+    published_at TIMESTAMP(6) NULL,
+    created_at   TIMESTAMP(6) NOT NULL,
+    PRIMARY KEY (event_id)
 );
+CREATE INDEX idx_order_outbox_pub ON order_outbox (published_at, created_at);
 
 -- Inbox dedup: consumer ghi event da xu ly de event gui lai khong tac dong lan 2.
 CREATE TABLE order_inbox (
     event_id     VARCHAR(36)  NOT NULL,
     source       VARCHAR(64)  NOT NULL,
     event_type   VARCHAR(64)  NOT NULL,
-    processed_at DATETIME(6)  NOT NULL,
+    processed_at TIMESTAMP(6) NOT NULL,
     PRIMARY KEY (event_id, source)
 );
