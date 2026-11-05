@@ -77,6 +77,10 @@ export default function PaymentResultPage() {
   const latest = list[0];
   const status = latest?.status;
   const timedOut = pollCount >= MAX_POLLS && !isTerminal(status);
+  // Phan biet "payment chua tung duoc tao" (he thieu hoac event chua den —
+  // khong phai loi cua nguoi dung) voi "dang xu ly". Consumer payment-service
+  // tao payment tu OrderCreated event nen co the tre vai giay.
+  const noPaymentYet = !latest && !paymentQ.isLoading && !paymentQ.isError;
 
   if (paymentQ.isLoading && pollCount === 0) {
     return (
@@ -133,19 +137,26 @@ export default function PaymentResultPage() {
     <div style={{ textAlign: 'center', padding: 48 }}>
       <Spin size="large" />
       <Typography.Title level={4} style={{ marginTop: 16 }}>
-        Đang chờ xác nhận thanh toán...
+        {noPaymentYet && pollCount === 0
+          ? 'Đang khởi tạo phiên thanh toán...'
+          : 'Đang chờ xác nhận thanh toán...'}
       </Typography.Title>
       <Typography.Paragraph type="secondary">
-        Đơn hàng {orderId} đang được xử lý. Hệ thống tự động kiểm tra mỗi 2 giây
-        (tối đa 1 phút).
+        {noPaymentYet
+          ? `Đơn hàng ${orderId} đã được ghi nhận. Hệ thống đang chuẩn bị phiên thanh toán — vui lòng đợi vài giây.`
+          : `Đơn hàng ${orderId} đang được xử lý. Hệ thống tự động kiểm tra mỗi 2 giây (tối đa 1 phút).`}
       </Typography.Paragraph>
       {timedOut && (
         <Alert
           style={{ maxWidth: 480, margin: '0 auto' }}
           type="warning"
           showIcon
-          message="Chưa nhận được xác nhận trong thời gian chờ"
-          description="Thanh toán có thể đang được đối soát. Vui lòng kiểm tra lại trong Đơn hàng của tôi sau vài phút."
+          message={noPaymentYet ? 'Chưa tìm thấy phiên thanh toán' : 'Chưa nhận được xác nhận trong thời gian chờ'}
+          description={
+            noPaymentYet
+              ? 'Phiên thanh toán chưa được khởi tạo cho đơn này. Vui lòng kiểm tra lại trong Đơn hàng của tôi — nếu đơn vẫn chờ thanh toán, bạn có thể thử đặt lại hoặc liên hệ hỗ trợ.'
+              : 'Thanh toán có thể đang được đối soát. Vui lòng kiểm tra lại trong Đơn hàng của tôi sau vài phút.'
+          }
         />
       )}
       <Space style={{ marginTop: 16 }}>
