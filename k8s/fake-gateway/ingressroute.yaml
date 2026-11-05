@@ -1,0 +1,51 @@
+# Fake payment gateway (VNPAY/ZaloPay gia lap) expose qua domain public:
+# https://shop-hatd.online/fake-gateway/fake/vnpay/pay?txnRef=...
+#
+# VI SAO KHONG DUNG URL noi bo `http://fake-gateway-service:8099`: payUrl do
+# BE tra ve cho TRINH DUYET (window.location.assign) — URL noi bo cluster
+# khong truy cap duoc tu may khach. IPN webhook thi van di noi bo
+# (PAYMENT_PUBLIC_BASE_URL) — khong doi.
+#
+# StripPrefix(1) bo `/fake-gateway` → fake-gateway nhan `/fake/vnpay/...`
+# dung controller @RequestMapping("/fake/vnpay").
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: fake-gateway-strip
+  namespace: ecommerce
+  labels:
+    app: fake-gateway-service
+spec:
+  stripPrefix:
+    prefixes:
+      - /fake-gateway
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: fake-gateway-tls
+  namespace: ecommerce
+  labels:
+    app: fake-gateway-service
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`shop-hatd.online`) && PathPrefix(`/fake-gateway`)
+      kind: Rule
+      priority: 150
+      middlewares:
+        - name: fake-gateway-strip
+      services:
+        - name: fake-gateway-service
+          port: 8099
+    - match: Host(`www.shop-hatd.online`) && PathPrefix(`/fake-gateway`)
+      kind: Rule
+      priority: 150
+      middlewares:
+        - name: fake-gateway-strip
+      services:
+        - name: fake-gateway-service
+          port: 8099
+  tls:
+    certResolver: letsencrypt

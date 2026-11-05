@@ -8,7 +8,7 @@ metadata:
 data:
   SERVER_PORT: "8099"
   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75.0"
-  FAKE_GATEWAY_PUBLIC_URL: "http://fake-gateway-service:8099"
+  FAKE_GATEWAY_PUBLIC_URL: "https://shop-hatd.online/fake-gateway"
   # Secret gia lap (khong phai tien that) — phai trung gia tri ben payment/shipping config.
   FAKE_VNPAY_SECRET: "local_fake_vnpay_change_me"
   FAKE_ZALOPAY_SECRET: "local_fake_zalopay_change_me"
