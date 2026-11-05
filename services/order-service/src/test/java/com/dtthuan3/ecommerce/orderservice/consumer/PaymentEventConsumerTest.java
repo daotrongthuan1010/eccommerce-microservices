@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
@@ -38,12 +39,13 @@ class PaymentEventConsumerTest {
 
     @Mock private OrderInboxRepository inbox;
     @Mock private OrderRepository orderRepository;
+    @Mock private KafkaTemplate<String, String> kafka;
 
     private PaymentEventConsumer consumer;
 
     @BeforeEach
     void setUp() {
-        consumer = new PaymentEventConsumer(inbox, orderRepository, new ObjectMapper());
+        consumer = new PaymentEventConsumer(inbox, orderRepository, new ObjectMapper(), kafka);
     }
 
     private Order pendingOrder() {
