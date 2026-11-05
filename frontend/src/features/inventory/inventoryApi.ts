@@ -68,7 +68,7 @@ export const inventoryApi = createApi({
       { warehouseId: string }
     >({
       query: ({ warehouseId }) => ({
-        url: `/api/v1/warehouses/${warehouseId}/receipts`,
+        url: `v1/warehouses/${warehouseId}/receipts`,
       }),
       providesTags: ['Receipt'],
     }),
@@ -79,7 +79,7 @@ export const inventoryApi = createApi({
       { warehouseId: string; body: unknown }
     >({
       query: ({ warehouseId, body }) => ({
-        url: `/api/v1/warehouses/${warehouseId}/receipts`,
+        url: `v1/warehouses/${warehouseId}/receipts`,
         method: 'post',
         data: body,
       }),
@@ -92,7 +92,7 @@ export const inventoryApi = createApi({
       { receiptId: string; body: unknown }
     >({
       query: ({ receiptId, body }) => ({
-        url: `/api/v1/receipts/${receiptId}/actuals`,
+        url: `v1/receipts/${receiptId}/actuals`,
         method: 'patch',
         data: body,
       }),
@@ -103,7 +103,7 @@ export const inventoryApi = createApi({
 
     // real 2026-10-22: GET /api/inventory/inventory/{id}
     getInventoryById: build.query<ApiResponse<InventoryRecord>, string>({
-      query: (id) => ({ url: `/api/inventory/inventory/${id}` }),
+      query: (id) => ({ url: `inventory/inventory/${id}` }),
       providesTags: (_r, _e, id) => [{ type: 'Inventory', id }],
     }),
 
@@ -120,7 +120,7 @@ export const inventoryApi = createApi({
       } | void
     >({
       query: (params) => ({
-        url: '/api/inventory/inventory',
+        url: 'inventory/inventory',
         params: { page: 0, size: 20, ...(params ?? {}) },
       }),
       providesTags: ['Inventory'],
@@ -128,7 +128,7 @@ export const inventoryApi = createApi({
 
     // real 2026-10-22: GET /api/inventory/inventory/sku/{sku}
     getInventoryBySku: build.query<ApiResponse<InventoryRecord[]>, string>({
-      query: (sku) => ({ url: `/api/inventory/inventory/sku/${sku}` }),
+      query: (sku) => ({ url: `inventory/inventory/sku/${sku}` }),
       providesTags: ['Inventory'],
     }),
 
@@ -138,7 +138,7 @@ export const inventoryApi = createApi({
       string
     >({
       query: (warehouseId) => ({
-        url: `/api/inventory/inventory/warehouse/${warehouseId}`,
+        url: `inventory/inventory/warehouse/${warehouseId}`,
       }),
       providesTags: ['Inventory'],
     }),
@@ -149,7 +149,7 @@ export const inventoryApi = createApi({
       string
     >({
       query: (locationId) => ({
-        url: `/api/inventory/inventory/location/${locationId}`,
+        url: `inventory/inventory/location/${locationId}`,
       }),
       providesTags: ['Inventory'],
     }),
@@ -160,7 +160,7 @@ export const inventoryApi = createApi({
       { sku?: string; warehouseId?: string } | void
     >({
       query: (params) => ({
-        url: '/api/inventory/inventory/available',
+        url: 'inventory/inventory/available',
         params: params ?? {},
       }),
       providesTags: ['Inventory'],
@@ -172,7 +172,7 @@ export const inventoryApi = createApi({
       { sku?: string; warehouseId?: string; page?: number; size?: number } | void
     >({
       query: (params) => ({
-        url: '/api/inventory/inventory/movements',
+        url: 'inventory/inventory/movements',
         params: { page: 0, size: 20, ...(params ?? {}) },
       }),
       providesTags: ['Inventory'],
@@ -181,7 +181,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: POST /api/inventory/inventory
     createInventory: build.mutation<ApiResponse<InventoryRecord>, unknown>({
       query: (body) => ({
-        url: '/api/inventory/inventory',
+        url: 'inventory/inventory',
         method: 'post',
         data: body,
       }),
@@ -191,7 +191,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: POST /api/inventory/inventory/batch
     createInventoryBatch: build.mutation<ApiResponse<InventoryRecord[]>, unknown>({
       query: (body) => ({
-        url: '/api/inventory/inventory/batch',
+        url: 'inventory/inventory/batch',
         method: 'post',
         data: body,
       }),
@@ -201,7 +201,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: POST /api/inventory/inventory/receive-stock
     receiveStock: build.mutation<ApiResponse<InventoryRecord>, unknown>({
       query: (body) => ({
-        url: '/api/inventory/inventory/receive-stock',
+        url: 'inventory/inventory/receive-stock',
         method: 'post',
         data: body,
       }),
@@ -211,7 +211,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: POST /api/inventory/inventory/returns/receive
     receiveReturn: build.mutation<ApiResponse<InventoryRecord>, unknown>({
       query: (body) => ({
-        url: '/api/inventory/inventory/returns/receive',
+        url: 'inventory/inventory/returns/receive',
         method: 'post',
         data: body,
       }),
@@ -224,7 +224,7 @@ export const inventoryApi = createApi({
       { receiptId: string; body: unknown }
     >({
       query: ({ receiptId, body }) => ({
-        url: `/api/inventory/inventory/returns/${receiptId}/inspect`,
+        url: `inventory/inventory/returns/${receiptId}/inspect`,
         method: 'post',
         data: body,
       }),
@@ -234,7 +234,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: POST /api/inventory/inventory/receive
     receiveInventory: build.mutation<ApiResponse<InventoryRecord>, unknown>({
       query: (body) => ({
-        url: '/api/inventory/inventory/receive',
+        url: 'inventory/inventory/receive',
         method: 'post',
         data: body,
       }),
@@ -244,7 +244,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: POST /api/inventory/inventory/reserve
     reserveInventory: build.mutation<ApiResponse<InventoryRecord>, unknown>({
       query: (body) => ({
-        url: '/api/inventory/inventory/reserve',
+        url: 'inventory/inventory/reserve',
         method: 'post',
         data: body,
       }),
@@ -254,7 +254,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: POST /api/inventory/inventory/release
     releaseInventory: build.mutation<ApiResponse<InventoryRecord>, unknown>({
       query: (body) => ({
-        url: '/api/inventory/inventory/release',
+        url: 'inventory/inventory/release',
         method: 'post',
         data: body,
       }),
@@ -264,7 +264,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: POST /api/inventory/inventory/issue
     issueInventory: build.mutation<ApiResponse<InventoryRecord>, unknown>({
       query: (body) => ({
-        url: '/api/inventory/inventory/issue',
+        url: 'inventory/inventory/issue',
         method: 'post',
         data: body,
       }),
@@ -274,7 +274,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: POST /api/inventory/inventory/adjust
     adjustInventory: build.mutation<ApiResponse<InventoryRecord>, unknown>({
       query: (body) => ({
-        url: '/api/inventory/inventory/adjust',
+        url: 'inventory/inventory/adjust',
         method: 'post',
         data: body,
       }),
@@ -284,7 +284,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: POST /api/inventory/inventory/transfer
     transferInventory: build.mutation<ApiResponse<StockTransfer>, unknown>({
       query: (body) => ({
-        url: '/api/inventory/inventory/transfer',
+        url: 'inventory/inventory/transfer',
         method: 'post',
         data: body,
       }),
@@ -294,7 +294,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: POST /api/inventory/inventory/transfers
     createTransfer: build.mutation<ApiResponse<StockTransfer>, unknown>({
       query: (body) => ({
-        url: '/api/inventory/inventory/transfers',
+        url: 'inventory/inventory/transfers',
         method: 'post',
         data: body,
       }),
@@ -307,7 +307,7 @@ export const inventoryApi = createApi({
       { transferId: string; body?: unknown }
     >({
       query: ({ transferId, body }) => ({
-        url: `/api/inventory/inventory/transfers/${transferId}/dispatch`,
+        url: `inventory/inventory/transfers/${transferId}/dispatch`,
         method: 'post',
         data: body,
       }),
@@ -320,7 +320,7 @@ export const inventoryApi = createApi({
       { transferId: string; body?: unknown }
     >({
       query: ({ transferId, body }) => ({
-        url: `/api/inventory/inventory/transfers/${transferId}/receive`,
+        url: `inventory/inventory/transfers/${transferId}/receive`,
         method: 'post',
         data: body,
       }),
@@ -332,7 +332,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: POST /api/inventory/warehouses
     createWarehouse: build.mutation<ApiResponse<Warehouse>, unknown>({
       query: (body) => ({
-        url: '/api/inventory/warehouses',
+        url: 'inventory/warehouses',
         method: 'post',
         data: body,
       }),
@@ -345,7 +345,7 @@ export const inventoryApi = createApi({
       { page?: number; size?: number } | void
     >({
       query: (params) => ({
-        url: '/api/inventory/warehouses',
+        url: 'inventory/warehouses',
         params: { page: 0, size: 20, ...(params ?? {}) },
       }),
       providesTags: ['Warehouse'],
@@ -354,7 +354,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: GET /api/inventory/warehouses/{warehouseId}
     getWarehouseById: build.query<ApiResponse<Warehouse>, string>({
       query: (warehouseId) => ({
-        url: `/api/inventory/warehouses/${warehouseId}`,
+        url: `inventory/warehouses/${warehouseId}`,
       }),
       providesTags: (_r, _e, id) => [{ type: 'Warehouse', id }],
     }),
@@ -365,7 +365,7 @@ export const inventoryApi = createApi({
       { warehouseId: string; body: unknown }
     >({
       query: ({ warehouseId, body }) => ({
-        url: `/api/inventory/warehouses/${warehouseId}`,
+        url: `inventory/warehouses/${warehouseId}`,
         method: 'put',
         data: body,
       }),
@@ -378,7 +378,7 @@ export const inventoryApi = createApi({
       { warehouseId: string; body: unknown }
     >({
       query: ({ warehouseId, body }) => ({
-        url: `/api/inventory/warehouses/${warehouseId}/status`,
+        url: `inventory/warehouses/${warehouseId}/status`,
         method: 'patch',
         data: body,
       }),
@@ -390,7 +390,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: POST /api/inventory/inventory/locations
     createLocation: build.mutation<ApiResponse<StockLocation>, unknown>({
       query: (body) => ({
-        url: '/api/inventory/inventory/locations',
+        url: 'inventory/inventory/locations',
         method: 'post',
         data: body,
       }),
@@ -403,7 +403,7 @@ export const inventoryApi = createApi({
       { warehouseId?: string; page?: number; size?: number } | void
     >({
       query: (params) => ({
-        url: '/api/inventory/inventory/locations',
+        url: 'inventory/inventory/locations',
         params: { page: 0, size: 20, ...(params ?? {}) },
       }),
       providesTags: ['Location'],
@@ -412,7 +412,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: GET /api/inventory/inventory/locations/{locationId}
     getLocationById: build.query<ApiResponse<StockLocation>, string>({
       query: (locationId) => ({
-        url: `/api/inventory/inventory/locations/${locationId}`,
+        url: `inventory/inventory/locations/${locationId}`,
       }),
       providesTags: (_r, _e, id) => [{ type: 'Location', id }],
     }),
@@ -423,7 +423,7 @@ export const inventoryApi = createApi({
       { locationId: string; body: unknown }
     >({
       query: ({ locationId, body }) => ({
-        url: `/api/inventory/inventory/locations/${locationId}`,
+        url: `inventory/inventory/locations/${locationId}`,
         method: 'put',
         data: body,
       }),
@@ -436,7 +436,7 @@ export const inventoryApi = createApi({
       { locationId: string; body: unknown }
     >({
       query: ({ locationId, body }) => ({
-        url: `/api/inventory/inventory/locations/${locationId}/status`,
+        url: `inventory/inventory/locations/${locationId}/status`,
         method: 'patch',
         data: body,
       }),
@@ -448,7 +448,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: GET /api/inventory/receipts/{receiptId}
     getReceiptById: build.query<ApiResponse<SupplierReceipt>, string>({
       query: (receiptId) => ({
-        url: `/api/inventory/receipts/${receiptId}`,
+        url: `inventory/receipts/${receiptId}`,
       }),
       providesTags: (_r, _e, id) => [{ type: 'Receipt', id }],
     }),
@@ -456,7 +456,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: POST /api/inventory/receipts/{receiptId}/submit
     submitReceipt: build.mutation<ApiResponse<SupplierReceipt>, string>({
       query: (receiptId) => ({
-        url: `/api/inventory/receipts/${receiptId}/submit`,
+        url: `inventory/receipts/${receiptId}/submit`,
         method: 'post',
       }),
       invalidatesTags: ['Receipt'],
@@ -465,7 +465,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: POST /api/inventory/receipts/{receiptId}/approve
     approveReceipt: build.mutation<ApiResponse<SupplierReceipt>, string>({
       query: (receiptId) => ({
-        url: `/api/inventory/receipts/${receiptId}/approve`,
+        url: `inventory/receipts/${receiptId}/approve`,
         method: 'post',
       }),
       invalidatesTags: ['Receipt'],
@@ -474,7 +474,7 @@ export const inventoryApi = createApi({
     // real 2026-10-22: POST /api/inventory/receipts/{receiptId}/post
     postReceipt: build.mutation<ApiResponse<SupplierReceipt>, string>({
       query: (receiptId) => ({
-        url: `/api/inventory/receipts/${receiptId}/post`,
+        url: `inventory/receipts/${receiptId}/post`,
         method: 'post',
       }),
       invalidatesTags: ['Receipt', 'Inventory'],

@@ -87,18 +87,18 @@ export const orderApi = createApi({
   endpoints: (build) => ({
     // real 2026-11-05: GET /api/order/cart (CartController GET /cart)
     getCart: build.query<ApiResponse<Cart>, void>({
-      query: () => ({ url: '/api/order/cart' }),
+      query: () => ({ url: 'order/cart' }),
       providesTags: ['Cart'],
     }),
     // real 2026-11-05: POST /api/order/cart/items — BE cong quantity khi trung SKU.
     addToCart: build.mutation<ApiResponse<Cart>, AddCartItemPayload>({
-      query: (body) => ({ url: '/api/order/cart/items', method: 'post', data: body }),
+      query: (body) => ({ url: 'order/cart/items', method: 'post', data: body }),
       invalidatesTags: ['Cart'],
     }),
     // real 2026-11-05: PUT /api/order/cart/items/{skuId}
     updateCartItem: build.mutation<ApiResponse<Cart>, { skuId: string; quantity: number }>({
       query: ({ skuId, quantity }) => ({
-        url: `/api/order/cart/items/${skuId}`,
+        url: `order/cart/items/${skuId}`,
         method: 'put',
         data: { quantity },
       }),
@@ -106,13 +106,13 @@ export const orderApi = createApi({
     }),
     // real 2026-11-05: DELETE /api/order/cart/items/{skuId}
     removeFromCart: build.mutation<ApiResponse<Cart>, string>({
-      query: (skuId) => ({ url: `/api/order/cart/items/${skuId}`, method: 'delete' }),
+      query: (skuId) => ({ url: `order/cart/items/${skuId}`, method: 'delete' }),
       invalidatesTags: ['Cart'],
     }),
     // real 2026-11-05: POST /api/order/me/checkout — Idempotency-Key bat buoc.
     checkout: build.mutation<ApiResponse<CheckoutResult>, { body: CheckoutPayload; idempotencyKey: string }>({
       query: ({ body, idempotencyKey }) => ({
-        url: '/api/order/me/checkout',
+        url: 'order/me/checkout',
         method: 'post',
         data: body,
         headers: { 'Idempotency-Key': idempotencyKey },
@@ -122,20 +122,20 @@ export const orderApi = createApi({
     // real 2026-11-05: GET /api/order/me/orders
     myOrders: build.query<ApiResponse<PageResponse<Order>>, { page?: number; size?: number }>({
       query: ({ page = 0, size = 10 } = {}) => ({
-        url: '/api/order/me/orders',
+        url: 'order/me/orders',
         params: { page, size },
       }),
       providesTags: ['Order'],
     }),
     // real 2026-11-05: GET /api/order/me/orders/{orderId}
     myOrder: build.query<ApiResponse<Order>, string>({
-      query: (orderId) => ({ url: `/api/order/me/orders/${orderId}` }),
+      query: (orderId) => ({ url: `order/me/orders/${orderId}` }),
       providesTags: (_r, _e, orderId) => [{ type: 'Order', id: orderId }],
     }),
     // real 2026-11-05: POST /api/order/me/orders/{orderId}/cancel (chi PENDING_PAYMENT)
     cancelOrder: build.mutation<ApiResponse<Order>, { orderId: string; reason?: string }>({
       query: ({ orderId, reason }) => ({
-        url: `/api/order/me/orders/${orderId}/cancel`,
+        url: `order/me/orders/${orderId}/cancel`,
         method: 'post',
         data: reason ? { reason } : {},
       }),
@@ -145,7 +145,7 @@ export const orderApi = createApi({
     // qua thanh toan tren trang /payment/result (nguon su that la IPN; FE poll
     // de hien thi, khong tu ket luan UNKNOWN la thanh cong — AGENTS.md luat 8).
     paymentByOrder: build.query<ApiResponse<PaymentStatus[] | PaymentStatus>, string>({
-      query: (orderId) => ({ url: `/api/payment/payments/by-order/${orderId}` }),
+      query: (orderId) => ({ url: `payment/payments/by-order/${orderId}` }),
       providesTags: (_r, _e, orderId) => [{ type: 'Payment', id: orderId }],
     }),
   }),

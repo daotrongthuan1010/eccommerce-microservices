@@ -82,12 +82,12 @@ export const productApi = createApi({
     // ---- Nhóm A: products (ProductController @RequestMapping("/products")) ----
     // real 2026-10-22: POST /api/product/products (draft → 201 CREATED)
     createProductDraft: build.mutation<ApiResponse<Product>, Record<string, unknown>>({
-      query: (data) => ({ url: '/api/product/products', method: 'post', data }),
+      query: (data) => ({ url: 'product/products', method: 'post', data }),
       invalidatesTags: ['Product'],
     }),
     // real 2026-10-22: GET /api/product/products/{productId}
     getProduct: build.query<ApiResponse<Product>, string>({
-      query: (productId) => ({ url: `/api/product/products/${productId}` }),
+      query: (productId) => ({ url: `product/products/${productId}` }),
       providesTags: (_r, _e, productId) => [{ type: 'Product', id: productId }],
     }),
 
@@ -95,7 +95,7 @@ export const productApi = createApi({
     // real 2026-10-22: POST /api/product/skus/variants/{variantId}/skus
     createSku: build.mutation<ApiResponse<Sku>, { variantId: string; body: Record<string, unknown> }>({
       query: ({ variantId, body }) => ({
-        url: `/api/product/skus/variants/${variantId}/skus`,
+        url: `product/skus/variants/${variantId}/skus`,
         method: 'post',
         data: body,
       }),
@@ -103,7 +103,7 @@ export const productApi = createApi({
     }),
     // real 2026-10-22: GET /api/product/skus/skus/{skuId} (nhân đôi /skus/skus/ verbatim)
     getSku: build.query<ApiResponse<Sku>, string>({
-      query: (skuId) => ({ url: `/api/product/skus/skus/${skuId}` }),
+      query: (skuId) => ({ url: `product/skus/skus/${skuId}` }),
       providesTags: (_r, _e, skuId) => [{ type: 'Sku', id: skuId }],
     }),
 
@@ -114,7 +114,7 @@ export const productApi = createApi({
       { productId: string; body: Record<string, unknown> }
     >({
       query: ({ productId, body }) => ({
-        url: `/api/product/products-variant/products/${productId}/variants`,
+        url: `product/products-variant/products/${productId}/variants`,
         method: 'post',
         data: body,
       }),
@@ -123,51 +123,51 @@ export const productApi = createApi({
     // real 2026-10-22: GET /api/product/products-variant/products/{productId}/variants
     listVariants: build.query<ApiResponse<Variant[]>, string>({
       query: (productId) => ({
-        url: `/api/product/products-variant/products/${productId}/variants`,
+        url: `product/products-variant/products/${productId}/variants`,
       }),
       providesTags: ['Variant'],
     }),
     // real 2026-10-22: GET /api/product/products-variant/variants/{variantId}
     getVariant: build.query<ApiResponse<Variant>, string>({
-      query: (variantId) => ({ url: `/api/product/products-variant/variants/${variantId}` }),
+      query: (variantId) => ({ url: `product/products-variant/variants/${variantId}` }),
       providesTags: (_r, _e, variantId) => [{ type: 'Variant', id: variantId }],
     }),
 
     // ---- Nhóm A: media (ProductMediaController @RequestMapping("/products-media")) ----
     // real 2026-10-22: POST /api/product/products-media (upload)
     uploadProductMedia: build.mutation<ApiResponse<Media>, Record<string, unknown>>({
-      query: (data) => ({ url: '/api/product/products-media', method: 'post', data }),
+      query: (data) => ({ url: 'product/products-media', method: 'post', data }),
       invalidatesTags: ['Media'],
     }),
     // real 2026-10-22: GET /api/product/product-media/{id} (singular per contract)
     getProductMedia: build.query<ApiResponse<Media>, string>({
-      query: (id) => ({ url: `/api/product/product-media/${id}` }),
+      query: (id) => ({ url: `product/product-media/${id}` }),
       providesTags: (_r, _e, id) => [{ type: 'Media', id }],
     }),
     // real 2026-10-22: PATCH /api/product/products-media/{id}
     updateProductMedia: build.mutation<ApiResponse<Media>, { id: string; body: Record<string, unknown> }>({
-      query: ({ id, body }) => ({ url: `/api/product/products-media/${id}`, method: 'patch', data: body }),
+      query: ({ id, body }) => ({ url: `product/products-media/${id}`, method: 'patch', data: body }),
       invalidatesTags: ['Media'],
     }),
     // real 2026-10-22: DELETE /api/product/products-media/{id}
     deleteProductMedia: build.mutation<ApiResponse<unknown>, string>({
-      query: (id) => ({ url: `/api/product/products-media/${id}`, method: 'delete' }),
+      query: (id) => ({ url: `product/products-media/${id}`, method: 'delete' }),
       invalidatesTags: ['Media'],
     }),
     // real 2026-10-22: POST /api/product/products-media/sku-media
     createSkuMedia: build.mutation<ApiResponse<Media>, Record<string, unknown>>({
-      query: (data) => ({ url: '/api/product/products-media/sku-media', method: 'post', data }),
+      query: (data) => ({ url: 'product/products-media/sku-media', method: 'post', data }),
       invalidatesTags: ['Media'],
     }),
     // real 2026-10-22: GET /api/product/products-media/sku-media/{id}
     getSkuMedia: build.query<ApiResponse<Media>, string>({
-      query: (id) => ({ url: `/api/product/products-media/sku-media/${id}` }),
+      query: (id) => ({ url: `product/products-media/sku-media/${id}` }),
       providesTags: (_r, _e, id) => [{ type: 'Media', id }],
     }),
     // real 2026-10-22: PATCH /api/product/products-media/sku-media/{id}
     updateSkuMedia: build.mutation<ApiResponse<Media>, { id: string; body: Record<string, unknown> }>({
       query: ({ id, body }) => ({
-        url: `/api/product/products-media/sku-media/${id}`,
+        url: `product/products-media/sku-media/${id}`,
         method: 'patch',
         data: body,
       }),
@@ -175,19 +175,19 @@ export const productApi = createApi({
     }),
     // real 2026-10-22: DELETE /api/product/products-media/sku-media/{id}
     deleteSkuMedia: build.mutation<ApiResponse<unknown>, string>({
-      query: (id) => ({ url: `/api/product/products-media/sku-media/${id}`, method: 'delete' }),
+      query: (id) => ({ url: `product/products-media/sku-media/${id}`, method: 'delete' }),
       invalidatesTags: ['Media'],
     }),
 
     // ---- Nhóm A: attribute-templates (AttributeTemplateController @RequestMapping("/attribute-templates")) ----
     // real 2026-10-22: POST /api/product/attribute-templates
     createAttributeTemplate: build.mutation<ApiResponse<AttributeTemplate>, Record<string, unknown>>({
-      query: (data) => ({ url: '/api/product/attribute-templates', method: 'post', data }),
+      query: (data) => ({ url: 'product/attribute-templates', method: 'post', data }),
       invalidatesTags: ['AttrTemplate'],
     }),
     // real 2026-10-22: GET /api/product/attribute-templates/{id}
     getAttributeTemplate: build.query<ApiResponse<AttributeTemplate>, string>({
-      query: (id) => ({ url: `/api/product/attribute-templates/${id}` }),
+      query: (id) => ({ url: `product/attribute-templates/${id}` }),
       providesTags: (_r, _e, id) => [{ type: 'AttrTemplate', id }],
     }),
     // real 2026-10-22: PUT /api/product/attribute-templates/{id}
@@ -195,12 +195,12 @@ export const productApi = createApi({
       ApiResponse<AttributeTemplate>,
       { id: string; body: Record<string, unknown> }
     >({
-      query: ({ id, body }) => ({ url: `/api/product/attribute-templates/${id}`, method: 'put', data: body }),
+      query: ({ id, body }) => ({ url: `product/attribute-templates/${id}`, method: 'put', data: body }),
       invalidatesTags: ['AttrTemplate'],
     }),
     // real 2026-10-22: DELETE /api/product/attribute-templates/{id}
     deleteAttributeTemplate: build.mutation<ApiResponse<unknown>, string>({
-      query: (id) => ({ url: `/api/product/attribute-templates/${id}`, method: 'delete' }),
+      query: (id) => ({ url: `product/attribute-templates/${id}`, method: 'delete' }),
       invalidatesTags: ['AttrTemplate'],
     }),
     // real 2026-10-22: POST /api/product/attribute-templates/{templateId}/items
@@ -209,7 +209,7 @@ export const productApi = createApi({
       { templateId: string; body: Record<string, unknown> }
     >({
       query: ({ templateId, body }) => ({
-        url: `/api/product/attribute-templates/${templateId}/items`,
+        url: `product/attribute-templates/${templateId}/items`,
         method: 'post',
         data: body,
       }),
@@ -217,7 +217,7 @@ export const productApi = createApi({
     }),
     // real 2026-10-22: GET /api/product/attribute-templates/items/{id}
     getAttributeTemplateItem: build.query<ApiResponse<AttributeTemplateItem>, string>({
-      query: (id) => ({ url: `/api/product/attribute-templates/items/${id}` }),
+      query: (id) => ({ url: `product/attribute-templates/items/${id}` }),
       providesTags: (_r, _e, id) => [{ type: 'AttrTemplate', id }],
     }),
     // real 2026-10-22: PUT /api/product/attribute-templates/items/{id}
@@ -226,7 +226,7 @@ export const productApi = createApi({
       { id: string; body: Record<string, unknown> }
     >({
       query: ({ id, body }) => ({
-        url: `/api/product/attribute-templates/items/${id}`,
+        url: `product/attribute-templates/items/${id}`,
         method: 'put',
         data: body,
       }),
@@ -234,19 +234,19 @@ export const productApi = createApi({
     }),
     // real 2026-10-22: DELETE /api/product/attribute-templates/items/{id}
     deleteAttributeTemplateItem: build.mutation<ApiResponse<unknown>, string>({
-      query: (id) => ({ url: `/api/product/attribute-templates/items/${id}`, method: 'delete' }),
+      query: (id) => ({ url: `product/attribute-templates/items/${id}`, method: 'delete' }),
       invalidatesTags: ['AttrTemplate'],
     }),
 
     // ---- Nhóm B: attributes (AttributeController @RequestMapping("/api/v1/attributes")) ----
     // real 2026-10-22: POST /api/product/api/v1/attributes (nhân đôi verbatim)
     createAttribute: build.mutation<ApiResponse<ProductAttribute>, Record<string, unknown>>({
-      query: (data) => ({ url: '/api/product/api/v1/attributes', method: 'post', data }),
+      query: (data) => ({ url: 'product/api/v1/attributes', method: 'post', data }),
       invalidatesTags: ['Attribute'],
     }),
     // real 2026-10-22: GET /api/product/api/v1/attributes/{attributeId}
     getAttribute: build.query<ApiResponse<ProductAttribute>, string>({
-      query: (attributeId) => ({ url: `/api/product/api/v1/attributes/${attributeId}` }),
+      query: (attributeId) => ({ url: `product/api/v1/attributes/${attributeId}` }),
       providesTags: (_r, _e, attributeId) => [{ type: 'Attribute', id: attributeId }],
     }),
     // real 2026-10-22: PUT /api/product/api/v1/attributes/{attributeId}
@@ -255,7 +255,7 @@ export const productApi = createApi({
       { attributeId: string; body: Record<string, unknown> }
     >({
       query: ({ attributeId, body }) => ({
-        url: `/api/product/api/v1/attributes/${attributeId}`,
+        url: `product/api/v1/attributes/${attributeId}`,
         method: 'put',
         data: body,
       }),
@@ -263,7 +263,7 @@ export const productApi = createApi({
     }),
     // real 2026-10-22: DELETE /api/product/api/v1/attributes/{attributeId}
     deleteAttribute: build.mutation<ApiResponse<unknown>, string>({
-      query: (attributeId) => ({ url: `/api/product/api/v1/attributes/${attributeId}`, method: 'delete' }),
+      query: (attributeId) => ({ url: `product/api/v1/attributes/${attributeId}`, method: 'delete' }),
       invalidatesTags: ['Attribute'],
     }),
 
@@ -274,7 +274,7 @@ export const productApi = createApi({
       { attributeId: string; body: Record<string, unknown> }
     >({
       query: ({ attributeId, body }) => ({
-        url: `/api/product/api/v1/attributes/${attributeId}/options`,
+        url: `product/api/v1/attributes/${attributeId}/options`,
         method: 'post',
         data: body,
       }),
@@ -282,7 +282,7 @@ export const productApi = createApi({
     }),
     // real 2026-10-22: GET /api/product/api/v1/attributes/{attributeId}/options
     listAttributeOptions: build.query<ApiResponse<AttributeOption[]>, string>({
-      query: (attributeId) => ({ url: `/api/product/api/v1/attributes/${attributeId}/options` }),
+      query: (attributeId) => ({ url: `product/api/v1/attributes/${attributeId}/options` }),
       providesTags: ['Attribute'],
     }),
     // real 2026-10-22: PUT /api/product/api/v1/attributes/{attributeId}/options/{optionId}
@@ -291,7 +291,7 @@ export const productApi = createApi({
       { attributeId: string; optionId: string; body: Record<string, unknown> }
     >({
       query: ({ attributeId, optionId, body }) => ({
-        url: `/api/product/api/v1/attributes/${attributeId}/options/${optionId}`,
+        url: `product/api/v1/attributes/${attributeId}/options/${optionId}`,
         method: 'put',
         data: body,
       }),
@@ -303,7 +303,7 @@ export const productApi = createApi({
       { attributeId: string; optionId: string }
     >({
       query: ({ attributeId, optionId }) => ({
-        url: `/api/product/api/v1/attributes/${attributeId}/options/${optionId}`,
+        url: `product/api/v1/attributes/${attributeId}/options/${optionId}`,
         method: 'delete',
       }),
       invalidatesTags: ['Attribute'],
@@ -316,7 +316,7 @@ export const productApi = createApi({
       { skuId: string; body: Record<string, unknown> }
     >({
       query: ({ skuId, body }) => ({
-        url: `/api/product/api/v1/skus/${skuId}/price-schedules`,
+        url: `product/api/v1/skus/${skuId}/price-schedules`,
         method: 'post',
         data: body,
       }),
@@ -324,7 +324,7 @@ export const productApi = createApi({
     }),
     // real 2026-10-22: GET /api/product/api/v1/skus/{skuId}/price-schedules
     listPriceSchedules: build.query<ApiResponse<PriceSchedule[]>, string>({
-      query: (skuId) => ({ url: `/api/product/api/v1/skus/${skuId}/price-schedules` }),
+      query: (skuId) => ({ url: `product/api/v1/skus/${skuId}/price-schedules` }),
       providesTags: ['PriceSchedule'],
     }),
 
@@ -335,7 +335,7 @@ export const productApi = createApi({
       { productId: string; revisionId: string; actorId: string }
     >({
       query: ({ productId, revisionId, actorId }) => ({
-        url: `/api/product/api/v1/products/${productId}/revisions/${revisionId}/submit-for-approval`,
+        url: `product/api/v1/products/${productId}/revisions/${revisionId}/submit-for-approval`,
         method: 'post',
         headers: { 'X-Actor-Id': actorId },
       }),
@@ -344,7 +344,7 @@ export const productApi = createApi({
     // real 2026-10-22: POST /api/product/api/v1/publication-approvals/{approvalId}/approve
     approvePublication: build.mutation<ApiResponse<unknown>, { approvalId: string; actorId: string }>({
       query: ({ approvalId, actorId }) => ({
-        url: `/api/product/api/v1/publication-approvals/${approvalId}/approve`,
+        url: `product/api/v1/publication-approvals/${approvalId}/approve`,
         method: 'post',
         headers: { 'X-Actor-Id': actorId },
       }),
@@ -356,7 +356,7 @@ export const productApi = createApi({
       { approvalId: string; actorId: string; reason: string }
     >({
       query: ({ approvalId, actorId, reason }) => ({
-        url: `/api/product/api/v1/publication-approvals/${approvalId}/reject`,
+        url: `product/api/v1/publication-approvals/${approvalId}/reject`,
         method: 'post',
         data: { reason },
         headers: { 'X-Actor-Id': actorId },
@@ -366,7 +366,7 @@ export const productApi = createApi({
     // real 2026-10-22: GET /api/product/api/v1/products/{productId}/publishing-history
     getPublishingHistory: build.query<ApiResponse<PublishingHistoryEntry[]>, string>({
       query: (productId) => ({
-        url: `/api/product/api/v1/products/${productId}/publishing-history`,
+        url: `product/api/v1/products/${productId}/publishing-history`,
       }),
       providesTags: ['Publishing'],
     }),

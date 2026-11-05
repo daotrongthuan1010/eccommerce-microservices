@@ -39,7 +39,7 @@ export const reviewApi = createApi({
     // real 2026-10-22: POST /api/review/admin/reviews/{id}/moderate (cần MODERATOR hoặc ADMIN)
     moderateReview: build.mutation<ApiResponse<Review>, { id: string; body: ModerationRequest }>({
       query: ({ id, body }) => ({
-        url: `/api/review/admin/reviews/${id}/moderate`,
+        url: `review/admin/reviews/${id}/moderate`,
         method: 'post',
         data: body,
       }),
@@ -49,7 +49,7 @@ export const reviewApi = createApi({
     // Page tạo uuid mỗi lần submit và giữ nguyên khi retry để double-submit chỉ tạo 1 review.
     createReview: build.mutation<ApiResponse<Review>, { body: ReviewRequest; idempotencyKey: string }>({
       query: ({ body, idempotencyKey }) => ({
-        url: '/api/review/api/reviews',
+        url: 'review/api/reviews',
         method: 'post',
         data: body,
         headers: { 'Idempotency-Key': idempotencyKey },
@@ -58,18 +58,18 @@ export const reviewApi = createApi({
     }),
     // real 2026-10-22: PUT /api/review/api/reviews/{id}
     updateReview: build.mutation<ApiResponse<Review>, { id: string; body: Partial<ReviewRequest> }>({
-      query: ({ id, body }) => ({ url: `/api/review/api/reviews/${id}`, method: 'put', data: body }),
+      query: ({ id, body }) => ({ url: `review/api/reviews/${id}`, method: 'put', data: body }),
       invalidatesTags: ['Review'],
     }),
     // real 2026-10-22: DELETE /api/review/api/reviews/{id}
     deleteReview: build.mutation<ApiResponse<unknown>, string>({
-      query: (id) => ({ url: `/api/review/api/reviews/${id}`, method: 'delete' }),
+      query: (id) => ({ url: `review/api/reviews/${id}`, method: 'delete' }),
       invalidatesTags: ['Review'],
     }),
     // real 2026-10-22: POST /api/review/api/reviews/{id}/vote?isHelpful=
     voteReview: build.mutation<ApiResponse<unknown>, { id: string; isHelpful: boolean }>({
       query: ({ id, isHelpful }) => ({
-        url: `/api/review/api/reviews/${id}/vote`,
+        url: `review/api/reviews/${id}/vote`,
         method: 'post',
         params: { isHelpful },
       }),
@@ -77,7 +77,7 @@ export const reviewApi = createApi({
     }),
     // real 2026-10-22: DELETE /api/review/api/reviews/{id}/vote
     unvoteReview: build.mutation<ApiResponse<unknown>, string>({
-      query: (id) => ({ url: `/api/review/api/reviews/${id}/vote`, method: 'delete' }),
+      query: (id) => ({ url: `review/api/reviews/${id}/vote`, method: 'delete' }),
       invalidatesTags: ['Review'],
     }),
   }),

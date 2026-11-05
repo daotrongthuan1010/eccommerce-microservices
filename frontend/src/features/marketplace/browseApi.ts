@@ -38,7 +38,7 @@ export const browseApi = createApi({
   endpoints: (build) => ({
     browseProducts: build.query<ApiResponse<PageResponse<ProductCard>>, BrowseParams | void>({
       query: (params) => ({
-        url: '/api/product/products/browse',
+        url: 'product/products/browse',
         params: (params ?? {}) as Record<string, unknown>,
       }),
       providesTags: ['Browse'],
@@ -47,13 +47,13 @@ export const browseApi = createApi({
     // (ReviewQueryController @RequestMapping("/api") — doubled prefix verbatim).
     listProductReviews: build.query<ApiResponse<unknown>, { productId: string; page?: number; size?: number }>({
       query: ({ productId, page = 0, size = 10 }) => ({
-        url: `/api/review/api/products/${productId}/reviews`,
+        url: `review/api/products/${productId}/reviews`,
         params: { page, size },
       }),
     }),
     // real 2026-11-05: GET /api/review/api/products/{productId}/rating
     getProductRating: build.query<ApiResponse<unknown>, string>({
-      query: (productId) => ({ url: `/api/review/api/products/${productId}/rating` }),
+      query: (productId) => ({ url: `review/api/products/${productId}/rating` }),
     }),
   }),
 });

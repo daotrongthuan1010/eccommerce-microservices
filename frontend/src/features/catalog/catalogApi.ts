@@ -74,37 +74,37 @@ export const catalogApi = createApi({
     // ---- Categories (CategoryController @RequestMapping("/categories")) ----
     // real 2026-10-22: GET /api/catalog/categories
     getCategories: build.query<ApiResponse<Category[]>, PageParams | void>({
-      query: (params) => ({ url: '/api/catalog/categories', params: params ?? undefined }),
+      query: (params) => ({ url: 'catalog/categories', params: params ?? undefined }),
       providesTags: ['Category'],
     }),
     // real 2026-10-22: GET /api/catalog/categories/tree
     getCategoryTree: build.query<ApiResponse<CategoryTreeNode[]>, void>({
-      query: () => ({ url: '/api/catalog/categories/tree' }),
+      query: () => ({ url: 'catalog/categories/tree' }),
       providesTags: ['Category'],
     }),
     // real 2026-10-22: GET /api/catalog/categories/{id}
     getCategory: build.query<ApiResponse<Category>, string>({
-      query: (id) => ({ url: `/api/catalog/categories/${id}` }),
+      query: (id) => ({ url: `catalog/categories/${id}` }),
       providesTags: (_r, _e, id) => [{ type: 'Category', id }],
     }),
     // real 2026-10-22: GET /api/catalog/categories/{parentId}/children
     getCategoryChildren: build.query<ApiResponse<Category[]>, string>({
-      query: (parentId) => ({ url: `/api/catalog/categories/${parentId}/children` }),
+      query: (parentId) => ({ url: `catalog/categories/${parentId}/children` }),
       providesTags: ['Category'],
     }),
     // real 2026-10-22: POST /api/catalog/categories
     createCategory: build.mutation<ApiResponse<Category>, Partial<Category>>({
-      query: (data) => ({ url: '/api/catalog/categories', method: 'post', data }),
+      query: (data) => ({ url: 'catalog/categories', method: 'post', data }),
       invalidatesTags: ['Category'],
     }),
     // real 2026-10-22: PUT /api/catalog/categories/{id}
     updateCategory: build.mutation<ApiResponse<Category>, { id: string; body: Partial<Category> }>({
-      query: ({ id, body }) => ({ url: `/api/catalog/categories/${id}`, method: 'put', data: body }),
+      query: ({ id, body }) => ({ url: `catalog/categories/${id}`, method: 'put', data: body }),
       invalidatesTags: ['Category'],
     }),
     // real 2026-10-22: DELETE /api/catalog/categories/{id}
     deleteCategory: build.mutation<ApiResponse<unknown>, string>({
-      query: (id) => ({ url: `/api/catalog/categories/${id}`, method: 'delete' }),
+      query: (id) => ({ url: `catalog/categories/${id}`, method: 'delete' }),
       invalidatesTags: ['Category'],
     }),
 
@@ -112,78 +112,78 @@ export const catalogApi = createApi({
     // real 2026-10-22: GET /api/catalog/brands
     listBrands: build.query<ApiResponse<PageResponse<Brand>>, PageParams | void>({
       query: (params) => ({
-        url: '/api/catalog/brands',
+        url: 'catalog/brands',
         params: { page: 0, size: 20, ...(params ?? {}) },
       }),
       providesTags: ['Brand'],
     }),
     // real 2026-10-22: GET /api/catalog/brands/{id}
     getBrand: build.query<ApiResponse<Brand>, string>({
-      query: (id) => ({ url: `/api/catalog/brands/${id}` }),
+      query: (id) => ({ url: `catalog/brands/${id}` }),
       providesTags: (_r, _e, id) => [{ type: 'Brand', id }],
     }),
     // real 2026-10-22: GET /api/catalog/brands/status/active
     getActiveBrands: build.query<ApiResponse<Brand[]>, void>({
-      query: () => ({ url: '/api/catalog/brands/status/active' }),
+      query: () => ({ url: 'catalog/brands/status/active' }),
       providesTags: ['Brand'],
     }),
     // real 2026-10-22: GET /api/catalog/brands/search
     searchBrands: build.query<ApiResponse<PageResponse<Brand>>, PageParams | void>({
       query: (params) => ({
-        url: '/api/catalog/brands/search',
+        url: 'catalog/brands/search',
         params: { page: 0, size: 20, ...(params ?? {}) },
       }),
       providesTags: ['Brand'],
     }),
     // real 2026-10-22: POST /api/catalog/brands
     createBrand: build.mutation<ApiResponse<Brand>, Partial<Brand>>({
-      query: (data) => ({ url: '/api/catalog/brands', method: 'post', data }),
+      query: (data) => ({ url: 'catalog/brands', method: 'post', data }),
       invalidatesTags: ['Brand'],
     }),
     // real 2026-10-22: PUT /api/catalog/brands/{id}
     updateBrand: build.mutation<ApiResponse<Brand>, { id: string; body: Partial<Brand> }>({
-      query: ({ id, body }) => ({ url: `/api/catalog/brands/${id}`, method: 'put', data: body }),
+      query: ({ id, body }) => ({ url: `catalog/brands/${id}`, method: 'put', data: body }),
       invalidatesTags: ['Brand'],
     }),
     // real 2026-10-22: DELETE /api/catalog/brands/{id}
     deleteBrand: build.mutation<ApiResponse<unknown>, string>({
-      query: (id) => ({ url: `/api/catalog/brands/${id}`, method: 'delete' }),
+      query: (id) => ({ url: `catalog/brands/${id}`, method: 'delete' }),
       invalidatesTags: ['Brand'],
     }),
     // real 2026-10-22: PATCH /api/catalog/brands/{id}/status
     patchBrandStatus: build.mutation<ApiResponse<Brand>, { id: string; body: Record<string, unknown> }>({
-      query: ({ id, body }) => ({ url: `/api/catalog/brands/${id}/status`, method: 'patch', data: body }),
+      query: ({ id, body }) => ({ url: `catalog/brands/${id}/status`, method: 'patch', data: body }),
       invalidatesTags: ['Brand'],
     }),
 
     // ---- Manufacturers (ManufacturerController @RequestMapping("/manufacturers")) ----
     // real 2026-10-22: POST /api/catalog/manufacturers
     createManufacturer: build.mutation<ApiResponse<Manufacturer>, Partial<Manufacturer>>({
-      query: (data) => ({ url: '/api/catalog/manufacturers', method: 'post', data }),
+      query: (data) => ({ url: 'catalog/manufacturers', method: 'post', data }),
       invalidatesTags: ['Manufacturer'],
     }),
     // real 2026-10-22: GET /api/catalog/manufacturers/{id}
     getManufacturer: build.query<ApiResponse<Manufacturer>, string>({
-      query: (id) => ({ url: `/api/catalog/manufacturers/${id}` }),
+      query: (id) => ({ url: `catalog/manufacturers/${id}` }),
       providesTags: (_r, _e, id) => [{ type: 'Manufacturer', id }],
     }),
     // real 2026-10-22: GET /api/catalog/manufacturers
     listManufacturers: build.query<ApiResponse<PageResponse<Manufacturer>>, PageParams | void>({
       query: (params) => ({
-        url: '/api/catalog/manufacturers',
+        url: 'catalog/manufacturers',
         params: { page: 0, size: 20, ...(params ?? {}) },
       }),
       providesTags: ['Manufacturer'],
     }),
     // real 2026-10-22: GET /api/catalog/manufacturers/active
     getActiveManufacturers: build.query<ApiResponse<Manufacturer[]>, void>({
-      query: () => ({ url: '/api/catalog/manufacturers/active' }),
+      query: () => ({ url: 'catalog/manufacturers/active' }),
       providesTags: ['Manufacturer'],
     }),
     // real 2026-10-22: GET /api/catalog/manufacturers/search
     searchManufacturers: build.query<ApiResponse<PageResponse<Manufacturer>>, PageParams | void>({
       query: (params) => ({
-        url: '/api/catalog/manufacturers/search',
+        url: 'catalog/manufacturers/search',
         params: { page: 0, size: 20, ...(params ?? {}) },
       }),
       providesTags: ['Manufacturer'],
@@ -193,7 +193,7 @@ export const catalogApi = createApi({
       ApiResponse<Manufacturer>,
       { id: string; body: Partial<Manufacturer> }
     >({
-      query: ({ id, body }) => ({ url: `/api/catalog/manufacturers/${id}`, method: 'put', data: body }),
+      query: ({ id, body }) => ({ url: `catalog/manufacturers/${id}`, method: 'put', data: body }),
       invalidatesTags: ['Manufacturer'],
     }),
     // real 2026-10-22: PATCH /api/catalog/manufacturers/{id}/status
@@ -202,7 +202,7 @@ export const catalogApi = createApi({
       { id: string; body: Record<string, unknown> }
     >({
       query: ({ id, body }) => ({
-        url: `/api/catalog/manufacturers/${id}/status`,
+        url: `catalog/manufacturers/${id}/status`,
         method: 'patch',
         data: body,
       }),
@@ -210,37 +210,37 @@ export const catalogApi = createApi({
     }),
     // real 2026-10-22: DELETE /api/catalog/manufacturers/{id}
     deleteManufacturer: build.mutation<ApiResponse<unknown>, string>({
-      query: (id) => ({ url: `/api/catalog/manufacturers/${id}`, method: 'delete' }),
+      query: (id) => ({ url: `catalog/manufacturers/${id}`, method: 'delete' }),
       invalidatesTags: ['Manufacturer'],
     }),
 
     // ---- Collections (CollectionController @RequestMapping("/collections")) ----
     // real 2026-10-22: POST /api/catalog/collections
     createCollection: build.mutation<ApiResponse<Collection>, Partial<Collection>>({
-      query: (data) => ({ url: '/api/catalog/collections', method: 'post', data }),
+      query: (data) => ({ url: 'catalog/collections', method: 'post', data }),
       invalidatesTags: ['Collection'],
     }),
     // real 2026-10-22: GET /api/catalog/collections/{id}
     getCollection: build.query<ApiResponse<Collection>, string>({
-      query: (id) => ({ url: `/api/catalog/collections/${id}` }),
+      query: (id) => ({ url: `catalog/collections/${id}` }),
       providesTags: (_r, _e, id) => [{ type: 'Collection', id }],
     }),
     // real 2026-10-22: GET /api/catalog/collections
     listCollections: build.query<ApiResponse<PageResponse<Collection>>, PageParams | void>({
       query: (params) => ({
-        url: '/api/catalog/collections',
+        url: 'catalog/collections',
         params: { page: 0, size: 20, ...(params ?? {}) },
       }),
       providesTags: ['Collection'],
     }),
     // real 2026-10-22: GET /api/catalog/collections/active
     getActiveCollections: build.query<ApiResponse<Collection[]>, void>({
-      query: () => ({ url: '/api/catalog/collections/active' }),
+      query: () => ({ url: 'catalog/collections/active' }),
       providesTags: ['Collection'],
     }),
     // real 2026-10-22: GET /api/catalog/collections/homepage
     getHomepageCollections: build.query<ApiResponse<Collection[]>, void>({
-      query: () => ({ url: '/api/catalog/collections/homepage' }),
+      query: () => ({ url: 'catalog/collections/homepage' }),
       providesTags: ['Collection'],
     }),
     // real 2026-10-22: PUT /api/catalog/collections/{id}
@@ -248,7 +248,7 @@ export const catalogApi = createApi({
       ApiResponse<Collection>,
       { id: string; body: Partial<Collection> }
     >({
-      query: ({ id, body }) => ({ url: `/api/catalog/collections/${id}`, method: 'put', data: body }),
+      query: ({ id, body }) => ({ url: `catalog/collections/${id}`, method: 'put', data: body }),
       invalidatesTags: ['Collection'],
     }),
     // real 2026-10-22: PATCH /api/catalog/collections/{id}/status
@@ -257,7 +257,7 @@ export const catalogApi = createApi({
       { id: string; body: Record<string, unknown> }
     >({
       query: ({ id, body }) => ({
-        url: `/api/catalog/collections/${id}/status`,
+        url: `catalog/collections/${id}/status`,
         method: 'patch',
         data: body,
       }),
@@ -265,40 +265,40 @@ export const catalogApi = createApi({
     }),
     // real 2026-10-22: POST /api/catalog/collections/{id}/publish
     publishCollection: build.mutation<ApiResponse<Collection>, string>({
-      query: (id) => ({ url: `/api/catalog/collections/${id}/publish`, method: 'post' }),
+      query: (id) => ({ url: `catalog/collections/${id}/publish`, method: 'post' }),
       invalidatesTags: ['Collection'],
     }),
     // real 2026-10-22: POST /api/catalog/collections/{id}/unpublish
     unpublishCollection: build.mutation<ApiResponse<Collection>, string>({
-      query: (id) => ({ url: `/api/catalog/collections/${id}/unpublish`, method: 'post' }),
+      query: (id) => ({ url: `catalog/collections/${id}/unpublish`, method: 'post' }),
       invalidatesTags: ['Collection'],
     }),
     // real 2026-10-22: PUT /api/catalog/collections/reorder
     reorderCollections: build.mutation<ApiResponse<unknown>, unknown>({
-      query: (data) => ({ url: '/api/catalog/collections/reorder', method: 'put', data }),
+      query: (data) => ({ url: 'catalog/collections/reorder', method: 'put', data }),
       invalidatesTags: ['Collection'],
     }),
     // real 2026-10-22: DELETE /api/catalog/collections/{id}
     deleteCollection: build.mutation<ApiResponse<unknown>, string>({
-      query: (id) => ({ url: `/api/catalog/collections/${id}`, method: 'delete' }),
+      query: (id) => ({ url: `catalog/collections/${id}`, method: 'delete' }),
       invalidatesTags: ['Collection'],
     }),
 
     // ---- Synonym sets (SynonymSetController @RequestMapping("/synonym-sets")) ----
     // real 2026-10-22: POST /api/catalog/synonym-sets
     createSynonymSet: build.mutation<ApiResponse<SynonymSet>, Partial<SynonymSet>>({
-      query: (data) => ({ url: '/api/catalog/synonym-sets', method: 'post', data }),
+      query: (data) => ({ url: 'catalog/synonym-sets', method: 'post', data }),
       invalidatesTags: ['Synonym'],
     }),
     // real 2026-10-22: GET /api/catalog/synonym-sets/{id}
     getSynonymSet: build.query<ApiResponse<SynonymSet>, string>({
-      query: (id) => ({ url: `/api/catalog/synonym-sets/${id}` }),
+      query: (id) => ({ url: `catalog/synonym-sets/${id}` }),
       providesTags: (_r, _e, id) => [{ type: 'Synonym', id }],
     }),
     // real 2026-10-22: GET /api/catalog/synonym-sets
     listSynonymSets: build.query<ApiResponse<PageResponse<SynonymSet>>, PageParams | void>({
       query: (params) => ({
-        url: '/api/catalog/synonym-sets',
+        url: 'catalog/synonym-sets',
         params: { page: 0, size: 20, ...(params ?? {}) },
       }),
       providesTags: ['Synonym'],
@@ -308,7 +308,7 @@ export const catalogApi = createApi({
       ApiResponse<SynonymSet>,
       { id: string; body: Partial<SynonymSet> }
     >({
-      query: ({ id, body }) => ({ url: `/api/catalog/synonym-sets/${id}`, method: 'put', data: body }),
+      query: ({ id, body }) => ({ url: `catalog/synonym-sets/${id}`, method: 'put', data: body }),
       invalidatesTags: ['Synonym'],
     }),
     // real 2026-10-22: PATCH /api/catalog/synonym-sets/{id}/status
@@ -317,7 +317,7 @@ export const catalogApi = createApi({
       { id: string; body: Record<string, unknown> }
     >({
       query: ({ id, body }) => ({
-        url: `/api/catalog/synonym-sets/${id}/status`,
+        url: `catalog/synonym-sets/${id}/status`,
         method: 'patch',
         data: body,
       }),
@@ -325,7 +325,7 @@ export const catalogApi = createApi({
     }),
     // real 2026-10-22: DELETE /api/catalog/synonym-sets/{id}
     deleteSynonymSet: build.mutation<ApiResponse<unknown>, string>({
-      query: (id) => ({ url: `/api/catalog/synonym-sets/${id}`, method: 'delete' }),
+      query: (id) => ({ url: `catalog/synonym-sets/${id}`, method: 'delete' }),
       invalidatesTags: ['Synonym'],
     }),
     // real 2026-10-22: POST /api/catalog/synonym-sets/{synonymSetId}/synonyms
@@ -334,7 +334,7 @@ export const catalogApi = createApi({
       { synonymSetId: string; body: Partial<Synonym> }
     >({
       query: ({ synonymSetId, body }) => ({
-        url: `/api/catalog/synonym-sets/${synonymSetId}/synonyms`,
+        url: `catalog/synonym-sets/${synonymSetId}/synonyms`,
         method: 'post',
         data: body,
       }),
@@ -342,18 +342,18 @@ export const catalogApi = createApi({
     }),
     // real 2026-10-22: GET /api/catalog/synonym-sets/{synonymSetId}/synonyms
     listSynonyms: build.query<ApiResponse<Synonym[]>, string>({
-      query: (synonymSetId) => ({ url: `/api/catalog/synonym-sets/${synonymSetId}/synonyms` }),
+      query: (synonymSetId) => ({ url: `catalog/synonym-sets/${synonymSetId}/synonyms` }),
       providesTags: ['Synonym'],
     }),
     // real 2026-10-22: GET /api/catalog/synonym-sets/synonyms/{id}
     getSynonym: build.query<ApiResponse<Synonym>, string>({
-      query: (id) => ({ url: `/api/catalog/synonym-sets/synonyms/${id}` }),
+      query: (id) => ({ url: `catalog/synonym-sets/synonyms/${id}` }),
       providesTags: (_r, _e, id) => [{ type: 'Synonym', id }],
     }),
     // real 2026-10-22: PUT /api/catalog/synonym-sets/synonyms/{id}
     updateSynonym: build.mutation<ApiResponse<Synonym>, { id: string; body: Partial<Synonym> }>({
       query: ({ id, body }) => ({
-        url: `/api/catalog/synonym-sets/synonyms/${id}`,
+        url: `catalog/synonym-sets/synonyms/${id}`,
         method: 'put',
         data: body,
       }),
@@ -361,7 +361,7 @@ export const catalogApi = createApi({
     }),
     // real 2026-10-22: DELETE /api/catalog/synonym-sets/synonyms/{id}
     deleteSynonym: build.mutation<ApiResponse<unknown>, string>({
-      query: (id) => ({ url: `/api/catalog/synonym-sets/synonyms/${id}`, method: 'delete' }),
+      query: (id) => ({ url: `catalog/synonym-sets/synonyms/${id}`, method: 'delete' }),
       invalidatesTags: ['Synonym'],
     }),
 
@@ -372,7 +372,7 @@ export const catalogApi = createApi({
       { collectionId: string; body: Partial<DisplayRule> }
     >({
       query: ({ collectionId, body }) => ({
-        url: `/api/catalog/display-rules/collections/${collectionId}`,
+        url: `catalog/display-rules/collections/${collectionId}`,
         method: 'post',
         data: body,
       }),
@@ -380,19 +380,19 @@ export const catalogApi = createApi({
     }),
     // real 2026-10-22: GET /api/catalog/display-rules/collections/{collectionId}
     listDisplayRules: build.query<ApiResponse<DisplayRule[]>, string>({
-      query: (collectionId) => ({ url: `/api/catalog/display-rules/collections/${collectionId}` }),
+      query: (collectionId) => ({ url: `catalog/display-rules/collections/${collectionId}` }),
       providesTags: ['DisplayRule'],
     }),
     // real 2026-10-22: GET /api/catalog/display-rules/collections/{collectionId}/active
     getActiveDisplayRules: build.query<ApiResponse<DisplayRule[]>, string>({
       query: (collectionId) => ({
-        url: `/api/catalog/display-rules/collections/${collectionId}/active`,
+        url: `catalog/display-rules/collections/${collectionId}/active`,
       }),
       providesTags: ['DisplayRule'],
     }),
     // real 2026-10-22: GET /api/catalog/display-rules/{id}
     getDisplayRule: build.query<ApiResponse<DisplayRule>, string>({
-      query: (id) => ({ url: `/api/catalog/display-rules/${id}` }),
+      query: (id) => ({ url: `catalog/display-rules/${id}` }),
       providesTags: (_r, _e, id) => [{ type: 'DisplayRule', id }],
     }),
     // real 2026-10-22: PUT /api/catalog/display-rules/{id}
@@ -400,7 +400,7 @@ export const catalogApi = createApi({
       ApiResponse<DisplayRule>,
       { id: string; body: Partial<DisplayRule> }
     >({
-      query: ({ id, body }) => ({ url: `/api/catalog/display-rules/${id}`, method: 'put', data: body }),
+      query: ({ id, body }) => ({ url: `catalog/display-rules/${id}`, method: 'put', data: body }),
       invalidatesTags: ['DisplayRule'],
     }),
     // real 2026-10-22: PATCH /api/catalog/display-rules/{id}/status
@@ -409,7 +409,7 @@ export const catalogApi = createApi({
       { id: string; body: Record<string, unknown> }
     >({
       query: ({ id, body }) => ({
-        url: `/api/catalog/display-rules/${id}/status`,
+        url: `catalog/display-rules/${id}/status`,
         method: 'patch',
         data: body,
       }),
@@ -417,7 +417,7 @@ export const catalogApi = createApi({
     }),
     // real 2026-10-22: DELETE /api/catalog/display-rules/{id}
     deleteDisplayRule: build.mutation<ApiResponse<unknown>, string>({
-      query: (id) => ({ url: `/api/catalog/display-rules/${id}`, method: 'delete' }),
+      query: (id) => ({ url: `catalog/display-rules/${id}`, method: 'delete' }),
       invalidatesTags: ['DisplayRule'],
     }),
   }),
