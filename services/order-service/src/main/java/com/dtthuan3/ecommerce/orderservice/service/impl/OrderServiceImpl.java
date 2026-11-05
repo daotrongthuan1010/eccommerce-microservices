@@ -129,7 +129,7 @@ public class OrderServiceImpl implements OrderService {
 
         orderRepository.save(order);
         orderLineRepository.saveAll(lines);
-        writeOutbox(order, "OrderCreated", orderPayload(order, lines));
+        writeOutbox(order, "OrderCreated", orderPayload("OrderCreated", order, lines));
 
         log.info("Checkout: order {} created for user {} amount {} (key {})",
                 order.getId(), userId, totalAmount, idempotencyKey);
@@ -176,7 +176,7 @@ public class OrderServiceImpl implements OrderService {
         order.setCancelReason(reason);
         orderRepository.save(order);
 
-        Map<String, Object> payload = orderPayload(order, List.of());
+        Map<String, Object> payload = orderPayload("OrderCancelled", order, List.of());
         payload.put("reason", reason);
         writeOutbox(order, "OrderCancelled", payload);
 
@@ -221,10 +221,13 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private Map<String, Object> orderPayload(Order order, List<OrderLine> lines) {
+    private Map<String, Object> orderPayload(String eventType, Order order, List<OrderLine> lines) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("eventId", UUID.randomUUID().toString());
-        payload.put("eventType", "OrderCreated".equals(order.getStatus()) ? "OrderCreated" : null);
+        // eventType truyen vao tu writeOutbox (OrderCreated/OrderCancelled) —
+        // cu so order.getStatus() (PENDING_PAYMENT) voi "OrderCreated" luon
+        // ra null, consumer payment/notification khong nhan dien duoc event.
+        payload.put("eventType", eventType);
         payload.put("orderId", order.getId());
         payload.put("orderCode", order.getOrderCode());
         payload.put("userId", order.getUserId());
