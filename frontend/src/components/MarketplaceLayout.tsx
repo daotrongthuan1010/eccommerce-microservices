@@ -34,6 +34,10 @@ export default function MarketplaceLayout() {
   const navigate = useNavigate();
   const { message } = AntApp.useApp();
   const username = useAppSelector((s) => s.auth.username);
+  // Chi ADMIN/MODERATOR moi thay link "Khu vuc quan tri" — user thuong
+  // (buyer) khong co quyen backoffice, hien link nay chi dan den 403.
+  const myRoles = useAppSelector((s) => s.auth.roles) ?? [];
+  const isBackoffice = myRoles.includes('ADMIN') || myRoles.includes('MODERATOR');
   const guestItems = useAppSelector((s) => s.guestCart.items);
   const merging = useAppSelector((s) => s.guestCart.merging);
   const [searchParams] = useSearchParams();
@@ -129,8 +133,14 @@ export default function MarketplaceLayout() {
                 items: [
                   { key: 'orders', label: <Link to="/orders">Đơn hàng của tôi</Link> },
                   { key: 'account', label: <Link to="/account">Tài khoản</Link> },
-                  { type: 'divider' },
-                  { key: 'admin', label: <Link to="/admin">Khu vực quản trị</Link> },
+                  ...(isBackoffice
+                    ? [
+                        { type: 'divider' as const },
+                        { key: 'admin', label: <Link to="/admin">Khu vực quản trị</Link> },
+                        { key: 'staff', label: <Link to="/staff/users">Quản lý cấp dưới</Link> },
+                      ]
+                    : []),
+                  { type: 'divider' as const },
                   { key: 'logout', danger: true, label: 'Đăng xuất', onClick: doLogout },
                 ],
               }}
