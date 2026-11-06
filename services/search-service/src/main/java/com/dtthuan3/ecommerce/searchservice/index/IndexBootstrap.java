@@ -102,7 +102,11 @@ public class IndexBootstrap {
                                 ),
                                 "filter", Map.of(
                                         "vi_synonym", Map.of(
-                                                "type", "synonym",
+                                                // synonym_graph (khong phai 'synonym'): multi-word
+                                                // synonym ("dien thoai") qua custom tokenizer CocCoc
+                                                // chi expand voi graph filter — da verify tren prod:
+                                                // 'synonym' type tra ve 1 token, graph tra ve 3.
+                                                "type", "synonym_graph",
                                                 "synonyms", effectiveSynonyms
                                         )
                                 )
