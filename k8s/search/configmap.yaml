@@ -16,11 +16,11 @@ data:
   KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
   ELASTICSEARCH_URIS: "http://elasticsearch:9200"
   # vi-search 2026-11-06: synonyms index-time — them dong phai reindex.
-  # DANG 2 CHIEU "a, b" (khong dung "a, b => c" — one-way chi expand khi
-  # gap a/b, khong them synonym vao van ban chua c; query 'dtdd' se khong
-  # match 'dien thoai'). 2 chieu: index 'dien thoai' them token 'dtdd' va
-  # nguoc lai — ca 2 phia match.
-  SEARCH_SYNONYMS: "dtdd, dien thoai, smartphone, dt, iphone, apple iphone, macbook, apple macbook, laptop, may tinh xach tay"
+  # DANG: moi RULE mot dong, cac tu trong dong = equivalent (ES synonym
+  # format). @Value List<String> cua Spring split theo DAU PHAY lam vo
+  # nhom — nen config qua SEARCH_SYNONYMS_LINES (ngan cach '|') va code
+  # split theo '|'.
+  SEARCH_SYNONYMS_LINES: "dtdd, dien thoai, smartphone|dt, dien thoai|iphone, apple iphone|macbook, apple macbook|laptop, may tinh xach tay"
   PRODUCT_SERVICE_URL: "http://product-service"
   KEYCLOAK_JWK_SET_URI: "http://162.4.177.91:7080/realms/ecommerce/protocol/openid-connect/certs"
   ZIPKIN_ENDPOINT: "http://tempo:9411/api/v2/spans"

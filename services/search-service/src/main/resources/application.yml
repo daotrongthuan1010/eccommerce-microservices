@@ -41,12 +41,13 @@ grpc:
     port: ${GRPC_SERVER_PORT:9088}
 
 # vi-search (2026-11-06): synonyms ap dung INDEX-TIME (analyzer vi_search) —
-# them/sua dong phai reindex (POST /admin/reindex). Dang "a, b => c" hoac
-# "a, b" (equivalent). Bo dau khong can: asciifolding da lam.
+# them/sua dong phai reindex (POST /admin/reindex). Moi RULE 1 dong 'a, b, c'
+# (equivalent group), cac rule ngan cach '|'. KHONG dung List<String> binding
+# cua Spring — no split theo dau phay lam vo tung nhom synonym.
 search:
   product-service:
     base-url: ${PRODUCT_SERVICE_URL:http://product-service}
-  synonyms: ${SEARCH_SYNONYMS:}
+  synonyms-lines: ${SEARCH_SYNONYMS_LINES:}
 
 management:
   endpoints:

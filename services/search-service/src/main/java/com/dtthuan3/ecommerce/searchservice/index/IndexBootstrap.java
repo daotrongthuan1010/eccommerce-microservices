@@ -30,8 +30,9 @@ public class IndexBootstrap {
 
     private static final Logger log = LoggerFactory.getLogger(IndexBootstrap.class);
 
-    @Value("${search.synonyms:}")
-    private List<String> synonyms;
+    /** Moi phan tu = 1 RULE 'a, b, c' (equivalent group), ngan cach '|'. */
+    @Value("${search.synonyms-lines:}")
+    private String synonymsRaw;
 
     @Bean
     ApplicationRunner indexCreator(ElasticsearchOperations esOps) {
@@ -42,11 +43,12 @@ public class IndexBootstrap {
                 return;
             }
 
-            // Synonyms rong (chua cau hinh) → bo filter synonym khoi chain,
-            // khong tao filter voi list rong (ES se reject).
-            List<String> effectiveSynonyms = (synonyms == null)
-                    ? List.of()
-                    : synonyms.stream().filter(s -> s != null && !s.isBlank()).toList();
+            // Parse tung RULE (ngan cach '|') — KHONG split theo dau phay:
+            // 'dtdd, dien thoai' la MOT nhom equivalent, khong phai 2 rule.
+            List<String> effectiveSynonyms = java.util.Arrays.stream(synonymsRaw.split("\\|"))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .toList();
             List<String> indexFilters = effectiveSynonyms.isEmpty()
                     ? List.of("lowercase", "vi_stop", "asciifolding")
                     : List.of("lowercase", "vi_stop", "asciifolding", "vi_synonym");
