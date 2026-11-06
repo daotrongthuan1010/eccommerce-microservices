@@ -47,9 +47,20 @@ public class ProductEventConsumer {
         this.indexService = indexService;
     }
 
+    /**
+     * 1 handler duy nhat cho moi payload (LinkedHashMap tu JsonDeserializer).
+     * Record deserialize fail (test cu, tombstone) ve null → handle null an
+     * toan roi ack. KHONG tao them @KafkaHandler(Object) — spring-kafka bao
+     * "Ambiguous methods" khi 2 handler cung match LinkedHashMap.
+     */
     @KafkaHandler
     public void onProductEvent(Map<String, Object> event, Acknowledgment ack) {
         try {
+            if (event == null || event.isEmpty()) {
+                // Record hong (ErrorHandlingDeserializer tra null) — ack bo qua.
+                log.warn("Nhan record khong parse duoc (null/empty) — ack bo qua");
+                return;
+            }
             handle(event);
         } catch (Exception e) {
             // Index ES fail (ES down...): log + ack — khong block partition;
@@ -97,13 +108,5 @@ public class ProductEventConsumer {
 
         indexService.index(detail);
         log.info("Da index product {} vao {} (event {})", productIdRaw, ProductDocument.INDEX, eventId);
-    }
-
-    @KafkaHandler
-    public void onUnknown(Object raw, Acknowledgment ack) {
-        // Tin nhan khong parse duoc thanh Map (format cu, tombstone...) —
-        // ack de khong bi ket offset, log de theo doi.
-        log.warn("Nhan tin nhan khong xu ly duoc: {} — ack bo qua", raw);
-        ack.acknowledge();
     }
 }
