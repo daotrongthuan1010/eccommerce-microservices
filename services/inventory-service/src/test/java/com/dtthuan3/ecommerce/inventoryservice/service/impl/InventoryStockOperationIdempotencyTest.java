@@ -9,7 +9,7 @@ import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryRepository;
 import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryStockOperationRepository;
 import com.dtthuan3.ecommerce.inventoryservice.repository.InventoryStockOperationRepository.StockOperationRecord;
 import com.dtthuan3.ecommerce.inventoryservice.repository.StockMovementRepository;
-import com.dtthuan3.ecommerce.inventoryservice.service.InventoryAvailabilityReadCache;
+import com.dtthuan3.ecommerce.inventoryservice.service.impl.InventoryAvailabilityReadCache;
 import com.dtthuan3.ecommerce.inventoryservice.service.InventoryLocationAccessService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;

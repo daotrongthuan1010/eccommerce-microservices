@@ -4,10 +4,10 @@
 # TAI SAO PHAI BUILD RIENG:
 # - ES khoa plugin theo version chinh (8.19.4); plugin CocCoc chi co release
 #   9.3.0/8.7.0 nen phai build tu source cho dung 8.19.4.
-# - Branch DEVELOP cua plugin (khong phai master): co fix "constructor
-#   signature changes in org.elasticsearch.index.analysis" can thiet cho
-#   ES 8.x — master chua merge.
-# - pom develop hardcode <version>9.3.0</version> (khong dung ${revision})
+# - Branch 8.7.0 cua plugin: chua fix "constructor signature changes"
+#   dung cho ES 8.x (super(indexSettings, settings, name)). Branch develop
+#   da refactor cho ES 9.x (super(name)) — khong compile voi ES 8.19.
+# - pom 8.7.0 hardcode <version>8.7.0</version> (khong dung ${revision})
 #   nen sed doi version project sang 8.19.4 truoc khi build — ES tu choi
 #   plugin sai version.
 #
@@ -44,9 +44,9 @@ RUN curl -fsSL -o /tmp/maven.tar.gz \
 ENV MVN_HOME=/opt/apache-maven-${MVN_VERSION}
 ENV PATH=$MVN_HOME/bin:$PATH
 WORKDIR /tmp/elasticsearch-analysis-vietnamese
-RUN git clone --depth 1 -b develop https://github.com/duydo/elasticsearch-analysis-vietnamese.git /tmp/src \
+RUN git clone --depth 1 -b 8.7.0 https://github.com/duydo/elasticsearch-analysis-vietnamese.git /tmp/src \
     && cp -r /tmp/src/pom.xml /tmp/src/src ./ \
-    && sed -i '0,/<version>9.3.0<\/version>/s//<version>8.19.4<\/version>/' pom.xml
+    && sed -i '0,/<version>8.7.0<\/version>/s//<version>8.19.4<\/version>/' pom.xml
 RUN mvn --batch-mode -Dmaven.test.skip -e package \
     && ls target/releases/
 
