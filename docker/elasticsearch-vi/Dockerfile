@@ -44,20 +44,56 @@ RUN curl -fsSL -o /tmp/maven.tar.gz \
 ENV MVN_HOME=/opt/apache-maven-${MVN_VERSION}
 ENV PATH=$MVN_HOME/bin:$PATH
 WORKDIR /tmp/elasticsearch-analysis-vietnamese
-# Branch 8.7.0 (constructor dung ES 8.x) + 2 bu fix cho ES >= 8.19 entitlement:
-# 1) src/main/plugin-metadata/entitlement-policy.yaml khai bao
-#    load_native_libraries (ES 8.19 khoa JNI neu khong co — NotEntitledException
-#    crash luc tao index; backport tu commit f15be9c6 cua branch develop).
-# 2) plugin.xml assembly them file entitlement-policy.yaml vao zip plugin.
+# Branch 8.7.0 (constructor dung ES 8.x) + backport entitlement cho ES 8.19
+# (commit f15be9c6 chi nam tren develop/9.x):
+# 1) tao src/main/plugin-metadata/entitlement-policy.yaml (load_native_libraries)
+# 2) GHI DE toan bo assemblies/plugin.xml (thay vi sed patch — sed da that bai
+#    lan truoc vi structure file khac du doan; ghi de nguyen van file
+#    deterministic, them dung 1 file entry).
 RUN git clone --depth 1 -b 8.7.0 https://github.com/duydo/elasticsearch-analysis-vietnamese.git /tmp/src \
     && cp -r /tmp/src/pom.xml /tmp/src/src ./ \
     && sed -i '0,/<version>8.7.0<\/version>/s//<version>8.19.4<\/version>/' pom.xml \
     && mkdir -p src/main/plugin-metadata \
     && printf 'ALL-UNNAMED:\n  - load_native_libraries\n' > src/main/plugin-metadata/entitlement-policy.yaml \
-    && sed -i 's#</files>#        <file>\n            <source>${project.basedir}/src/main/plugin-metadata/entitlement-policy.yaml</source>\n            <filtered>true</filtered>\n        </file>\n    </files>#' src/main/assemblies/plugin.xml \
-    && grep -A2 entitlement src/main/assemblies/plugin.xml
+    && cat > src/main/assemblies/plugin.xml <<'XEOF'
+<?xml version="1.0"?>
+<assembly>
+    <id>plugin</id>
+    <formats>
+        <format>zip</format>
+    </formats>
+    <includeBaseDirectory>false</includeBaseDirectory>
+    <files>
+        <file>
+            <source>${project.basedir}/src/main/resources/plugin-descriptor.properties</source>
+            <filtered>true</filtered>
+        </file>
+        <file>
+            <source>${project.basedir}/src/main/resources/plugin-security.policy</source>
+            <filtered>true</filtered>
+        </file>
+        <file>
+            <source>${project.basedir}/src/main/plugin-metadata/entitlement-policy.yaml</source>
+            <filtered>true</filtered>
+        </file>
+    </files>
+    <dependencySets>
+        <dependencySet>
+            <useProjectArtifact>true</useProjectArtifact>
+            <useTransitiveFiltering>true</useTransitiveFiltering>
+        </dependencySet>
+        <dependencySet>
+            <useProjectArtifact>true</useProjectArtifact>
+            <useTransitiveFiltering>true</useTransitiveFiltering>
+            <includes>
+                <include>com.google.guava:guava</include>
+            </includes>
+        </dependencySet>
+    </dependencySets>
+</assembly>
+XEOF
 RUN mvn --batch-mode -Dmaven.test.skip -e package \
-    && ls target/releases/
+    && unzip -l target/releases/elasticsearch-analysis-vietnamese-8.19.4.zip | grep entitlement
 
 FROM docker.elastic.co/elasticsearch/elasticsearch:8.19.4
 USER root
