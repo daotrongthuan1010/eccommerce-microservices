@@ -60,10 +60,12 @@ spec:
           resources:
             requests:
               cpu: 500m
-              memory: 512Mi
-            limits:
-              cpu: "1"
               memory: 1Gi
+            limits:
+              cpu: "2"
+              # vi-search: image CocCoc (dict ~800MB mmap + JNI) bi OOMKilled
+              # o limit 1Gi cu — heap 512m + off-heap dicts can ~1.5G thuc te.
+              memory: 2Gi
           livenessProbe:
             exec:
               command:
