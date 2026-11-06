@@ -44,9 +44,33 @@ RUN curl -fsSL -o /tmp/maven.tar.gz \
 ENV MVN_HOME=/opt/apache-maven-${MVN_VERSION}
 ENV PATH=$MVN_HOME/bin:$PATH
 WORKDIR /tmp/elasticsearch-analysis-vietnamese
+# Branch 8.7.0 (constructor dung ES 8.x) + 2 bu fix cho ES >= 8.19 entitlement:
+# 1) src/main/plugin-metadata/entitlement-policy.yaml khai bao
+#    load_native_libraries (ES 8.19 khoa JNI neu khong co — NotEntitledException
+#    crash luc tao index; backport tu commit f15be9c6 cua branch develop).
+# 2) plugin.xml assembly them file entitlement-policy.yaml vao zip plugin.
 RUN git clone --depth 1 -b 8.7.0 https://github.com/duydo/elasticsearch-analysis-vietnamese.git /tmp/src \
     && cp -r /tmp/src/pom.xml /tmp/src/src ./ \
-    && sed -i '0,/<version>8.7.0<\/version>/s//<version>8.19.4<\/version>/' pom.xml
+    && sed -i '0,/<version>8.7.0<\/version>/s//<version>8.19.4<\/version>/' pom.xml \
+    && mkdir -p src/main/plugin-metadata \
+    && printf 'ALL-UNNAMED:\n  - load_native_libraries\n' > src/main/plugin-metadata/entitlement-policy.yaml \
+    && python3 - <<'PYEOF'
+import re
+p = 'src/main/assemblies/plugin.xml'
+s = open(p).read()
+if 'entitlement-policy.yaml' not in s:
+    marker = '</files>'
+    add = '''        <file>
+            <source>${project.basedir}/src/main/plugin-metadata/entitlement-policy.yaml</source>
+            <filtered>true</filtered>
+        </file>
+'''
+    s = s.replace(marker, add + '    ' + marker)
+    open(p, 'w').write(s)
+    print('plugin.xml patched')
+else:
+    print('already present')
+PYEOF
 RUN mvn --batch-mode -Dmaven.test.skip -e package \
     && ls target/releases/
 
