@@ -53,10 +53,14 @@ public class SearchQueryService {
                 "operator", "and"
         );
 
+        // KHONG filter status: nguon du lieu (browse + ProductPublished event)
+        // chi chua san pham PUBLISHED — product-service khong tra status qua
+        // 2 endpoint nay nen filter term status=ACTIVE se loai TAT CA (bug
+        // 0-hits da xac nhan tren production). Khi co event Unpublished/Deleted
+        // (P2) se them filter status + consumer xoa doc.
         Map<String, Object> queryBody = Map.of(
                 "bool", Map.of(
-                        "must", List.of(Map.of("multi_match", multiMatch)),
-                        "filter", List.of(Map.of("term", Map.of("status", "ACTIVE")))
+                        "must", List.of(Map.of("multi_match", multiMatch))
                 )
         );
 
