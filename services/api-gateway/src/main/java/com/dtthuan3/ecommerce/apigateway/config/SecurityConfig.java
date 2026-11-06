@@ -44,7 +44,11 @@ public class SecurityConfig {
                         .pathMatchers(HttpMethod.GET,
                                       "/api/catalog/**",
                                       "/api/product/**",
-                                      "/api/review/**")
+                                      "/api/review/**",
+                                      // vi-search 2026-11-06: guest tim kiem
+                                      // (search-service GET /products permitAll;
+                                      // /admin/reindex van roi vao rule admin o tren).
+                                      "/api/search/**")
                         .permitAll()
                         .pathMatchers("/api/auth/**", "/actuator/**")
                         .permitAll()
