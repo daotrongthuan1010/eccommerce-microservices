@@ -54,23 +54,8 @@ RUN git clone --depth 1 -b 8.7.0 https://github.com/duydo/elasticsearch-analysis
     && sed -i '0,/<version>8.7.0<\/version>/s//<version>8.19.4<\/version>/' pom.xml \
     && mkdir -p src/main/plugin-metadata \
     && printf 'ALL-UNNAMED:\n  - load_native_libraries\n' > src/main/plugin-metadata/entitlement-policy.yaml \
-    && python3 - <<'PYEOF'
-import re
-p = 'src/main/assemblies/plugin.xml'
-s = open(p).read()
-if 'entitlement-policy.yaml' not in s:
-    marker = '</files>'
-    add = '''        <file>
-            <source>${project.basedir}/src/main/plugin-metadata/entitlement-policy.yaml</source>
-            <filtered>true</filtered>
-        </file>
-'''
-    s = s.replace(marker, add + '    ' + marker)
-    open(p, 'w').write(s)
-    print('plugin.xml patched')
-else:
-    print('already present')
-PYEOF
+    && sed -i 's#</files>#        <file>\n            <source>${project.basedir}/src/main/plugin-metadata/entitlement-policy.yaml</source>\n            <filtered>true</filtered>\n        </file>\n    </files>#' src/main/assemblies/plugin.xml \
+    && grep -A2 entitlement src/main/assemblies/plugin.xml
 RUN mvn --batch-mode -Dmaven.test.skip -e package \
     && ls target/releases/
 
