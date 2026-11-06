@@ -5,9 +5,9 @@ package com.dtthuan3.ecommerce.searchservice.index;
  * (enrich sau khi nhan event Kafka). Index name co version (products_v2) de
  * thay doi mapping = tao index moi + reindex, khong doi index truc tuyen.
  *
- * Cac truong tim kiem:
- * - name_noaccent: ten da bo dau (asciifolding) — khach go "dien thoai" van ra.
- * - searchText: name + productCode + shortDescription, analyzer vi (CocCoc).
+ * Bo dau KHONG lam o day: analyzer vi_search da co filter asciifolding ap
+ * dung cho CA index lan query → khach go "dien thoai" match "điện thoại".
+ * nameNoaccent chi la ban ten de phong (backup field) khi can query truc tiep.
  */
 public record ProductDocument(
         String productId,
@@ -39,8 +39,12 @@ public record ProductDocument(
                 status, stripAccents(name), searchText, updatedAt);
     }
 
-    /** Bo dau tieng Viet: NFD tach combining marks roi xoa; đ/Đ phai map thu cong. */
-    public static String stripAccents(String input) {
+    /**
+     * Bo dau cho truong du phong nameNoaccent (analyzer da lam viec nay cho
+     * cac truong text; truong nay de FE/debug doc nhanh). NFD tach combining
+     * marks roi xoa; đ/Đ NFD khong tach nen phai map thu cong.
+     */
+    static String stripAccents(String input) {
         if (input == null) return null;
         String normalized = java.text.Normalizer
                 .normalize(input, java.text.Normalizer.Form.NFD)

@@ -71,22 +71,26 @@ public class SearchQueryService {
                         .of(ProductDocument.INDEX));
 
         List<SearchHitDto> dtos = hits.getSearchHits().stream()
-                .map(ProductEventConsumerHelper::toDto)
+                .map(HitMapper::toDto)
                 .toList();
         return new SearchResult(dtos, hits.getTotalHits());
     }
 
     private static String toJson(Map<String, Object> body) {
         try {
-            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(body);
+            return MAPPER.writeValueAsString(body);
         } catch (Exception e) {
             throw new IllegalStateException("Khong serialize duoc query ES", e);
         }
     }
 
-    /** Helper map hit source → DTO (tach de test duoc). */
-    static final class ProductEventConsumerHelper {
-        private ProductEventConsumerHelper() {
+    /** 1 ObjectMapper cho ca service (thread-safe, tao 1 lan). */
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
+    /** Helper map hit source → DTO (tach static de test duoc). */
+    static final class HitMapper {
+        private HitMapper() {
         }
 
         static SearchHitDto toDto(SearchHit<java.util.Map> hit) {

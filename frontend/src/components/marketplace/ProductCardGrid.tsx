@@ -116,9 +116,10 @@ export function ProductCardGrid({
   }
   return (
     <div className="marketplace-grid">
-      {products.map((raw) => (
-        <ProductCardItem key={toCard(raw).id} p={toCard(raw)} />
-      ))}
+      {products.map((raw) => {
+        const card = toCard(raw);
+        return <ProductCardItem key={card.id} p={card} />;
+      })}
     </div>
   );
 }
