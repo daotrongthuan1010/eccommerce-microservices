@@ -1,6 +1,5 @@
 package com.dtthuan3.ecommerce.searchservice.index;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -35,7 +34,7 @@ public class IndexBootstrap {
     private List<String> synonyms;
 
     @Bean
-    ApplicationRunner indexCreator(ElasticsearchOperations esOps, ObjectMapper objectMapper) {
+    ApplicationRunner indexCreator(ElasticsearchOperations esOps) {
         return args -> {
             IndexOperations ops = esOps.indexOps(IndexCoordinates.of(ProductDocument.INDEX));
             if (ops.exists()) {
@@ -43,69 +42,103 @@ public class IndexBootstrap {
                 return;
             }
 
-            String settings = objectMapper.writeValueAsString(Map.of(
-                    "settings", Map.of(
-                            "index", Map.of(
-                                    "number_of_shards", 1,
-                                    "number_of_replicas", 0
-                            ),
-                            "analysis", Map.of(
-                                    "analyzer", Map.of(
-                                            // Analyzer chinh: CocCoc tokenizer + lowercase
-                                            // + asciifolding + synonyms + stop VN.
-                                            "vi_search", Map.of(
-                                                    "type", "custom",
-                                                    "tokenizer", "vi_tokenizer",
-                                                    "filter", List.of("lowercase",
-                                                            "vi_stop", "asciifolding", "vi_synonym")
-                                            ),
-                                            // Analyzer nhap: giong vi_search nhung
-                                            // KHONG synonym o query time — synonym da
-                                            // expand o index time, query chi can match.
-                                            "vi_query", Map.of(
-                                                    "type", "custom",
-                                                    "tokenizer", "vi_tokenizer",
-                                                    "filter", List.of("lowercase",
-                                                            "vi_stop", "asciifolding")
-                                            )
-                                    ),
-                                    "filter", Map.of(
-                                            "vi_synonym", Map.of(
-                                                    "type", "synonym",
-                                                    "synonyms", synonyms
-                                            )
-                                    )
-                            )
-                    ),
-                    "mappings", Map.of(
-                            "properties", Map.ofEntries(
-                                    Map.entry("productId", Map.of("type", "keyword")),
-                                    Map.entry("productCode", Map.of("type", "keyword")),
-                                    Map.entry("name", Map.of(
-                                            "type", "text",
-                                            "analyzer", "vi_search",
-                                            "fields", Map.of("raw", Map.of("type", "keyword"))
-                                    )),
-                                    Map.entry("nameNoaccent", Map.of(
-                                            "type", "text",
-                                            "analyzer", "vi_query"
-                                    )),
-                                    Map.entry("shortDescription", Map.of("type", "text", "analyzer", "vi_search")),
-                                    Map.entry("searchText", Map.of("type", "text", "analyzer", "vi_search")),
-                                    Map.entry("priceFrom", Map.of("type", "long")),
-                                    Map.entry("categoryId", Map.of("type", "keyword")),
-                                    Map.entry("brandId", Map.of("type", "keyword")),
-                                    Map.entry("primaryImageKey", Map.of("type", "keyword")),
-                                    Map.entry("sellableSkuCount", Map.of("type", "integer")),
-                                    Map.entry("status", Map.of("type", "keyword")),
-                                    Map.entry("updatedAt", Map.of("type", "date"))
-                            )
-                    )
-            ));
+            // Synonyms rong (chua cau hinh) → bo filter synonym khoi chain,
+            // khong tao filter voi list rong (ES se reject).
+            List<String> effectiveSynonyms = (synonyms == null)
+                    ? List.of()
+                    : synonyms.stream().filter(s -> s != null && !s.isBlank()).toList();
+            List<String> indexFilters = effectiveSynonyms.isEmpty()
+                    ? List.of("lowercase", "vi_stop", "asciifolding")
+                    : List.of("lowercase", "vi_stop", "asciifolding", "vi_synonym");
 
-            ops.create(objectMapper.readValue(settings, java.util.Map.class));
+            // ES 8: settings va mappings la 2 khoi RIENG (PUT /index {settings,
+            // mappings}). IndexOperations.create(Map) coi ca map la settings
+            // nen phai tach: create(settings, Document.from(mapping)).
+            java.util.Map<String, Object> settingsMap;
+            java.util.Map<String, Object> analysisBlock;
+            if (effectiveSynonyms.isEmpty()) {
+                analysisBlock = Map.of(
+                        "analyzer", Map.of(
+                                "vi_search", Map.of(
+                                        "type", "custom",
+                                        "tokenizer", "vi_tokenizer",
+                                        "filter", indexFilters
+                                ),
+                                "vi_query", Map.of(
+                                        "type", "custom",
+                                        "tokenizer", "vi_tokenizer",
+                                        "filter", List.of("lowercase", "vi_stop", "asciifolding")
+                                )
+                        )
+                );
+                settingsMap = Map.of(
+                        "index", Map.of("number_of_shards", 1, "number_of_replicas", 0),
+                        "analysis", analysisBlock
+                );
+            } else {
+                settingsMap = Map.of(
+                        "index", Map.of(
+                                "number_of_shards", 1,
+                                "number_of_replicas", 0
+                        ),
+                        "analysis", Map.of(
+                                "analyzer", Map.of(
+                                        // Analyzer chinh: CocCoc tokenizer + lowercase
+                                        // + asciifolding + synonyms + stop VN.
+                                        "vi_search", Map.of(
+                                                "type", "custom",
+                                                "tokenizer", "vi_tokenizer",
+                                                "filter", indexFilters
+                                        ),
+                                        // Analyzer nhap: giong vi_search nhung
+                                        // KHONG synonym o query time — synonym da
+                                        // expand o index time, query chi can match.
+                                        "vi_query", Map.of(
+                                                "type", "custom",
+                                                "tokenizer", "vi_tokenizer",
+                                                "filter", List.of("lowercase",
+                                                        "vi_stop", "asciifolding")
+                                        )
+                                ),
+                                "filter", Map.of(
+                                        "vi_synonym", Map.of(
+                                                "type", "synonym",
+                                                "synonyms", effectiveSynonyms
+                                        )
+                                )
+                        )
+                );
+            }
+
+            java.util.Map<String, Object> mapping = Map.of(
+                    "properties", Map.ofEntries(
+                            Map.entry("productId", Map.of("type", "keyword")),
+                            Map.entry("productCode", Map.of("type", "keyword")),
+                            Map.entry("name", Map.of(
+                                    "type", "text",
+                                    "analyzer", "vi_search",
+                                    "fields", Map.of("raw", Map.of("type", "keyword"))
+                            )),
+                            Map.entry("nameNoaccent", Map.of(
+                                    "type", "text",
+                                    "analyzer", "vi_query"
+                            )),
+                            Map.entry("shortDescription", Map.of("type", "text", "analyzer", "vi_search")),
+                            Map.entry("searchText", Map.of("type", "text", "analyzer", "vi_search")),
+                            Map.entry("priceFrom", Map.of("type", "long")),
+                            Map.entry("categoryId", Map.of("type", "keyword")),
+                            Map.entry("brandId", Map.of("type", "keyword")),
+                            Map.entry("primaryImageKey", Map.of("type", "keyword")),
+                            Map.entry("sellableSkuCount", Map.of("type", "integer")),
+                            Map.entry("status", Map.of("type", "keyword")),
+                            Map.entry("updatedAt", Map.of("type", "date"))
+                    )
+            );
+
+            ops.create(settingsMap,
+                    org.springframework.data.elasticsearch.core.document.Document.from(mapping));
             log.info("Da tao index {} voi analyzer CocCoc (vi_search) + {} synonyms",
-                    ProductDocument.INDEX, synonyms.size());
+                    ProductDocument.INDEX, effectiveSynonyms.size());
         };
     }
 }
