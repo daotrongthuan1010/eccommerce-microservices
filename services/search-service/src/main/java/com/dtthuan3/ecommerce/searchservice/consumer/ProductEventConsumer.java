@@ -26,7 +26,11 @@ import org.springframework.stereotype.Component;
  * DefaultErrorHandler retry vo han block partition.
  */
 @Component
-@KafkaListener(topics = "product-events", groupId = "search-service", concurrency = "2")
+@KafkaListener(
+        topics = "product-events",
+        groupId = "search-service",
+        concurrency = "2",
+        containerFactory = "searchKafkaListenerContainerFactory")
 public class ProductEventConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(ProductEventConsumer.class);

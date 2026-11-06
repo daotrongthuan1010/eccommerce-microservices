@@ -11,23 +11,10 @@ spring:
       timeout: 3s
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:162.4.177.91:9092}
-    listener:
-      ack-mode: manual
-    consumer:
-      group-id: search-service
-      auto-offset-reset: earliest
-      enable-auto-commit: false
-      # Topic product-events co record test cu KHONG phai JSON ("ext-test-...")
-      # → phai boc JsonDeserializer trong ErrorHandlingDeserializer de record
-      # do bi bo qua thay vi kẹt consumer o offset 0 mai mai.
-      key-deserializer: org.apache.kafka.support.serializer.ErrorHandlingDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
-      properties:
-        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
-        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
-        spring.json.trusted.packages: "*"
-        spring.json.value.default.type: java.util.LinkedHashMap
-        spring.json.use.type.headers: false
+    # Consumer config chuyen sang Java KafkaConsumerConfig (ErrorHandlingDeserializer
+    # qua yml khong ap dung dung tren Boot 3.5/spring-kafka 3.3 — da verify
+    # tren production: JsonDeserializer van duoc goi truc tiep, consumer ket
+    # offset 0 voi record test cu khong phai JSON tren topic).
     producer:
       acks: all
       properties:
