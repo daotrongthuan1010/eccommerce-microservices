@@ -1,4 +1,4 @@
-import { App, Button, Card, Col, InputNumber, Row, Space, Typography } from 'antd';
+import { App, Button, Card, Col, InputNumber, Rate, Row, Space, Typography } from 'antd';
 import { ShoppingCartOutlined } from '@ant-design/icons';
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -31,9 +31,17 @@ export function ProductDetailPage() {
 
   const product = detailQ.data?.data;
   const variants = variantsQ.data?.data ?? [];
-  const reviews = (reviewsQ.data?.data as { content?: unknown[] } | undefined)?.content
-    ?? (reviewsQ.data?.data as unknown[] | undefined)
-    ?? [];
+  const rating = ratingQ.data?.data as
+    | { totalReviews?: number; averageRating?: number }
+    | undefined;
+  // Envelope: PageResponse { content } (ReviewQueryController tra PageResponse).
+  const reviews = ((reviewsQ.data?.data as { content?: unknown[] } | undefined)?.content
+    ?? []) as {
+    displayUserName?: string;
+    rating?: number;
+    comment?: string;
+    createdAt?: string;
+  }[];
 
   const revision = (product as { currentRevision?: { name?: string; shortDescription?: string; description?: string } } | undefined)?.currentRevision;
   const name = revision?.name ?? String(product?.productCode ?? productId);
@@ -108,16 +116,20 @@ export function ProductDetailPage() {
               <Typography.Title level={3} style={{ marginTop: 0 }}>
                 {name}
               </Typography.Title>
-              <Space size={16}>
+              <Space size={16} align="center">
                 <Typography.Text strong style={{ color: '#e8543f', fontSize: 24 }}>
                   {priceFrom > 0 ? formatVnd(priceFrom) : 'Liên hệ'}
                 </Typography.Text>
-                <Typography.Text type="secondary">
-                  Đánh giá:{' '}
-                  {ratingQ.data
-                    ? JSON.stringify(ratingQ.data.data)
-                    : '—'}
-                </Typography.Text>
+                {rating && (rating.totalReviews ?? 0) > 0 ? (
+                  <Space size={8}>
+                    <Rate disabled value={Math.round(rating.averageRating ?? 0)} />
+                    <Typography.Text type="secondary">
+                      {rating.averageRating?.toFixed(1)} ({rating.totalReviews} đánh giá)
+                    </Typography.Text>
+                  </Space>
+                ) : (
+                  <Typography.Text type="secondary">Chưa có đánh giá</Typography.Text>
+                )}
               </Space>
               {revision?.shortDescription && (
                 <Typography.Paragraph type="secondary">
@@ -158,9 +170,19 @@ export function ProductDetailPage() {
                 <Space direction="vertical" style={{ width: '100%' }}>
                   {reviews.map((r, i) => (
                     <Card key={i} size="small">
-                      <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
-                        {JSON.stringify(r, null, 2)}
-                      </pre>
+                      <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                        <Space size={12}>
+                          <Typography.Text strong>
+                            {r.displayUserName || 'Khách hàng'}
+                          </Typography.Text>
+                          <Rate disabled value={r.rating ?? 0} />
+                        </Space>
+                        {r.comment && (
+                          <Typography.Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>
+                            {r.comment}
+                          </Typography.Paragraph>
+                        )}
+                      </Space>
                     </Card>
                   ))}
                 </Space>

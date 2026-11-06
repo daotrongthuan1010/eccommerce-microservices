@@ -4,12 +4,16 @@ import com.dtthuan3.ecommerce.common.exception.BusinessException;
 import com.dtthuan3.ecommerce.common.exception.ErrorCode;
 import com.dtthuan3.ecommerce.common.exception.ResourceNotFoundException;
 import com.dtthuan3.ecommerce.productservice.constant.ProductStatus;
+import com.dtthuan3.ecommerce.productservice.constant.SkuSellingStatus;
 import com.dtthuan3.ecommerce.productservice.domain.Attribute;
 import com.dtthuan3.ecommerce.productservice.domain.AttributeOption;
 import com.dtthuan3.ecommerce.productservice.domain.AttributeTemplateItem;
+import com.dtthuan3.ecommerce.productservice.domain.PriceSchedule;
 import com.dtthuan3.ecommerce.productservice.domain.Product;
 import com.dtthuan3.ecommerce.productservice.domain.ProductAttributeValue;
 import com.dtthuan3.ecommerce.productservice.domain.ProductRevision;
+import com.dtthuan3.ecommerce.productservice.domain.ProductVariant;
+import com.dtthuan3.ecommerce.productservice.domain.Sku;
 import com.dtthuan3.ecommerce.productservice.dto.request.CreateProductDraftRequest;
 import com.dtthuan3.ecommerce.productservice.dto.request.ProductAttributeValueRequest;
 import com.dtthuan3.ecommerce.productservice.dto.response.ProductResponse;
@@ -18,18 +22,24 @@ import com.dtthuan3.ecommerce.productservice.repository.AttributeOptionRepositor
 import com.dtthuan3.ecommerce.productservice.repository.AttributeRepository;
 import com.dtthuan3.ecommerce.productservice.repository.AttributeTemplateItemRepository;
 import com.dtthuan3.ecommerce.productservice.repository.AttributeTemplateRepository;
+import com.dtthuan3.ecommerce.productservice.repository.PriceScheduleRepository;
 import com.dtthuan3.ecommerce.productservice.repository.ProductAttributeValueRepository;
 import com.dtthuan3.ecommerce.productservice.repository.ProductRepository;
 import com.dtthuan3.ecommerce.productservice.repository.ProductRevisionRepository;
+import com.dtthuan3.ecommerce.productservice.repository.ProductVariantRepository;
+import com.dtthuan3.ecommerce.productservice.repository.SkuRepository;
 import com.dtthuan3.ecommerce.productservice.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -42,6 +52,9 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final ProductRevisionRepository productRevisionRepository;
     private final ProductAttributeValueRepository productAttributeValueRepository;
+    private final ProductVariantRepository productVariantRepository;
+    private final SkuRepository skuRepository;
+    private final PriceScheduleRepository priceScheduleRepository;
 
     private final AttributeRepository attributeRepository;
     private final AttributeOptionRepository attributeOptionRepository;
@@ -162,7 +175,33 @@ public class ProductServiceImpl implements ProductService {
                             ));
         }
 
-        return productMapper.toResponse(product, revision);
+        // §PDP priceFrom: PDP can gia hien thi — tinh min gia ACTIVE cua SKU
+        // SELLABLE (cung cong thuc voi browse card, ProductBrowseServiceImpl).
+        ProductResponse response = productMapper.toResponse(product, revision);
+        response.setPriceFrom(priceFromOf(product.getId()));
+        return response;
+    }
+
+    /** Min gia price-schedule ACTIVE cua cac SKU SELLABLE cua product; 0 neu chua co. */
+    private long priceFromOf(UUID productId) {
+        List<UUID> variantIds = productVariantRepository
+                .findAllByProductIdInAndActiveTrue(List.of(productId)).stream()
+                .map(ProductVariant::getId)
+                .toList();
+        if (variantIds.isEmpty()) return 0L;
+
+        List<UUID> skuIds = skuRepository
+                .findAllByVariantIdInAndSellingStatus(variantIds, SkuSellingStatus.SELLABLE).stream()
+                .map(Sku::getId)
+                .toList();
+        if (skuIds.isEmpty()) return 0L;
+
+        return priceScheduleRepository.findActiveForSkus(skuIds, LocalDateTime.now()).stream()
+                .map(PriceSchedule::getPrice)
+                .filter(Objects::nonNull)
+                .mapToLong(p -> p.setScale(0, RoundingMode.HALF_UP).longValueExact())
+                .min()
+                .orElse(0L);
     }
 
     private List<AttributeTemplateItem> validateTemplate(UUID templateId) {

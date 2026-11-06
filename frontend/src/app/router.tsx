@@ -65,8 +65,10 @@ export const router = createBrowserRouter([
       { path: 'products', element: wrap(<ProductsPage />) },
       { path: 'products/:id', element: wrap(<ProductDetailPage />) },
       {
+        // Guest cart xem duoc khong login (D5 kieu Tiki) — CartPage tu phan
+        // nhanh guest/server theo username; checkout van can login.
         path: 'cart',
-        element: <RequireAuth>{wrap(<CartPage />)}</RequireAuth>,
+        element: wrap(<CartPage />),
       },
       {
         path: 'checkout',

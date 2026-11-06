@@ -3,6 +3,7 @@ package com.dtthuan3.ecommerce.productservice.dto.response;
 import com.dtthuan3.ecommerce.productservice.constant.ProductStatus;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.util.UUID;
 
@@ -27,6 +28,10 @@ public class ProductResponse {
     private UUID publishedRevisionId;
 
     private ProductStatus status;
+
+    /** Gia tu (min SKU SELLABLE dang co price-schedule ACTIVE), VND long; 0 = chua co gia. */
+    @Setter
+    private long priceFrom;
 
     private ProductRevisionResponse currentRevision;
 }
