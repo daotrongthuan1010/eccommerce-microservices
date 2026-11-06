@@ -2,6 +2,7 @@ import { Input, Pagination, Segmented, Select, Space, Typography } from 'antd';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useBrowseProductsQuery } from '../features/marketplace/browseApi';
+import { useSearchProductsQuery } from '../features/search/searchApi';
 import { useGetCategoriesQuery } from '../features/catalog/catalogApi';
 import { ProductCardGrid } from '../components/marketplace/ProductCardGrid';
 import { ApiErrorAlert } from '../components/ui';
@@ -9,6 +10,11 @@ import { ApiErrorAlert } from '../components/ui';
 // Marketplace ProductsPage (2026-11-05 fe-marketplace D2, spec customer/02):
 // tim kiem + loc danh muc + sort + paging — kieu trang search Shopee/Tiki.
 // Query nam tren URL (?q=&categoryId=&sort=&page=) de share duoc link.
+//
+// vi-search (2026-11-06): co q → search-service (ES CocCoc: bo dau, fuzzy,
+// synonyms). ES loi/rong → fallback browse cu (contains) — khach van co ket
+// qua, khong thay loi he thong. Loc danh muc + sort gia chi ap dung luc
+// browse (ES search chua ho tro facet — P2).
 const PAGE_SIZE = 20;
 
 export function ProductsPage() {
@@ -20,13 +26,16 @@ export function ProductsPage() {
   const sort = (searchParams.get('sort') ?? 'newest') as 'newest' | 'price_asc' | 'price_desc';
   const page = Math.max(0, Number(searchParams.get('page') ?? 0));
 
-  const browseQ = useBrowseProductsQuery({
-    page,
-    size: PAGE_SIZE,
-    keyword: q,
-    categoryId,
-    sort,
-  });
+  // Search ES chi chay khi co tu khoa; skip khi chi loc danh muc.
+  const searchQ = useSearchProductsQuery(
+    { q: q ?? '', page, size: PAGE_SIZE },
+    { skip: !q },
+  );
+  // Browse: fallback khi ES loi, hoac nguon chinh khi khong co q.
+  const browseQ = useBrowseProductsQuery(
+    { page, size: PAGE_SIZE, keyword: q, categoryId, sort },
+    { skip: !!q && !searchQ.isError }, // co q va ES khong loi → khong can browse
+  );
   const categoriesQ = useGetCategoriesQuery();
 
   // Dong bo o search header (MarketplaceLayout) khi user sua URL tay.
@@ -34,8 +43,14 @@ export function ProductsPage() {
     setKeywordInput(q ?? '');
   }, [q]);
 
-  const products = browseQ.data?.data?.content ?? [];
-  const total = browseQ.data?.data?.totalElements ?? 0;
+  // Ưu tiên ES khi có q; lỗi ES → browse (q vẫn truyền để contains cũ chạy).
+  const useEs = !!q && !searchQ.isError;
+  const esContent = searchQ.data?.data?.content ?? [];
+  const browseContent = browseQ.data?.data?.content ?? [];
+  const products = useEs ? esContent : browseContent;
+  const total = useEs
+    ? searchQ.data?.data?.totalElements ?? 0
+    : browseQ.data?.data?.totalElements ?? 0;
 
   const setParam = (key: string, value?: string) => {
     const next = new URLSearchParams(searchParams);
@@ -45,15 +60,18 @@ export function ProductsPage() {
     setSearchParams(next, { replace: true });
   };
 
-  const err = (browseQ.error as { message?: string } | undefined)?.message;
+  const err =
+    (searchQ.error as { message?: string } | undefined)?.message ??
+    (browseQ.error as { message?: string } | undefined)?.message;
   const activeCategory = categoryId ?? '';
+  const loading = useEs ? searchQ.isLoading : browseQ.isLoading;
 
   return (
     <div>
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
         <Space wrap style={{ justifyContent: 'space-between', width: '100%' }}>
           <Input.Search
-            placeholder="Tìm trong kết quả..."
+            placeholder="Tìm trong kết quả... (gõ không dấu vẫn ra)"
             defaultValue={q}
             onSearch={(v) => setParam('q', v || undefined)}
             style={{ maxWidth: 360 }}
@@ -84,14 +102,18 @@ export function ProductsPage() {
           }))}
         />
 
-        <ApiErrorAlert message={err ?? null} />
+        <ApiErrorAlert message={useEs ? null : err ?? null} />
         {q && (
           <Typography.Text type="secondary">
             Kết quả cho “{q}” — {total} sản phẩm
           </Typography.Text>
         )}
 
-        <ProductCardGrid products={products} loading={browseQ.isLoading} />
+        <ProductCardGrid
+          products={products}
+          loading={loading}
+          emptyText="Không tìm thấy sản phẩm phù hợp"
+        />
 
         {total > PAGE_SIZE && (
           <Pagination

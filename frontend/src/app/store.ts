@@ -12,6 +12,7 @@ import { adminApi } from '../features/admin/adminApi';
 import { iamApi } from '../features/admin/iamApi';
 import { browseApi } from '../features/marketplace/browseApi';
 import { orderApi } from '../features/order/orderApi';
+import { searchApi } from '../features/search/searchApi';
 
 // Store: auth (memory tokens) + guest cart (localStorage, marketplace) + RTK
 // Query data slices. Mock slices con lai (payment/search/notification/analytics)
@@ -31,6 +32,7 @@ export const store = configureStore({
     [iamApi.reducerPath]: iamApi.reducer,
     [browseApi.reducerPath]: browseApi.reducer,
     [orderApi.reducerPath]: orderApi.reducer,
+    [searchApi.reducerPath]: searchApi.reducer,
   },
   middleware: (getDefault) =>
     getDefault().concat(
@@ -45,6 +47,7 @@ export const store = configureStore({
       iamApi.middleware,
       browseApi.middleware,
       orderApi.middleware,
+      searchApi.middleware,
     ),
 });
 

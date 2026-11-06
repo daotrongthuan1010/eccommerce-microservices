@@ -39,7 +39,10 @@ spec:
         fsGroup: 1000
       containers:
         - name: elasticsearch
-          image: docker.elastic.co/elasticsearch/elasticsearch:8.19.4
+          # vi-search 2026-11-06: base 8.19.4 + CocCoc tokenizer (JNI + dicts)
+          # + plugin analysis-vietnamese build tu source cho dung 8.19.4 —
+          # docs/agents/vi-search.md §5, docker/elasticsearch-vi/Dockerfile.
+          image: daotrongthuan/elasticsearch-vi:8.19.4
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

@@ -11,10 +11,18 @@ spring:
       timeout: 3s
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:162.4.177.91:9092}
+    listener:
+      ack-mode: manual
     consumer:
       group-id: search-service
       auto-offset-reset: earliest
       enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.value.default.type: java.util.LinkedHashMap
+        spring.json.use.type.headers: false
     producer:
       acks: all
       properties:
@@ -39,6 +47,14 @@ eureka:
 grpc:
   server:
     port: ${GRPC_SERVER_PORT:9088}
+
+# vi-search (2026-11-06): synonyms ap dung INDEX-TIME (analyzer vi_search) —
+# them/sua dong phai reindex (POST /admin/reindex). Dang "a, b => c" hoac
+# "a, b" (equivalent). Bo dau khong can: asciifolding da lam.
+search:
+  product-service:
+    base-url: ${PRODUCT_SERVICE_URL:http://product-service}
+  synonyms: ${SEARCH_SYNONYMS:}
 
 management:
   endpoints:

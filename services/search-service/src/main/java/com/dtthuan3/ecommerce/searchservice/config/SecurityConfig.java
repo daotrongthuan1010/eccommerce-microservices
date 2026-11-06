@@ -3,6 +3,7 @@ package com.dtthuan3.ecommerce.searchservice.config;
 import com.dtthuan3.ecommerce.searchservice.security.JwtRoleConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -28,6 +29,13 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.requestMatchers("/actuator/**")
                         .permitAll()
+                        // Marketplace search (2026-11-06 vi-search): GET cong khai
+                        // de guest tim kiem khong login (dong bo product-service
+                        // GET /products/** permitAll). Reindex chi ADMIN.
+                        .requestMatchers(HttpMethod.GET, "/products", "/products/**")
+                        .permitAll()
+                        .requestMatchers("/admin/**")
+                        .hasRole("ADMIN")
                         .anyRequest()
                         .authenticated())
                 .oauth2ResourceServer(oauth2 ->
