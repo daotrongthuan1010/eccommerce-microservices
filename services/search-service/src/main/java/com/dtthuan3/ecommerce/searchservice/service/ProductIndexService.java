@@ -21,8 +21,8 @@ public class ProductIndexService {
         ProductDocument doc = ProductDocument.of(
                 detail.id(),
                 detail.productCode(),
-                detail.currentRevision() != null ? detail.currentRevision().name() : detail.productCode(),
-                detail.currentRevision() != null ? detail.currentRevision().shortDescription() : null,
+                detail.displayName(),
+                detail.displayShortDescription(),
                 detail.priceFrom(),
                 detail.categoryId(),
                 detail.brandId(),
