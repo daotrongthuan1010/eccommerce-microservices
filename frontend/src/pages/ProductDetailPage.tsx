@@ -9,6 +9,7 @@ import {
 } from '../features/marketplace/browseApi';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { addItem } from '../features/marketplace/guestCartSlice';
+import { useAddToCartMutation } from '../features/order/orderApi';
 import { ApiErrorAlert, ListSkeleton, StatusTag } from '../components/ui';
 import { formatVnd } from '../components/marketplace/ProductCardGrid';
 
@@ -57,7 +58,25 @@ export function ProductDetailPage() {
     return rev?.priceFrom ?? 0;
   }, [product]);
 
-  const onAddToCart = () => {
+  const [addToCartServer] = useAddToCartMutation();
+
+  const onAddToCart = async () => {
+    // Da login: them thang vao cart server (nguon su that). Guest: guest cart
+    // localStorage (merge len server sau login o MarketplaceLayout).
+    if (username) {
+      try {
+        await addToCartServer({
+          skuId: productId,
+          productName: name,
+          unitPrice: priceFrom,
+          quantity,
+        }).unwrap();
+        message.success(`Đã thêm "${name}" vào giỏ hàng`);
+      } catch (e) {
+        message.error((e as { message?: string }).message ?? 'Thêm vào giỏ hàng thất bại');
+      }
+      return;
+    }
     dispatch(
       addItem({
         // P1 retail: cart item = product id (SKU don chua co variant selector).
@@ -70,8 +89,8 @@ export function ProductDetailPage() {
     message.success(`Đã thêm "${name}" vào giỏ hàng`);
   };
 
-  const onBuyNow = () => {
-    onAddToCart();
+  const onBuyNow = async () => {
+    await onAddToCart();
     navigate(username ? '/checkout' : '/login');
   };
 

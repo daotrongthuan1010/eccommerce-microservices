@@ -18,9 +18,10 @@ import {
   mergeFailed,
   mergeStarted,
 } from '../features/marketplace/guestCartSlice';
-import { useAddToCartMutation } from '../features/order/orderApi';
+import { useAddToCartMutation, useGetCartQuery } from '../features/order/orderApi';
 import { useGetCategoriesQuery } from '../features/catalog/catalogApi';
 import { marketplaceThemeConfig } from '../app/theme';
+import logoUrl from '../assets/logo.png';
 
 const { Header, Content, Footer } = Layout;
 
@@ -85,7 +86,11 @@ export default function MarketplaceLayout() {
     void dispatch(logout()).finally(() => navigate('/'));
   };
 
-  const count = guestCartCount(guestItems);
+  // Badge gio hang: guest = so luong guest cart; da login = tong cart server
+  // (+ guest cart con sot lai neu merge chua chay xong).
+  const serverCartQ = useGetCartQuery(undefined, { skip: !username });
+  const serverCount = serverCartQ.data?.data?.totalQuantity ?? 0;
+  const count = username ? serverCount + guestCartCount(guestItems) : guestCartCount(guestItems);
 
   return (
     <Layout style={{ minHeight: '100vh', background: '#fff' }}>
@@ -103,17 +108,19 @@ export default function MarketplaceLayout() {
           zIndex: 100,
         }}
       >
-        <Link to="/" style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', flexShrink: 0, gap: 8 }}>
+          {/* Logo du an (brand-logo 2026-11-05) — cung asset voi sider backoffice. */}
+          <img src={logoUrl} alt="HTAD logo" style={{ height: 40 }} />
           <span
             style={{
-              color: '#e8543f',
+              color: '#00214f',
               fontWeight: 800,
               fontSize: 20,
               letterSpacing: 0.5,
               whiteSpace: 'nowrap',
             }}
           >
-            Ecommerce
+            HTAD
           </span>
         </Link>
         <Input
