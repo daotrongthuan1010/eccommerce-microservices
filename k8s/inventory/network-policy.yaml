@@ -13,9 +13,13 @@ spec:
     - Ingress
   ingress:
     - from:
+        # podSelector rong = moi pod trong namespace ecommerce (ket hop
+        # namespaceSelector); rieng namespaceSelector khong du tren mot so
+        # CNI k3s — smoke pod cung namespace bi chan (phat hien CD 2026-11-07)
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ecommerce
+          podSelector: {}
       ports:
         - protocol: TCP
           port: 8084
