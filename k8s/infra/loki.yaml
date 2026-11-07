@@ -224,6 +224,15 @@ data:
           - role: pod
         pipeline_stages:
           - cri: {}
+          # §Me1-obs: parse log JSON Spring — label service/level/traceId
+          - json:
+              expressions:
+                service: service
+                traceId: traceId
+                level: level
+          - labels:
+              service:
+              level:
         relabel_configs:
           - source_labels: [__meta_kubernetes_namespace]
             target_label: namespace
@@ -253,6 +262,19 @@ data:
               __path__: /var/log/pods/*/*/*.log
         pipeline_stages:
           - cri: {}
+          # §Me1-obs: parse log JSON của Spring (logstash encoder) —
+          # lấy field service + traceId làm label để query Loki dễ hơn
+          - json:
+              expressions:
+                service: service
+                traceId: traceId
+                level: level
+          - labels:
+              service:
+              level:
+          - timestamp:
+              source: timestamp
+              format: RFC3339Nano
 ---
 # DaemonSet on every node, reading k3s containerd logs at /var/log/pods.
 # Logs are pushed to in-cluster Loki (loki:3100) — no external port.
