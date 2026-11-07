@@ -61,6 +61,12 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
         <dependency>
+            <!-- Test: junit5 + mockito + assertj -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
           <!-- Me1-obs: log JSON cho Loki -->
           <groupId>net.logstash.logback</groupId>
           <artifactId>logstash-logback-encoder</artifactId>
