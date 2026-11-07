@@ -35,6 +35,11 @@ spec:
             - configMapRef:
                 name: order-config
           env:
+            # §OOM-fix 2026-11-07: OOMKilled x7 trong 50 phut — JVM mac dinh lay
+            # heap ~25% RAM host (khong phai container); gioi han heap + metaspace
+            # de vua 512Mi limit. Kafka producer + JSON log + trace lam tang usage.
+            - name: JAVA_OPTS
+              value: -XX:MaxRAMPercentage=65.0 -XX:MaxMetaspaceSize=128m
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -48,10 +53,10 @@ spec:
           resources:
             requests:
               cpu: 150m
-              memory: 300Mi
+              memory: 320Mi
             limits:
               cpu: 300m
-              memory: 384Mi
+              memory: 512Mi
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
