@@ -92,8 +92,13 @@ public class PaymentEventConsumer {
 
     private void markPaid(String orderId, JsonNode event) {
         orderRepository.findById(orderId).ifPresent(order -> {
-            // §ADR-0001: guard qua state machine thay vi string compare
-            OrderStatus current = OrderStatus.fromValue(order.getStatus());
+            // §review: status legacy ngoai enum -> skip idempotent (inbox van ghi),
+            // KHONG throw vi se ban event vao DLT vinh vien, don keo mai
+            OrderStatus current = parseStatus(order);
+            if (current == null) {
+                log.warn("Order {} co status legacy '{}' — skip PaymentSucceeded, can sua du lieu", orderId, order.getStatus());
+                return;
+            }
             if (current != OrderStatus.PENDING_PAYMENT) {
                 log.info("Order {} dang {} — bo qua PaymentSucceeded (idempotent)", orderId, current);
                 return;
@@ -105,6 +110,15 @@ public class PaymentEventConsumer {
             log.info("Order {} -> PAID (payment {})", orderId, text(event, "paymentId"));
             publishOrderConfirmed(order, event);
         });
+    }
+
+    /** Parse status an toan: null khi gia tri DB ngoai enum (legacy) thay vi throw. */
+    private OrderStatus parseStatus(Order order) {
+        try {
+            return OrderStatus.fromValue(order.getStatus());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /**
@@ -148,8 +162,14 @@ public class PaymentEventConsumer {
             log.warn("Order {} khong ton tai — van phat compensation (inventory tu bo qua)", orderId);
             return;
         }
-        // §ADR-0001: guard qua state machine thay vi string compare
-        OrderStatus current = OrderStatus.fromValue(order.getStatus());
+        // §review: status legacy ngoai enum -> van phat compensation (an toan
+        // ben inventory) roi skip, KHONG throw vao DLT vinh vien
+        OrderStatus current = parseStatus(order);
+        if (current == null) {
+            publishOrderPaymentFailed(order, event);
+            log.warn("Order {} co status legacy '{}' — van phat compensation, skip doi trang thai", orderId, order.getStatus());
+            return;
+        }
         if (current != OrderStatus.PENDING_PAYMENT) {
             log.info("Order {} dang {} — bo qua {} (idempotent)", orderId, current, eventType);
             return;

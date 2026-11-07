@@ -127,6 +127,28 @@ class SagaCompensationTest {
     }
 
     @Test
+    @DisplayName("SAGA-UC07: status legacy trong DB khong nam trong enum -> skip idempotent, KHONG vao DLT")
+    void legacyStatus_skipsInsteadOfDlt() {
+        // DB co du lieu cu/dirty voi status ngoai enum (vd migration) —
+        // neu fromValue throw thi event vao DLT vinh vien, don keo mai.
+        // Dung hanh vi: log + skip (inbox van ghi) de consumer tiep tuc.
+        Order order = pendingOrder();
+        order.setStatus("LEGACY_UNKNOWN");
+        when(inbox.existsByEventIdAndSource(anyString(), anyString())).thenReturn(false);
+        when(orderRepository.findById("order-1")).thenReturn(Optional.of(order));
+
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+                () -> consumer.onPaymentEvent(FAILED_EVENT),
+                "Status legacy phai skip an toan chu khong throw (review finding: DLT vinh vien)");
+
+        // Skip van la "da xu ly": inbox ghi de event khong den lai vo han
+        verify(inbox).save(any());
+        // Compensation van phat: reservation co the dang HELD, listener inventory
+        // idempotent nen phat thua an toan (cung ly le SAGA-UC06 order-miss)
+        verify(kafka).send(anyString(), anyString(), anyString());
+    }
+
+    @Test
     @DisplayName("SAGA-UC06: order khong ton tai van phat compensation — inventory tu quyet dinh")
     void orderMissing_stillPublishesCompensation() {
         // Race: event PaymentFailed den khi order chua commit / da purge.
