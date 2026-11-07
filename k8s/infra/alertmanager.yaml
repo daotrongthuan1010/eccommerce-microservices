@@ -1,0 +1,213 @@
+# §Me2-obs (issue #2): Alertmanager + Prometheus alert rules.
+# Telegram bot token/chat_id nằm trong Secret `infra-alertmanager-secrets`
+# (xem secret-templates.yaml.example — KHÔNG commit giá trị thật).
+# Loki ruler đã trỏ alertmanager_url http://localhost:9093 — cập nhật thành
+# Service alertmanager khi Loki ruler cần dùng (hiện chưa có rule Loki).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: alertmanager-data
+  namespace: ecommerce
+  labels:
+    app: alertmanager
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: ecommerce
+  labels:
+    app: alertmanager
+data:
+  alertmanager.yml: |
+    route:
+      receiver: telegram
+      group_by: ["alertname", "service"]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+    receivers:
+      - name: telegram
+        telegram_configs:
+          - bot_token_file: /etc/alertmanager/secrets/telegram-bot-token
+            chat_id: 0
+  # NOTE: prom/alertmanager KHÔNG hỗ trợ env substitution trong config —
+  # chat_id phải là số inline. Vì không commit giá trị thật, cách chuẩn:
+  # dùng initContainer sed thay ${TELEGRAM_CHAT_ID} từ Secret vào config
+  # (xem initContainer bên dưới — đơn giản hơn: giữ chat_id 0 sẽ fail,
+  # nên init container copy config + sed thay chat_id từ secret env).
+---
+# Prometheus alert rules: pod down, 5xx rate, P95 latency, JVM heap.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-alert-rules
+  namespace: ecommerce
+  labels:
+    app: prometheus
+data:
+  alerts.yml: |
+    groups:
+      - name: ecommerce-services
+        rules:
+          # Pod down: target biến mất > 2 phút
+          - alert: ServiceDown
+            expr: up{job="app-services"} == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Service {{ $labels.instance }} down"
+              description: "Target {{ $labels.instance }} không scrape được đã 2 phút."
+          # 5xx rate > 1%/phút trong 5 phút
+          - alert: HighErrorRate
+            expr: |
+              sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) by (instance)
+              /
+              sum(rate(http_server_requests_seconds_count[5m])) by (instance)
+              > 0.01
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "5xx > 1% trên {{ $labels.instance }}"
+              description: "Tỉ lệ HTTP 5xx vượt 1% trong 5 phút."
+          # P95 latency > 2s trong 10 phút
+          - alert: HighLatencyP95
+            expr: |
+              histogram_quantile(0.95,
+                sum(rate(http_server_requests_seconds_bucket[5m])) by (le, instance)
+              ) > 2
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "P95 > 2s trên {{ $labels.instance }}"
+              description: "HTTP P95 latency vượt 2 giây."
+          # Pod restart liên tục
+          - alert: PodCrashLooping
+            expr: increase(kube_pod_container_status_restarts_total[10m]) > 3
+            for: 0m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Pod {{ $labels.pod }} restart liên tục"
+              description: "Pod restart > 3 lần trong 10 phút."
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: ecommerce
+  labels:
+    app: alertmanager
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # single writer on RWO volume; never roll while mounted
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+    spec:
+      securityContext:
+        fsGroup: 65534 # prom/alertmanager runs as nobody
+      containers:
+        - name: alertmanager
+          image: prom/alertmanager:v0.28.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - --config.file=/etc/alertmanager-runtime/alertmanager.yml
+            - --storage.path=/alertmanager
+            - --web.listen-address=:9093
+          ports:
+            - name: http
+              containerPort: 9093
+          volumeMounts:
+            - name: config-merged
+              mountPath: /etc/alertmanager-runtime
+            - name: secrets
+              mountPath: /etc/alertmanager/secrets
+              readOnly: true
+            - name: data
+              mountPath: /alertmanager
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      # §Me2-obs: sed thay chat_id từ Secret vào config — Alertmanager
+      # không hỗ trợ env substitution, ConfigMap không được chứa secret
+      initContainers:
+        - name: render-config
+          image: busybox:1.36
+          command: ["sh", "-c"]
+          args:
+            - >
+              sed "s/chat_id: 0/chat_id: ${TELEGRAM_CHAT_ID}/"
+              /etc/alertmanager-template/alertmanager.yml
+              > /etc/alertmanager-runtime/alertmanager.yml
+          env:
+            - name: TELEGRAM_CHAT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: infra-alertmanager-secrets
+                  key: telegram-chat-id
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alertmanager-template
+              readOnly: true
+            - name: config-merged
+              mountPath: /etc/alertmanager-runtime
+      volumes:
+        - name: config
+          configMap:
+            name: alertmanager-config
+        - name: config-merged
+          emptyDir: {}
+        - name: secrets
+          secret:
+            secretName: infra-alertmanager-secrets
+        - name: data
+          persistentVolumeClaim:
+            claimName: alertmanager-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: ecommerce
+  labels:
+    app: alertmanager
+spec:
+  type: ClusterIP
+  selector:
+    app: alertmanager
+  ports:
+    - name: http
+      port: 9093
+      targetPort: http

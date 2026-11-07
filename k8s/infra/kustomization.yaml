@@ -15,6 +15,7 @@ resources:
   - clamav.yaml
   - nexus.yaml
   - monitoring.yaml # Phase 4: prometheus + grafana
+  - alertmanager.yaml # §Me2-obs: alertmanager + prometheus alert rules
   - loki.yaml # Phase 4: loki + promtail
   - tempo.yaml # Phase 4: replaces zipkin (Zipkin-format receiver)
   - cert-manager.yaml # Phase 4: CRDs applied imperatively first (see README)

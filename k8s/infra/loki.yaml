@@ -54,6 +54,12 @@ data:
       address: 127.0.0.1
     limits_config:
       allow_structured_metadata: false
+      # §Me2-obs: retention 14 ngày — không cấu hình thì đĩa đầy âm thầm
+      retention_period: 336h
+    compactor:
+      working_directory: /loki/compactor
+      retention_enabled: true
+      delete_request_store: filesystem
 ---
 apiVersion: apps/v1
 kind: Deployment

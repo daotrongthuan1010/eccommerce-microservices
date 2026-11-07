@@ -46,9 +46,10 @@ data:
     ingester_client:
       grpc_client_config:
         max_send_msg_size: 4194304
+    # §Me2-obs: 168h (7 ngày) — 24h cũ làm mất trace khi debug sự cố hôm trước
     compactor:
       compaction:
-        block_retention: 24h
+        block_retention: 168h
     storage:
       trace:
         backend: local
