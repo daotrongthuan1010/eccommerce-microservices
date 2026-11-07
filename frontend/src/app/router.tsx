@@ -31,6 +31,7 @@ const OrderDetailPage = React.lazy(() => import('../pages/OrderDetailPage'));
 const PaymentResultPage = React.lazy(() => import('../pages/PaymentResultPage'));
 const DashboardPage = React.lazy(() => import('../pages/DashboardPage'));
 const AdminUsersPage = React.lazy(() => import('../pages/AdminUsersPage'));
+const AdminOrdersPage = React.lazy(() => import('../pages/AdminOrdersPage'));
 const AdminRolesPage = React.lazy(() => import('../pages/AdminRolesPage'));
 const AdminMenusPage = React.lazy(() => import('../pages/AdminMenusPage'));
 const AdminPermissionsPage = React.lazy(() => import('../pages/AdminPermissionsPage'));
@@ -124,6 +125,12 @@ export const router = createBrowserRouter([
         path: 'admin/users',
         element: (
           <RequireRole roles={['ADMIN']}>{wrap(<AdminUsersPage />)}</RequireRole>
+        ),
+      },
+      {
+        path: 'admin/orders',
+        element: (
+          <RequireRole roles={['ADMIN']}>{wrap(<AdminOrdersPage />)}</RequireRole>
         ),
       },
       {

@@ -3,6 +3,7 @@ package com.dtthuan3.ecommerce.orderservice.consumer;
 import com.dtthuan3.ecommerce.orderservice.entity.Order;
 import com.dtthuan3.ecommerce.orderservice.repository.OrderInboxRepository;
 import com.dtthuan3.ecommerce.orderservice.repository.OrderRepository;
+import com.dtthuan3.ecommerce.orderservice.service.OrderService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,12 +41,13 @@ class PaymentEventConsumerTest {
     @Mock private OrderInboxRepository inbox;
     @Mock private OrderRepository orderRepository;
     @Mock private KafkaTemplate<String, String> kafka;
+    @Mock private OrderService orderService;
 
     private PaymentEventConsumer consumer;
 
     @BeforeEach
     void setUp() {
-        consumer = new PaymentEventConsumer(inbox, orderRepository, new ObjectMapper(), kafka);
+        consumer = new PaymentEventConsumer(inbox, orderRepository, orderService, new ObjectMapper(), kafka);
     }
 
     private Order pendingOrder() {
@@ -68,6 +70,7 @@ class PaymentEventConsumerTest {
 
         assertThat(order.getStatus()).isEqualTo("PAID");
         assertThat(order.getPaymentId()).isEqualTo("pay-1");
+        verify(orderService).publishOrderPaid(order);
         verify(inbox).save(any());
     }
 

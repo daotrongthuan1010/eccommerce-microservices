@@ -5,6 +5,7 @@ import com.dtthuan3.ecommerce.orderservice.entity.Order;
 import com.dtthuan3.ecommerce.orderservice.entity.OrderInbox;
 import com.dtthuan3.ecommerce.orderservice.repository.OrderInboxRepository;
 import com.dtthuan3.ecommerce.orderservice.repository.OrderRepository;
+import com.dtthuan3.ecommerce.orderservice.service.OrderService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
@@ -41,6 +42,7 @@ public class PaymentEventConsumer {
 
     private final OrderInboxRepository inbox;
     private final OrderRepository orderRepository;
+    private final OrderService orderService;
     private final ObjectMapper objectMapper;
     private final KafkaTemplate<String, String> kafka;
 
@@ -107,6 +109,8 @@ public class PaymentEventConsumer {
             order.setStatus(OrderStatus.PAID.getValue());
             order.setPaymentId(text(event, "paymentId"));
             orderRepository.save(order);
+            // Ghi outbox OrderPaid chung transaction — publisher se day len topic order-events
+            orderService.publishOrderPaid(order);
             log.info("Order {} -> PAID (payment {})", orderId, text(event, "paymentId"));
             publishOrderConfirmed(order, event);
         });

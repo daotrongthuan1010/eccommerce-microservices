@@ -20,6 +20,7 @@ import com.dtthuan3.ecommerce.reviewservice.enums.RevisionStatus;
 import com.dtthuan3.ecommerce.reviewservice.mapper.ReviewAssembler;
 import com.dtthuan3.ecommerce.reviewservice.mapper.ReviewMapper;
 import com.dtthuan3.ecommerce.reviewservice.repository.*;
+import com.dtthuan3.ecommerce.reviewservice.service.BannedWordService;
 import com.dtthuan3.ecommerce.reviewservice.service.ReviewService;
 import jakarta.ws.rs.ForbiddenException;
 import lombok.RequiredArgsConstructor;
@@ -67,6 +68,7 @@ public class ReviewServiceImpl implements ReviewService {
     private final OrderLineClient orderClient;
     private final ReviewMetrics metrics;
     private final RatingAggregateService aggregateService;
+    private final BannedWordService bannedWordService;
     private final ReviewMapper mapper;
 
     // =====================================================================
@@ -131,7 +133,7 @@ public class ReviewServiceImpl implements ReviewService {
         outbox.enqueue(OutboxWriter.EVENT_SUBMITTED, review, submitted);
 
         // 5) Mặc định chờ kiểm duyệt; chỉ tự duyệt khi bật review.auto-publish và nội dung sạch
-        if (AUTO_PUBLISH && !rules.needsModeration(content)) {
+        if (AUTO_PUBLISH && !rules.needsModeration(content, bannedWordService.getWords())) {
             publisher.approve(review, revision, mediaList);
         }
 
@@ -208,7 +210,7 @@ public class ReviewServiceImpl implements ReviewService {
         submitted.put("revisionNo", newNo);
         outbox.enqueue(OutboxWriter.EVENT_SUBMITTED, review, submitted);
 
-        if (AUTO_PUBLISH && !rules.needsModeration(content)) {
+        if (AUTO_PUBLISH && !rules.needsModeration(content, bannedWordService.getWords())) {
             publisher.approve(review, revision, mediaList);
         }
 

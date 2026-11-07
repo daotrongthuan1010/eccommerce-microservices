@@ -1,7 +1,9 @@
-import { App, Button, Card, Descriptions, Modal, Space, Tag, Typography } from 'antd';
+import { App, Button, Card, Descriptions, Form, Input, InputNumber, Modal, Space, Tag, Typography } from 'antd';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useCancelOrderMutation, useMyOrderQuery, type Order } from '../features/order/orderApi';
+import { useCancelOrderMutation, useMyOrderQuery, usePaymentByOrderQuery, type Order } from '../features/order/orderApi';
+import { useCreateRefundMutation } from '../features/payment/paymentApi';
+import { useAppSelector } from '../app/hooks';
 import { ApiErrorAlert, ListSkeleton } from '../components/ui';
 import { formatVnd } from '../components/marketplace/ProductCardGrid';
 
@@ -21,12 +23,29 @@ const STATUS_COLORS: Record<string, string> = {
 export default function OrderDetailPage() {
   const { orderId = '' } = useParams<{ orderId: string }>();
   const { message } = App.useApp();
+  const isAdmin = useAppSelector((s) => s.auth.roles).includes('ADMIN');
   const orderQ = useMyOrderQuery(orderId, { skip: !orderId });
   const [cancelMut, cancelState] = useCancelOrderMutation();
   const [cancelOpen, setCancelOpen] = useState(false);
+  // Hoan tien (ADMIN): can payment de lay paymentId + trang thai PAID/PARTIALLY_REFUNDED.
+  const paymentQ = usePaymentByOrderQuery(orderId, { skip: !orderId || !isAdmin });
+  const [createRefund, refundState] = useCreateRefundMutation();
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [refundForm] = Form.useForm();
 
   const order: Order | undefined = orderQ.data?.data;
   const canCancel = order?.status === 'PENDING_PAYMENT';
+
+  const rawPayment = paymentQ.data?.data;
+  const payment = Array.isArray(rawPayment) ? rawPayment[0] : rawPayment;
+  const paymentId = (payment?.id as string | undefined) ?? null;
+  const paymentStatus = payment?.status as string | undefined;
+  const canRefund =
+    isAdmin &&
+    !!paymentId &&
+    (paymentStatus === 'PAID' || paymentStatus === 'PARTIALLY_REFUNDED');
+  const refundedAmount = Number((payment as { refundedAmount?: unknown } | undefined)?.refundedAmount ?? 0) || 0;
+  const maxRefund = Math.max((order?.totalAmount ?? 0) - refundedAmount, 0);
 
   const onConfirmCancel = async () => {
     try {
@@ -36,6 +55,28 @@ export default function OrderDetailPage() {
       void orderQ.refetch();
     } catch {
       message.error('Hủy đơn hàng thất bại');
+    }
+  };
+
+  const onConfirmRefund = async () => {
+    if (!paymentId) return;
+    try {
+      const v = await refundForm.validateFields();
+      await createRefund({
+        paymentId,
+        amount: v.amount as number,
+        reason: (v.reason as string | undefined)?.trim() || undefined,
+        idempotencyKey: crypto.randomUUID(),
+      }).unwrap();
+      message.success('Đã tạo hoàn tiền');
+      setRefundOpen(false);
+      refundForm.resetFields();
+      void paymentQ.refetch();
+    } catch {
+      // validate loi → form tu hien thi; loi BE → hien message.
+      if (refundForm.getFieldsError().every((f) => f.errors.length === 0)) {
+        message.error('Tạo hoàn tiền thất bại');
+      }
     }
   };
 
@@ -52,6 +93,16 @@ export default function OrderDetailPage() {
             {canCancel && (
               <Button danger onClick={() => setCancelOpen(true)} loading={cancelState.isLoading}>
                 Hủy đơn
+              </Button>
+            )}
+            {canRefund && (
+              <Button
+                onClick={() => {
+                  refundForm.setFieldsValue({ amount: maxRefund, reason: '' });
+                  setRefundOpen(true);
+                }}
+              >
+                Hoàn tiền
               </Button>
             )}
             <Link to="/orders">
@@ -132,6 +183,37 @@ export default function OrderDetailPage() {
         <Typography.Paragraph>
           Đơn hàng đang chờ thanh toán nên có thể hủy. Hành động này không thể hoàn tác.
         </Typography.Paragraph>
+      </Modal>
+
+      <Modal
+        title="Hoàn tiền"
+        open={refundOpen}
+        onCancel={() => setRefundOpen(false)}
+        onOk={() => void onConfirmRefund()}
+        okText="Xác nhận hoàn tiền"
+        okButtonProps={{ loading: refundState.isLoading }}
+        cancelText="Hủy"
+        destroyOnClose
+      >
+        <Form form={refundForm} layout="vertical" preserve={false}>
+          <Form.Item
+            name="amount"
+            label={`Số tiền (tối đa ${formatVnd(maxRefund)})`}
+            rules={[
+              { required: true, message: 'Nhập số tiền hoàn' },
+              { type: 'number', min: 1, max: maxRefund, message: `Số tiền từ 1 đến ${formatVnd(maxRefund)}` },
+            ]}
+          >
+            <InputNumber style={{ width: '100%' }} min={1} max={maxRefund} />
+          </Form.Item>
+          <Form.Item
+            name="reason"
+            label="Lý do"
+            rules={[{ max: 512, message: 'Tối đa 512 ký tự' }]}
+          >
+            <Input.TextArea rows={3} placeholder="Lý do hoàn tiền (không bắt buộc)" />
+          </Form.Item>
+        </Form>
       </Modal>
     </div>
   );

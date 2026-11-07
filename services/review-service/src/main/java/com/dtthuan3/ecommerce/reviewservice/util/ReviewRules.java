@@ -71,8 +71,17 @@ public class ReviewRules {
     /**
      * true nếu nội dung cần người kiểm duyệt xem trước (có link, số điện thoại hoặc từ khóa cấm).
      * Nội dung sạch sẽ được đăng ngay (giống Shopee) khi ReviewServiceImpl.AUTO_PUBLISH=true.
+     * Dùng danh sách từ cấm tĩnh (cho test); luồng thật dùng overload có List bên dưới.
      */
     public boolean needsModeration(String content) {
+        return needsModeration(content, bannedWords);
+    }
+
+    /**
+     * Overload cho luồng thật: từ cấm lấy động từ DB (qua BannedWordService).
+     * So khớp substring, không phân biệt hoa thường (giữ nguyên như bản tĩnh).
+     */
+    public boolean needsModeration(String content, List<String> dynamicBannedWords) {
         if (!hasText(content)) {
             return false;
         }
@@ -80,7 +89,8 @@ public class ReviewRules {
             return true;
         }
         String lower = content.toLowerCase(Locale.ROOT);
-        return bannedWords.stream()
+        List<String> words = dynamicBannedWords == null ? List.of() : dynamicBannedWords;
+        return words.stream()
                 .filter(w -> w != null && !w.isBlank())
                 .anyMatch(w -> lower.contains(w.toLowerCase(Locale.ROOT)));
     }

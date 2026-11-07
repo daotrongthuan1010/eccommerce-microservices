@@ -183,6 +183,14 @@ public class OrderServiceImpl implements OrderService {
         return toResponse(order);
     }
 
+    @Override
+    @Transactional
+    public void publishOrderPaid(Order order) {
+        // Don da PAID (consumer vua save) — chi ghi outbox, lines doc lai tu DB
+        List<OrderLine> lines = orderLineRepository.findByOrderIdOrderByLineNoAsc(order.getId());
+        writeOutbox(order, "OrderPaid", orderPayload("OrderPaid", order, lines));
+    }
+
     // ===== helpers =====
 
     private String generateOrderCode() {
@@ -206,7 +214,8 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private void writeOutbox(Order order, String eventType, Map<String, Object> payload) {
+    /** Ghi outbox — public de consumer tai dung (ghi atomically trong transaction goi). */
+    public void writeOutbox(Order order, String eventType, Map<String, Object> payload) {
         try {
             OrderOutbox outbox = new OrderOutbox();
             outbox.setEventId(UUID.randomUUID().toString());
@@ -223,9 +232,7 @@ public class OrderServiceImpl implements OrderService {
     private Map<String, Object> orderPayload(String eventType, Order order, List<OrderLine> lines) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("eventId", UUID.randomUUID().toString());
-        // eventType truyen vao tu writeOutbox (OrderCreated/OrderCancelled) —
-        // cu so order.getStatus() (PENDING_PAYMENT) voi "OrderCreated" luon
-        // ra null, consumer payment/notification khong nhan dien duoc event.
+        // eventType truyen vao tu writeOutbox — cu so status voi "OrderCreated" luon ra null.
         payload.put("eventType", eventType);
         payload.put("orderId", order.getId());
         payload.put("orderCode", order.getOrderCode());
@@ -237,6 +244,7 @@ public class OrderServiceImpl implements OrderService {
         payload.put("occurredAt", Instant.now().toString());
         payload.put("lines", lines.stream().map(l -> Map.of(
                 "skuId", l.getSkuId(),
+                "productName", l.getProductName(),
                 "quantity", l.getQuantity(),
                 "unitPrice", l.getUnitPrice(),
                 "lineAmount", l.getLineAmount())).toList());
