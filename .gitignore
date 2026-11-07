@@ -22,7 +22,9 @@ vps-deploy*.sh
 install-docker*.sh
 
 # Local helper scripts (giu local, khong push len remote)
-scripts/
+scripts/*
+# §E2E: test chay tren production la tai san repo — commit
+!scripts/e2e-prod-test.mjs
 
 # Folders local-only (giu local, khong push len remote)
 docs/
