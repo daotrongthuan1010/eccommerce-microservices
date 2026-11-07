@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- §Mẻ1-obs: log JSON stdout cho Loki parse field (traceId, spanId, level, service)
+     traceId/spanId do micrometer-tracing tự put vào MDC khi có request -->
+<configuration>
+  <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="unknown-service"/>
+
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+      <customFields>{"service":"${appName}"}</customFields>
+      <fieldNames>
+        <timestamp>timestamp</timestamp>
+        <version>[ignore]</version>
+      </fieldNames>
+    </encoder>
+  </appender>
+
+  <root level="INFO">
+    <appender-ref ref="STDOUT"/>
+  </root>
+</configuration>

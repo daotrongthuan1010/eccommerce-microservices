@@ -12,6 +12,8 @@
     <grpc-spring-boot-starter.version>3.1.0.RELEASE</grpc-spring-boot-starter.version>
     <protobuf-maven-plugin.version>0.6.1</protobuf-maven-plugin.version>
     <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
+    <!-- §Mẻ1-obs: log JSON cho Loki — version managed tập trung -->
+    <logstash-logback-encoder.version>8.1</logstash-logback-encoder.version>
     <nexus.url>http://162.4.177.91:18081</nexus.url>
   </properties>
   <repositories>
@@ -90,6 +92,8 @@
     <dependencies>
       <dependency><groupId>org.springframework.cloud</groupId><artifactId>spring-cloud-dependencies</artifactId><version>${spring-cloud.version}</version><type>pom</type><scope>import</scope></dependency>
       <dependency><groupId>io.grpc</groupId><artifactId>grpc-bom</artifactId><version>${grpc.version}</version><type>pom</type><scope>import</scope></dependency>
+      <!-- §Mẻ1-obs: log JSON — mọi service log stdout JSON để Loki parse field -->
+      <dependency><groupId>net.logstash.logback</groupId><artifactId>logstash-logback-encoder</artifactId><version>${logstash-logback-encoder.version}</version></dependency>
     </dependencies>
   </dependencyManagement>
   <build>
