@@ -3,6 +3,7 @@ package com.dtthuan3.ecommerce.orderservice.service.impl;
 import com.dtthuan3.ecommerce.common.exception.BusinessException;
 import com.dtthuan3.ecommerce.common.exception.ErrorCode;
 import com.dtthuan3.ecommerce.common.exception.ResourceNotFoundException;
+import com.dtthuan3.ecommerce.orderservice.domain.OrderStatus;
 import com.dtthuan3.ecommerce.orderservice.dto.request.CheckoutRequest;
 import com.dtthuan3.ecommerce.orderservice.dto.response.CheckoutResponse;
 import com.dtthuan3.ecommerce.orderservice.dto.response.OrderResponse;
@@ -53,8 +54,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class OrderServiceImpl implements OrderService {
 
-    public static final String STATUS_PENDING_PAYMENT = "PENDING_PAYMENT";
-    public static final String STATUS_CANCELLED = "CANCELLED";
     public static final String TOPIC = "order-events";
     private static final Duration RESERVATION_TTL = Duration.ofMinutes(15);
 
@@ -98,7 +97,7 @@ public class OrderServiceImpl implements OrderService {
         order.setId(UUID.randomUUID().toString());
         order.setOrderCode(generateOrderCode());
         order.setUserId(userId);
-        order.setStatus(STATUS_PENDING_PAYMENT);
+        order.setStatus(OrderStatus.PENDING_PAYMENT.getValue()); // §ADR-0001: enum la nguon duy nhat
         order.setTotalAmount(totalAmount);
         order.setCurrency("VND");
         order.setPaymentMethod(request.paymentMethod());
@@ -163,12 +162,16 @@ public class OrderServiceImpl implements OrderService {
         Order order = orderRepository.findByIdAndUserId(orderId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order", orderId));
 
-        if (!STATUS_PENDING_PAYMENT.equals(order.getStatus())) {
+        // §ADR-0001: guard + transition qua state machine — cancel chi hop le
+        // tu PENDING_PAYMENT hoac PAID (GLOSSARY), ngoai do tu choi ro rang
+        OrderStatus current = OrderStatus.fromValue(order.getStatus());
+        if (!current.canTransitionTo(OrderStatus.CANCELLED)) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "Chỉ hủy được đơn đang chờ thanh toán (hiện tại: " + order.getStatus() + ")");
+                    "Chỉ hủy được đơn đang chờ thanh toán (hiện tại: " + current + ")");
         }
+        OrderStatus.assertTransition(current, OrderStatus.CANCELLED);
 
-        order.setStatus(STATUS_CANCELLED);
+        order.setStatus(OrderStatus.CANCELLED.getValue());
         order.setCancelReason(reason);
         orderRepository.save(order);
 

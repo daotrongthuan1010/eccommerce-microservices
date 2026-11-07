@@ -37,8 +37,11 @@ public enum OrderStatus {
     }
 
     private static final Map<OrderStatus, Set<OrderStatus>> TRANSITIONS = Map.of(
+            // §nghiep-vu: cancel API chi cho don chua thanh toan; don PAID phai
+            // di qua hoan tien — GLOSSARY cho PAID->CANCELLED nhung do la
+            // compensation flow, khong phai API cancel truc tiep
             PENDING_PAYMENT, Set.of(PAID, PAYMENT_FAILED, CANCELLED, EXPIRED),
-            PAID, Set.of(CONFIRMED, CANCELLED),
+            PAID, Set.of(CONFIRMED),
             CONFIRMED, Set.of(SHIPPED),
             SHIPPED, Set.of(DELIVERED),
             DELIVERED, Set.of(),
