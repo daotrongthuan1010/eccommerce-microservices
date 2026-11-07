@@ -26,12 +26,13 @@ public class SecurityConfig {
             throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // Scaffold chung: thong ke chi ADMIN, health thi public
+                // Thong ke chi ADMIN, health public. Path theo convention StripPrefix=2
+                // cua gateway: /api/analytics/** -> /** (controller khong lap ten service).
                 .authorizeHttpRequests(auth -> auth.requestMatchers("/actuator/**")
                         .permitAll()
-                        .requestMatchers("/analytics/admin/**")
+                        .requestMatchers("/admin/**")
                         .hasRole("ADMIN")
-                        .requestMatchers("/analytics/**")
+                        .requestMatchers("/**")
                         .hasRole("ADMIN")
                         .anyRequest()
                         .authenticated())

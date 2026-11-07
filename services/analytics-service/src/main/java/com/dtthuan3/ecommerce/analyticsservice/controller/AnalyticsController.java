@@ -18,11 +18,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Bao cao doanh thu cho ADMIN (SecurityConfig chan /analytics/** theo role).
+ * Bao cao doanh thu cho ADMIN. Convention gateway StripPrefix=2: /api/analytics/kpis
+ * -> /kpis (controller KHONG lap ten service — nhu review /admin/reviews, order /me).
  * from/to dang yyyy-MM-dd, mac dinh 30 ngay gan nhat (gio VN).
  */
 @RestController
-@RequestMapping("/analytics")
+@RequestMapping("")
 @RequiredArgsConstructor
 public class AnalyticsController {
 
