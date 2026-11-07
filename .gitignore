@@ -10,6 +10,9 @@ backups/
 # Docs local - khong push len remote
 *.md
 !README.md
+# §ADR: glossary + ADR là tài sản thiết kế — commit, không local-only (đã mất docs 1 lần)
+!GLOSSARY.md
+!docs/adr/*.md
 openspec/
 CHECKLIST*.md
 *.pw
@@ -25,6 +28,10 @@ scripts/
 docs/
 postman/
 **/docs/
+# §ADR: ngoại lệ — docs/adr + GLOSSARY là tài sản thiết kế, commit
+!docs/
+!docs/adr/
+!docs/adr/*.md
 
 # Frontend build output (W1 housekeeping)
 frontend/dist/
