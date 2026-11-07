@@ -36,17 +36,17 @@ spec:
             - name: DYNAMIC_CONFIG_ENABLED
               value: "false"
             - name: JAVA_OPTS
-              # §OOM-fix: Xmx256m + metaspace/stack/thread vuot 512Mi khi poll
-              # metrics nhieu topic -> OOMKilled x123 (exit 137). Giam heap,
-              # them headroom; kafka-ui la cong cu dev, khong can heap lon.
-              value: -Xms64m -Xmx160m -XX:MaxMetaspaceSize=96m -XX:MaxDirectMemorySize=64m -XX:+UseSerialGC
+              # §OOM-fix lan 2 (2026-11-07): heap 160m van OOMKilled x32 tren VPS
+              # (poll metrics nhieu topic can heap hon). Tang heap 512m + limit 768Mi,
+              # SerialGC de giam overhead. Verify tren VPS: Running 0 restart, 204Mi.
+              value: -Xms128m -Xmx512m -XX:+UseSerialGC
           resources:
             requests:
               cpu: 100m
-              memory: 192Mi
+              memory: 256Mi
             limits:
               cpu: 500m
-              memory: 512Mi
+              memory: 768Mi
           readinessProbe:
             httpGet:
               path: /
