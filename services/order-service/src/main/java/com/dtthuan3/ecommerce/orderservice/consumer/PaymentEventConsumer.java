@@ -69,7 +69,7 @@ public class PaymentEventConsumer {
 
             switch (eventType) {
                 case "PaymentSucceeded" -> markPaid(orderId, event);
-                case "PaymentFailed", "PaymentExpired" -> markFailed(orderId, eventType);
+                case "PaymentFailed", "PaymentExpired" -> markFailed(orderId, event);
                 default -> log.debug("Payment event {} khong lien quan don: bo qua", eventType);
             }
 
@@ -81,8 +81,11 @@ public class PaymentEventConsumer {
             inbox.save(processed);
 
         } catch (Exception e) {
-            // Poison message: log + khong rethrow de khong block consumer; can DLT sau nay
-            log.error("Xu ly payment event that bai: {} — {}", e.getMessage(), truncate(message), e);
+            // §issue #5: poison message phai rethrow — DefaultErrorHandler retry
+            // + DLT (cau hinh trong KafkaConfig) thay vi nuot lam event mat.
+            // Inbox chua ghi nen redeliver xu ly lai; het retry -> DLT cho replay.
+            log.error("Xu ly payment event that bai, rethrow de retry/DLT: {} — {}", e.getMessage(), truncate(message), e);
+            throw new RuntimeException("Xu ly payment event that bai", e);
         }
     }
 
@@ -122,13 +125,16 @@ public class PaymentEventConsumer {
             kafka.send(orderEventsTopic, order.getId(), objectMapper.writeValueAsString(payload));
             log.info("Published OrderConfirmed for order {}", order.getId());
         } catch (Exception e) {
-            // Khong rethrow de inbox van ghi (event payment da xu ly); mail la
-            // best-effort — khong rollback trang thai PAID vi loi mail.
-            log.error("Publish OrderConfirmed that bai cho order {}: {}", order.getId(), e.getMessage(), e);
+            // §ADR-0002 issue #5: KHONG nuot — rethrow de transaction rollback,
+            // Kafka redeliver event payment; inbox chua ghi nen xu ly lai tu dau.
+            // Truoc day nuot exception = event OrderConfirmed mat vinh vien
+            // (mail xac nhan khong bao gio gui, khong ai biet).
+            throw new RuntimeException("Publish OrderConfirmed that bai cho order " + order.getId(), e);
         }
     }
 
-    private void markFailed(String orderId, String eventType) {
+    private void markFailed(String orderId, JsonNode event) {
+        String eventType = text(event, "eventType");
         orderRepository.findById(orderId).ifPresent(order -> {
             if (!"PENDING_PAYMENT".equals(order.getStatus())) {
                 log.info("Order {} dang {} — bo qua {} (idempotent)", orderId, order.getStatus(), eventType);
@@ -137,7 +143,36 @@ public class PaymentEventConsumer {
             order.setStatus("PAYMENT_FAILED");
             orderRepository.save(order);
             log.info("Order {} -> PAYMENT_FAILED ({})", orderId, eventType);
+            // §ADR-0001 issue #4: compensating action — phat event de inventory
+            // release reservation ngay thay vi cho TTL 15 phut. Event qua outbox
+            // se hoan thien sau (issue #5); tam thoi send + rethrow khi fail
+            // de inbox khong ghi, consumer Kafka retry.
+            publishOrderPaymentFailed(order, event);
         });
+    }
+
+    /**
+     * §ADR-0001: event compensation cho saga — inventory-service lang nghe
+     * OrderPaymentFailed de release reservation cua don. Send fail phai rethrow
+     * (khong nuot) de Kafka retry; inbox chua ghi nen event se xu ly lai.
+     */
+    private void publishOrderPaymentFailed(Order order, JsonNode paymentEvent) {
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("eventId", UUID.randomUUID().toString());
+            payload.put("eventType", "OrderPaymentFailed");
+            payload.put("orderId", order.getId());
+            payload.put("orderCode", order.getOrderCode());
+            payload.put("userId", order.getUserId());
+            payload.put("status", order.getStatus());
+            payload.put("paymentEventType", text(paymentEvent, "eventType"));
+            payload.put("occurredAt", Instant.now().toString());
+            kafka.send(orderEventsTopic, order.getId(), objectMapper.writeValueAsString(payload));
+            log.info("Published OrderPaymentFailed (compensation) for order {}", order.getId());
+        } catch (Exception e) {
+            // §ADR-0002: khong nuot — rethrow de transaction rollback, Kafka retry
+            throw new RuntimeException("Publish OrderPaymentFailed that bai cho order " + order.getId(), e);
+        }
     }
 
     private static String text(JsonNode node, String field) {

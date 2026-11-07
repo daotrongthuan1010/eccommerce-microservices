@@ -16,6 +16,8 @@ public interface InventoryReservationRepository {
     Optional<ReservationHeaderRecord> findById(String reservationId);
     Optional<ReservationHeaderRecord> findByIdForUpdate(String reservationId);
     Optional<ReservationHeaderRecord> findByOperationId(String operationId);
+    /** §issue #4: tìm reservation HELD mới nhất theo orderId — consumer OrderPaymentFailed dùng để release. */
+    Optional<ReservationHeaderRecord> findHeldByOrderId(String orderId);
     List<ReservationLineRecord> findLines(String reservationId);
     boolean insertHeader(ReservationHeaderRecord header);
     void insertLines(String reservationId, List<ReservationLineRecord> lines);

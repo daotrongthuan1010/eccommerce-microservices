@@ -36,6 +36,16 @@ public class JdbcInventoryReservationRepository implements InventoryReservationR
         return queryHeader("SELECT * FROM inventory_reservation WHERE operation_id = ?", operationId);
     }
 
+    /** §issue #4: reservation HELD moi nhat cua don — saga compensation release dua vao day. */
+    @Override
+    public Optional<ReservationHeaderRecord> findHeldByOrderId(String orderId) {
+        return queryHeader("""
+                SELECT * FROM inventory_reservation
+                WHERE order_id = ? AND status = 'HELD'
+                ORDER BY created_at DESC LIMIT 1
+                """, orderId);
+    }
+
     private Optional<ReservationHeaderRecord> queryHeader(String sql, String key) {
         List<ReservationHeaderRecord> rows = jdbcTemplate.query(sql, (rs, row) -> {
             Timestamp committedAt = rs.getTimestamp("committed_at");
