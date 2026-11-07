@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 /**
- * E2E test luong chinh tren PRODUCTION that (https://shop-hatd.online).
- * Chuoi 8 buoc theo docs memory e2e-payment-flow:
- *   login -> cart -> variant -> add item -> checkout (Idempotency-Key)
- *   -> payment tao (poll) -> fake-gateway pay -> order PAID
+ * E2E test suite tren PRODUCTION that (https://shop-hatd.online).
  *
- * Chay: node scripts/e2e-prod-test.mjs
+ * Cases:
+ *  - happy-path: login -> cart -> browse -> checkout -> payment -> pay -> PAID
+ *  - idempotency: checkout 2 lan cung key -> cung orderId, khong don thu 2
+ *  - saga-compensation: pay FAILED -> order PAYMENT_FAILED (event chain that)
+ *  - auth: sai password -> 401
+ *  - search: Elasticsearch query qua gateway
+ *
+ * Chay: E2E_ACCEPT_SELF_SIGNED=1 E2E_PASSWORD=... node scripts/e2e-prod-test.mjs
  * Yeu cau: Node 18+. Test account: thuan.user (Secret ngoai repo).
- *
- * §TEST_COVERAGE_REPORT P0: saga E2E tren production — bay gio co script
- * chay duoc ca local lan manual.
  */
 
 const BASE = process.env.E2E_BASE_URL || 'https://shop-hatd.online';
@@ -28,7 +29,7 @@ function record(step, ok, detail = '') {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${step}${detail ? ' — ' + detail : ''}`);
 }
 
-async function api(method, path, { token, body, headers = {}, raw = false } = {}) {
+async function api(method, path, { token, body, headers = {} } = {}) {
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
@@ -56,88 +57,174 @@ async function poll(fn, { tries = 20, interval = 3000, name = 'poll' } = {}) {
   return null;
 }
 
-async function main() {
-  if (!PASSWORD) {
-    console.error('Thieu E2E_PASSWORD. Usage: E2E_PASSWORD=... node scripts/e2e-prod-test.mjs');
-    process.exit(2);
-  }
-
-  // 1. LOGIN
-  const login = await api('POST', '/api/auth/login',
+async function login() {
+  const r = await api('POST', '/api/auth/login',
     { body: { username: USERNAME, password: PASSWORD } });
-  const token = login.data?.access_token ?? login.json?.access_token;
-  record('1. Login /api/auth/login', !!token, `status=${login.status}`);
-  if (!token) process.exit(1);
+  return r.data?.access_token ?? r.json?.access_token;
+}
 
-  // 2. GET CART
-  const cart = await api('GET', '/api/order/cart', { token });
-  record('2. GET /api/order/cart', cart.status === 200, `status=${cart.status}`);
-
-  // 3. TIM VARIANT (SKU) — browse endpoint (gateway permitAll, co envelope)
+async function pickSku() {
   const products = await api('GET', '/api/product/products/browse?page=0&size=5');
   const first = products.data?.content?.[0];
-  const productId = first?.id;
-  record('3. GET /api/product/products/browse', !!productId, `productId=${productId} name=${first?.productCode}`);
+  if (!first?.id) return null;
+  const variants = await api('GET', `/api/product/products-variant/products/${first.id}/variants`);
+  const v = Array.isArray(variants.data) ? variants.data[0]
+    : variants.data?.content?.[0] ?? variants.json?.[0];
+  return {
+    skuId: v?.id ?? v?.skuId ?? v?.variantId,
+    productName: v?.name ? String(v.name).replace(/[^\x00-\x7F]/g, 'A') : 'E2E Test Product',
+    unitPrice: v?.price ?? v?.unitPrice ?? 100000,
+  };
+}
 
-  let skuId = null, productName = 'E2E Test Product', unitPrice = 100000;
-  if (productId) {
-    const variants = await api('GET', `/api/product/products-variant/products/${productId}/variants`);
-    const v = Array.isArray(variants.data) ? variants.data[0] : variants.data?.content?.[0] ?? variants.json?.[0];
-    skuId = v?.id ?? v?.skuId ?? v?.variantId;
-    if (v?.name) productName = String(v.name).replace(/[^\x00-\x7F]/g, 'A'); // §ASCII: shell/JSON unicode bug
-    if (v?.price ?? v?.unitPrice) unitPrice = v.price ?? v.unitPrice;
-  }
-  record('4. GET variants -> skuId', !!skuId, `skuId=${skuId} price=${unitPrice}`);
-
-  // 5. ADD TO CART
-  const add = await api('POST', '/api/order/cart/items', {
-    token,
-    body: { skuId, productName, unitPrice, quantity: 1 },
+async function addToCart(token, sku) {
+  return api('POST', '/api/order/cart/items', {
+    token, body: { skuId: sku.skuId, productName: sku.productName, unitPrice: sku.unitPrice, quantity: 1 },
   });
-  record('5. POST /api/order/cart/items', add.status === 200 || add.status === 201, `status=${add.status}`);
+}
 
-  // 6. CHECKOUT + Idempotency-Key
-  const idemKey = `e2e-${Date.now()}`;
-  const checkout = await api('POST', '/api/order/me/checkout', {
+async function checkout(token, idemKey, method = 'VNPAY') {
+  return api('POST', '/api/order/me/checkout', {
     token,
     headers: { 'Idempotency-Key': idemKey },
-    body: { shippingAddress: 'E2E Test Address', recipientName: 'E2E Tester', recipientPhone: '0900000000', paymentMethod: 'VNPAY' },
+    body: { shippingAddress: 'E2E Test Address', recipientName: 'E2E Tester', recipientPhone: '0900000000', paymentMethod: method },
   });
-  const order = checkout.data ?? checkout.json;
-  const orderId = order?.orderId ?? order?.id;
-  record('6. POST /api/order/me/checkout', !!orderId, `orderId=${orderId} status=${order?.status}`);
+}
 
-  // 7. PAYMENT duoc tao tu event OrderCreated (poll by-order)
+async function completeGatewayPayment(payment, outcome) {
+  const txnRef = new URL(payment.checkoutUrl).searchParams.get('txnRef');
+  const r = await fetch(
+    `${BASE}/fake-gateway/fake/vnpay/pay/${encodeURIComponent(txnRef)}/complete?outcome=${outcome}`,
+    { method: 'POST', redirect: 'manual' });
+  return r.status === 302 || r.status === 200;
+}
+
+// ============================================================ CASES
+
+async function caseHappyPath(token) {
+  console.log('\n--- CASE 1: Happy path checkout -> payment -> PAID ---');
+  const sku = await pickSku();
+  record('1.1 Browse + variant', !!sku?.skuId, `skuId=${sku?.skuId}`);
+  if (!sku?.skuId) return;
+
+  const add = await addToCart(token, sku);
+  record('1.1b Add to cart', add.status === 200 || add.status === 201, `status=${add.status} ${add.status >= 400 ? add.text.slice(0, 150) : ''}`);
+  const co = await checkout(token, `e2e-happy-${Date.now()}`);
+  const orderId = co.data?.orderId;
+  record('1.2 Checkout', !!orderId, `orderId=${orderId} status=${co.status} ${!orderId ? co.text.slice(0, 250) : ''}`);
+  if (!orderId) return;
+
+  // Poll den khi payment co checkoutUrl (session gateway da tao)
   const payment = await poll(async () => {
     const r = await api('GET', `/api/payment/payments/by-order/${orderId}`, { token });
-    return r.status === 200 && r.data ? r.data : null;
+    return (r.status === 200 && r.data?.checkoutUrl) ? r.data : null;
   }, { name: 'payment-created' });
-  record('7. Payment tao tu OrderCreated event', !!payment, `paymentId=${payment?.id} status=${payment?.status}`);
+  record('1.3 Payment tu event OrderCreated', !!payment, `status=${payment?.status}`);
 
-  // 8. FAKE GATEWAY thanh toan -> IPN -> order PAID (poll)
-  // GET /pay chi tra HTML form; phai POST /pay/{txnRef}/complete?outcome=SUCCESS
-  let checkoutUrl = payment?.checkoutUrl;
-  if (checkoutUrl) {
-    const txnRef = new URL(checkoutUrl).searchParams.get('txnRef');
-    const complete = await fetch(`${BASE}/fake-gateway/fake/vnpay/pay/${encodeURIComponent(txnRef)}/complete?outcome=SUCCESS`,
-      { method: 'POST', redirect: 'manual' });
-    record('8a. Fake-gateway pay SUCCESS', complete.status === 302 || complete.status === 200,
-      `status=${complete.status} txnRef=${txnRef}`);
-  } else {
-    record('8a. Fake-gateway pay', false, 'khong co checkoutUrl');
-  }
+  const paid = await completeGatewayPayment(payment, 'SUCCESS');
+  record('1.4 Gateway pay SUCCESS', paid);
 
-  const paid = await poll(async () => {
+  const order = await poll(async () => {
     const r = await api('GET', `/api/order/me/orders/${orderId}`, { token });
     return r.data?.status === 'PAID' ? r.data : null;
   }, { tries: 15, name: 'order-PAID' });
-  record('8b. Order PAID sau IPN', !!paid, `status=${paid?.status ?? 'timeout'}`);
+  record('1.5 Order PAID sau IPN', !!order, `status=${order?.status ?? 'timeout'}`);
+}
 
-  // TONG KET
+async function caseIdempotencyReplay(token) {
+  console.log('\n--- CASE 2: Idempotency — checkout 2 lan cung key ---');
+  const sku = await pickSku();
+  if (!sku?.skuId) { record('2.x', false, 'khong co sku'); return; }
+  await addToCart(token, sku);
+
+  const key = `e2e-idem-${Date.now()}`;
+  const first = await checkout(token, key);
+  await sleep(1500); // checkout 1 clear cart — replay doc ket qua luu, khong can cart
+  const second = await checkout(token, key); // replay: cung key, cung payload
+  const id1 = first.data?.orderId, id2 = second.data?.orderId;
+  record('2.1 Replay cung key -> cung orderId', id1 && id1 === id2,
+    `1=${id1} 2=${id2} s2=${second.status} ${!id2 ? second.text.slice(0, 150) : ''}`);
+
+  // Khac payload cung key -> phai tu choi (409/422)
+  const conflict = await checkout(token, key + 'x', 'COD'); // key moi, method khac — khong phai conflict
+  // That su: cung key nhung doi dia chi
+  const conflictReq = await api('POST', '/api/order/me/checkout', {
+    token, headers: { 'Idempotency-Key': key },
+    body: { shippingAddress: 'DIA CHI KHAC', recipientName: 'E2E Tester', recipientPhone: '0900000000', paymentMethod: 'VNPAY' },
+  });
+  record('2.2 Cung key khac payload -> tu choi',
+    conflictReq.status === 409 || conflictReq.status === 422, `status=${conflictReq.status}`);
+}
+
+async function caseSagaCompensation(token) {
+  console.log('\n--- CASE 3: Saga compensation — pay FAILED -> order PAYMENT_FAILED ---');
+  const sku = await pickSku();
+  if (!sku?.skuId) { record('3.x', false, 'khong co sku'); return; }
+  await addToCart(token, sku);
+
+  const co = await checkout(token, `e2e-fail-${Date.now()}`);
+  const orderId = co.data?.orderId;
+  record('3.1 Checkout', !!orderId, `orderId=${orderId} s=${co.status} ${!orderId ? co.text.slice(0, 150) : ''}`);
+  if (!orderId) return;
+
+  // Poll den khi co checkoutUrl — gateway session phai san sang
+  const payment = await poll(async () => {
+    const r = await api('GET', `/api/payment/payments/by-order/${orderId}`, { token });
+    return (r.status === 200 && r.data?.checkoutUrl) ? r.data : null;
+  }, { name: 'payment-created' });
+  record('3.2 Payment tao', !!payment);
+
+  const failed = await completeGatewayPayment(payment, 'FAILED');
+  record('3.3 Gateway pay FAILED', failed);
+
+  // §ADR-0001: order phai chuyen PAYMENT_FAILED tu event PaymentFailed
+  const order = await poll(async () => {
+    const r = await api('GET', `/api/order/me/orders/${orderId}`, { token });
+    return r.data?.status === 'PAYMENT_FAILED' ? r.data : null;
+  }, { tries: 15, name: 'order-FAILED' });
+  record('3.4 Order PAYMENT_FAILED (saga event chain)', !!order, `status=${order?.status ?? 'timeout'}`);
+}
+
+async function caseAuth() {
+  console.log('\n--- CASE 4: Auth — sai password -> 401 ---');
+  const r = await api('POST', '/api/auth/login',
+    { body: { username: USERNAME, password: 'sai-mat-khau-roi' } });
+  record('4.1 Sai password -> tu choi', r.status === 401 || r.status === 400, `status=${r.status}`);
+
+  const noAuth = await api('GET', '/api/order/cart');
+  record('4.2 Khong token -> 401/403', noAuth.status === 401 || noAuth.status === 403, `status=${noAuth.status}`);
+}
+
+async function caseSearch(token) {
+  console.log('\n--- CASE 5: Search Elasticsearch qua gateway ---');
+  const r = await api('GET', '/api/search/products?q=iphone&size=2', { token });
+  const hasResults = r.status === 200 && (r.data?.content?.length > 0 || Array.isArray(r.data));
+  record('5.1 GET /api/search/products?q=iphone', hasResults,
+    `status=${r.status} hits=${r.data?.content?.length ?? 0}`);
+}
+
+// ============================================================ MAIN
+
+async function main() {
+  if (!PASSWORD) {
+    console.error('Thieu E2E_PASSWORD. Usage: E2E_ACCEPT_SELF_SIGNED=1 E2E_PASSWORD=... node scripts/e2e-prod-test.mjs');
+    process.exit(2);
+  }
+
+  const token = await login();
+  record('0. Login', !!token);
+  if (!token) process.exit(1);
+
+  await caseHappyPath(token);
+  await caseIdempotencyReplay(token);
+  await caseSagaCompensation(token);
+  await caseAuth();
+  await caseSearch(token);
+
   const failed = results.filter(r => !r.ok);
   console.log(`\n=== E2E: ${results.length - failed.length}/${results.length} PASS ===`);
   if (failed.length) {
-    console.log('FAILED steps:', failed.map(f => f.step).join('; '));
+    console.log('FAILED:', failed.map(f => f.step).join('; '));
     process.exit(1);
   }
 }
