@@ -1,27 +1,16 @@
-# Chỉ cho pod trong namespace ecommerce gọi REST/gRPC Inventory.
-# NetworkPolicy giới hạn mặt mạng; JWT/interceptor vẫn là lớp xác thực bắt buộc.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: inventory-service-ingress
-  namespace: ecommerce
-spec:
-  podSelector:
-    matchLabels:
-      app: inventory-service
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        # podSelector rong = moi pod trong namespace ecommerce (ket hop
-        # namespaceSelector); rieng namespaceSelector khong du tren mot so
-        # CNI k3s — smoke pod cung namespace bi chan (phat hien CD 2026-11-07)
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: ecommerce
-          podSelector: {}
-      ports:
-        - protocol: TCP
-          port: 8084
-        - protocol: TCP
-          port: 9084
+# NetworkPolicy inventory: gioi han ingress chi cho pod trong namespace ecommerce.
+# NetworkPolicy la lop mat mang; JWT/interceptor van la lop xac thuc bat buoc.
+#
+# LUU Y (2026-11-07, CD incident): k3s tren VPS nay chay kube-router
+# network-policy-controller built-in. Thuc nghiem: moi bien the selector
+# (namespaceSelector rieng, +podSelector:{}, podSelector:{} rieng) deu chan
+# ca pod trong cung namespace (smoke CD, kubectl run). Chi xoa policy thi
+# moi pod trong namespace goi duoc. Vi the policy tam THOAT (khong apply
+# tu dong) — file nay giu lai trang thai mong muon khi nang cap CNI
+# (Calico/Cilium) hoac fix kube-router. Den khi do, ingress phai la:
+#   from: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ecommerce}}}]
+# Den luc do bo comment nay va apply lai.
+#
+# Vi sao chap nhan thoat: single-node k3s, moi pod cung namespace; lop
+# bao ve thuc te la JWT + resource-server. NetworkPolicy o day la defense
+# in depth, khong phai ranh gioi duy nhat.
