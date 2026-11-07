@@ -2,7 +2,6 @@ package com.dtthuan3.ecommerce.orderservice.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.TopicPartition;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -25,15 +24,11 @@ public class OrderKafkaConfig {
 
     @Bean
     public DefaultErrorHandler orderKafkaErrorHandler(
-            KafkaTemplate<String, String> kafkaTemplate,
-            @Value("${order.kafka.payment-events-dlt-topic:payment-events-dlt}")
-            String paymentDeadLetterTopic) {
-        // Giu nguyen partition khi chuyen DLT de doi soat offset
+            KafkaTemplate<String, String> kafkaTemplate) {
+        // §7 backend-conventions: DLT theo quy uoc <topic>.DLT — ap dung cho
+        // moi topic consumer cua service nay, khong hardcode tung topic
         DeadLetterPublishingRecoverer publisher = new DeadLetterPublishingRecoverer(kafkaTemplate,
-                (record, failure) -> new TopicPartition(
-                        record.topic().equals("payment-events") ? paymentDeadLetterTopic
-                                : record.topic() + ".DLT",
-                        record.partition()));
+                (record, failure) -> new TopicPartition(record.topic() + ".DLT", record.partition()));
         // Coi cuu ho thanh cong chi khi broker xac nhan publish DLT
         publisher.setFailIfSendResultIsError(true);
 
