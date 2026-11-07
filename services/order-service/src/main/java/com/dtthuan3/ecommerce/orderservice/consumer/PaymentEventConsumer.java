@@ -1,5 +1,6 @@
 package com.dtthuan3.ecommerce.orderservice.consumer;
 
+import com.dtthuan3.ecommerce.orderservice.domain.OrderStatus;
 import com.dtthuan3.ecommerce.orderservice.entity.Order;
 import com.dtthuan3.ecommerce.orderservice.entity.OrderInbox;
 import com.dtthuan3.ecommerce.orderservice.repository.OrderInboxRepository;
@@ -91,11 +92,14 @@ public class PaymentEventConsumer {
 
     private void markPaid(String orderId, JsonNode event) {
         orderRepository.findById(orderId).ifPresent(order -> {
-            if (!"PENDING_PAYMENT".equals(order.getStatus())) {
-                log.info("Order {} dang {} — bo qua PaymentSucceeded (idempotent)", orderId, order.getStatus());
+            // §ADR-0001: guard qua state machine thay vi string compare
+            OrderStatus current = OrderStatus.fromValue(order.getStatus());
+            if (current != OrderStatus.PENDING_PAYMENT) {
+                log.info("Order {} dang {} — bo qua PaymentSucceeded (idempotent)", orderId, current);
                 return;
             }
-            order.setStatus("PAID");
+            OrderStatus.assertTransition(current, OrderStatus.PAID);
+            order.setStatus(OrderStatus.PAID.getValue());
             order.setPaymentId(text(event, "paymentId"));
             orderRepository.save(order);
             log.info("Order {} -> PAID (payment {})", orderId, text(event, "paymentId"));
@@ -144,11 +148,14 @@ public class PaymentEventConsumer {
             log.warn("Order {} khong ton tai — van phat compensation (inventory tu bo qua)", orderId);
             return;
         }
-        if (!"PENDING_PAYMENT".equals(order.getStatus())) {
-            log.info("Order {} dang {} — bo qua {} (idempotent)", orderId, order.getStatus(), eventType);
+        // §ADR-0001: guard qua state machine thay vi string compare
+        OrderStatus current = OrderStatus.fromValue(order.getStatus());
+        if (current != OrderStatus.PENDING_PAYMENT) {
+            log.info("Order {} dang {} — bo qua {} (idempotent)", orderId, current, eventType);
             return;
         }
-        order.setStatus("PAYMENT_FAILED");
+        OrderStatus.assertTransition(current, OrderStatus.PAYMENT_FAILED);
+        order.setStatus(OrderStatus.PAYMENT_FAILED.getValue());
         orderRepository.save(order);
         log.info("Order {} -> PAYMENT_FAILED ({})", orderId, eventType);
         // §ADR-0001 issue #4: compensating action — phat event de inventory

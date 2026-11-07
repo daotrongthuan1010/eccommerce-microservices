@@ -3,8 +3,6 @@ package com.dtthuan3.ecommerce.orderservice.service.impl;
 import com.dtthuan3.ecommerce.common.exception.BusinessException;
 import com.dtthuan3.ecommerce.common.exception.ErrorCode;
 import com.dtthuan3.ecommerce.common.exception.ResourceNotFoundException;
-import com.dtthuan3.ecommerce.orderservice.client.InventoryClient;
-import com.dtthuan3.ecommerce.orderservice.client.PaymentClient;
 import com.dtthuan3.ecommerce.orderservice.dto.request.CheckoutRequest;
 import com.dtthuan3.ecommerce.orderservice.dto.response.CheckoutResponse;
 import com.dtthuan3.ecommerce.orderservice.dto.response.OrderResponse;
@@ -65,8 +63,6 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderLineRepository orderLineRepository;
     private final OrderOutboxRepository outboxRepository;
-    private final InventoryClient inventoryClient;
-    private final PaymentClient paymentClient;
     private final ObjectMapper objectMapper;
 
     @Override

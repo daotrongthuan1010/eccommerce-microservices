@@ -3,8 +3,6 @@ package com.dtthuan3.ecommerce.orderservice.service.impl;
 import com.dtthuan3.ecommerce.common.exception.BusinessException;
 import com.dtthuan3.ecommerce.common.exception.ErrorCode;
 import com.dtthuan3.ecommerce.common.exception.ResourceNotFoundException;
-import com.dtthuan3.ecommerce.orderservice.client.InventoryClient;
-import com.dtthuan3.ecommerce.orderservice.client.PaymentClient;
 import com.dtthuan3.ecommerce.orderservice.dto.request.CheckoutRequest;
 import com.dtthuan3.ecommerce.orderservice.dto.response.CheckoutResponse;
 import com.dtthuan3.ecommerce.orderservice.dto.response.OrderResponse;
@@ -55,8 +53,6 @@ class OrderServiceImplTest {
     @Mock private OrderRepository orderRepository;
     @Mock private OrderLineRepository orderLineRepository;
     @Mock private OrderOutboxRepository outboxRepository;
-    @Mock private InventoryClient inventoryClient;
-    @Mock private PaymentClient paymentClient;
 
     private OrderServiceImpl orderService;
 
@@ -68,7 +64,7 @@ class OrderServiceImplTest {
         orderService = new OrderServiceImpl(
                 cartRepository, cartItemRepository, orderRepository,
                 orderLineRepository, outboxRepository,
-                inventoryClient, paymentClient, new ObjectMapper());
+                new ObjectMapper());
     }
 
     private Cart activeCart() {
