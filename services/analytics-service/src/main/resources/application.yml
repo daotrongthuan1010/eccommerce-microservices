@@ -42,6 +42,7 @@ spring:
 analytics:
   kafka:
     order-events-topic: ${ANALYTICS_KAFKA_ORDER_EVENTS_TOPIC:order-events}
+spring:
   security:
     oauth2:
       resourceserver:
