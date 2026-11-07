@@ -1,0 +1,105 @@
+# §Me3-obs (issue #3): Provision Grafana dashboards qua ConfigMap.
+# Service Overview: request rate / error rate / P95 latency mọi service.
+# Tempo datasource có tracesToLogs nên click span -> log; exemplar bật
+# trong panel latency (tracesToMetricsV2 + exemplars).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: ecommerce
+  labels:
+    app: grafana
+data:
+  service-overview.json: |
+    {
+      "title": "Ecommerce — Service Overview",
+      "uid": "ecommerce-overview",
+      "tags": ["ecommerce", "me3-obs"],
+      "timezone": "browser",
+      "refresh": "30s",
+      "time": { "from": "now-3h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "type": "timeseries",
+          "title": "Request rate (req/s) theo service",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+          "targets": [
+            {
+              "expr": "sum(rate(http_server_requests_seconds_count{job=\"app-services\"}[5m])) by (instance)",
+              "legendFormat": "{{instance}}"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "timeseries",
+          "title": "Error rate 5xx (%)",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+          "targets": [
+            {
+              "expr": "100 * sum(rate(http_server_requests_seconds_count{status=~\"5..\"}[5m])) by (instance) / sum(rate(http_server_requests_seconds_count[5m])) by (instance)",
+              "legendFormat": "{{instance}}"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "timeseries",
+          "title": "P95 latency (s) — exemplar click -> Tempo trace",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job=\"app-services\"}[5m])) by (le, instance))",
+              "legendFormat": "{{instance}}",
+              "exemplar": true,
+              "datasource": { "type": "prometheus", "uid": "${DS_PROM}" }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "exemplar": { "color": "#ff00ff" }
+              }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "Target up/down",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+          "targets": [
+            { "expr": "up{job=\"app-services\"}", "legendFormat": "{{instance}}" }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          }
+        }
+      ],
+      "templating": {
+        "list": [
+          {
+            "name": "DS_PROM",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": { "text": "Prometheus", "value": "Prometheus" }
+          }
+        ]
+      },
+      "schemaVersion": 39
+    }

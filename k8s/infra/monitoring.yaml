@@ -227,6 +227,17 @@ data:
             datasourceUid: Prometheus
           serviceMap:
             datasourceUid: Prometheus
+  # §Me3-obs: dashboard provider — load JSON từ /etc/grafana/provisioning/dashboards
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: ecommerce
+        folder: Ecommerce
+        type: file
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards
+---
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -272,6 +283,13 @@ spec:
             - name: provisioning
               mountPath: /etc/grafana/provisioning/datasources
               readOnly: true
+            # §Me3-obs: provider config + dashboard JSON
+            - name: dashboards-provisioning
+              mountPath: /etc/grafana/provisioning/dashboards
+              readOnly: true
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+              readOnly: true
           resources:
             requests:
               cpu: 100m
@@ -302,6 +320,16 @@ spec:
         - name: provisioning
           configMap:
             name: grafana-provisioning
+        # §Me3-obs: dashboards
+        - name: dashboards-provisioning
+          configMap:
+            name: grafana-provisioning
+            items:
+              - key: dashboards.yaml
+                path: dashboards.yaml
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards
 ---
 # LoadBalancer (k3s Klipper lb) exposes Grafana UI on the node IP port 3000,
 # preserving the DEV 0.0.0.0 public-access behavior from vps-infra memory.
