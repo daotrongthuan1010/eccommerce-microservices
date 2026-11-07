@@ -84,6 +84,9 @@ class ReviewServiceImplTest {
         metrics = mock(ReviewMetrics.class);
         aggregateService = mock(RatingAggregateService.class);
         mapper = mock(ReviewMapper.class);
+        // BannedWordService tra list rong nhu default (khong tu cam trong unit test)
+        var bannedWords = mock(com.dtthuan3.ecommerce.reviewservice.service.BannedWordService.class);
+        lenient().when(bannedWords.getWords()).thenReturn(List.of());
 
         lenient().when(rules.validateMedia(any())).thenReturn(List.of());
         lenient().when(idempotencyRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -109,7 +112,7 @@ class ReviewServiceImplTest {
 
         service = new ReviewServiceImpl(reviewRepository, revisionRepository, mediaRepository,
                 eligibilityRepository, idempotencyRepository, rules, publisher, outbox,
-                assembler, fileClient, orderClient, metrics, aggregateService, mapper);
+                assembler, fileClient, orderClient, metrics, aggregateService, bannedWords, mapper);
     }
 
     private EligibilityProjection eligible(String userId) {

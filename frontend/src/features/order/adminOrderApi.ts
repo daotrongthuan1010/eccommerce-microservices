@@ -20,7 +20,7 @@ export interface ListAdminOrdersParams {
   search?: string;
 }
 
-export type OrderStatusTransition = 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'COMPLETED';
+export type OrderStatusTransition = 'CONFIRMED' | 'SHIPPED' | 'DELIVERED';
 
 export const adminOrderApi = createApi({
   reducerPath: 'adminOrderApi',

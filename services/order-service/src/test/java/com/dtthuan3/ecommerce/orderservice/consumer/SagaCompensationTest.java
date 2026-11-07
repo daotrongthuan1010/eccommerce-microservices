@@ -50,6 +50,7 @@ class SagaCompensationTest {
 
     @Mock private OrderInboxRepository inbox;
     @Mock private OrderRepository orderRepository;
+    @Mock private com.dtthuan3.ecommerce.orderservice.service.OrderService orderService;
     @Mock private KafkaTemplate<String, String> kafka;
 
     private PaymentEventConsumer consumer;
@@ -57,7 +58,7 @@ class SagaCompensationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        consumer = new PaymentEventConsumer(inbox, orderRepository, objectMapper, kafka);
+        consumer = new PaymentEventConsumer(inbox, orderRepository, orderService, objectMapper, kafka);
         // @Value field khong tu inject trong unit test — set truc tiep
         var field = PaymentEventConsumer.class.getDeclaredField("orderEventsTopic");
         field.setAccessible(true);
