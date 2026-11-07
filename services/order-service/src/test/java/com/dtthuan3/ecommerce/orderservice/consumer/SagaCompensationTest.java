@@ -127,6 +127,22 @@ class SagaCompensationTest {
     }
 
     @Test
+    @DisplayName("SAGA-UC06: order khong ton tai van phat compensation — inventory tu quyet dinh")
+    void orderMissing_stillPublishesCompensation() {
+        // Race: event PaymentFailed den khi order chua commit / da purge.
+        // Reservation van dang HELD ben inventory — compensation phai di tiep,
+        // listener inventory se bo qua an toan neu khong co reservation.
+        when(inbox.existsByEventIdAndSource(anyString(), anyString())).thenReturn(false);
+        when(orderRepository.findById("order-1")).thenReturn(Optional.empty());
+
+        consumer.onPaymentEvent(FAILED_EVENT);
+
+        verify(kafka, org.mockito.Mockito.description(
+                "Order miss: compensation van phai phat — inventory idempotent (code review finding)"))
+                .send(anyString(), anyString(), anyString());
+    }
+
+    @Test
     @DisplayName("OUTBOX-UC01 (ADR-0002, issue #5): Kafka send fail phai rethrow — khong nuot exception")
     void orderConfirmedSendFailure_mustRethrowNotSwallow() {
         Order order = pendingOrder();
