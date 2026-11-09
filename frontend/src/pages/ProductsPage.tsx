@@ -60,9 +60,12 @@ export function ProductsPage() {
     setSearchParams(next, { replace: true });
   };
 
-  const err =
-    (searchQ.error as { message?: string } | undefined)?.message ??
-    (browseQ.error as { message?: string } | undefined)?.message;
+  // Chi hien loi cua nguon DANG dung: search ES loi nhung browse fallback
+  // thanh cong thi khong duoc bao "Internal server error" (bug 2026-11-09:
+  // err cu lay searchQ.error truoc nen fallback co 27 ket qua van dinh banner).
+  const err = useEs
+    ? null
+    : (browseQ.error as { message?: string } | undefined)?.message;
   const activeCategory = categoryId ?? '';
   const loading = useEs ? searchQ.isLoading : browseQ.isLoading;
 

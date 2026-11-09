@@ -26,6 +26,20 @@ public class SearchExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(SearchExceptionHandler.class);
 
+    // Index chua duoc tao / bi xoa (vd ES reset, reindex chua chay): tra 503
+    // thay vi 500 de FE tu fallback sang browse cua product-service, khach
+    // khong thay "Internal server error" (bug 2026-11-09: products_v2 bi xoa
+    // luc 05:48Z, NoSuchIndexException khong phai Uncategorized nen truoc day
+    // roi thang xuong GlobalExceptionHandler thanh 500 INTERNAL_ERROR).
+    @ExceptionHandler(org.springframework.data.elasticsearch.NoSuchIndexException.class)
+    ResponseEntity<ApiResponse<Void>> indexMissing(
+            org.springframework.data.elasticsearch.NoSuchIndexException e,
+            HttpServletRequest req) {
+        log.error("Elasticsearch index missing at {} {}: {}", req.getMethod(), req.getRequestURI(), e.getMessage());
+        return body(HttpStatus.SERVICE_UNAVAILABLE, ErrorCode.SERVICE_UNAVAILABLE.code(),
+                "Tìm kiếm tạm thời không khả dụng");
+    }
+
     @ExceptionHandler(UncategorizedElasticsearchException.class)
     ResponseEntity<ApiResponse<Void>> esError(UncategorizedElasticsearchException e, HttpServletRequest req) {
         log.error("Elasticsearch error at {} {}: {}", req.getMethod(), req.getRequestURI(), e.getMessage());

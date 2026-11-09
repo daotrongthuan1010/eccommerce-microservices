@@ -52,6 +52,8 @@ import java.util.stream.Collectors;
 public class ProductBrowseServiceImpl implements com.dtthuan3.ecommerce.productservice.service.ProductBrowseService {
 
     private static final int MAX_SIZE = 100;
+    /** Cap cho nhanh loc in-memory: du cho data hoc tap/UAT, tranh keo vo han. */
+    private static final int IN_MEMORY_FETCH_CAP = 1000;
 
     private final ProductRepository productRepository;
     private final ProductRevisionRepository productRevisionRepository;
@@ -74,14 +76,36 @@ public class ProductBrowseServiceImpl implements com.dtthuan3.ecommerce.products
     ) {
         int safeSize = Math.min(Math.max(size, 1), MAX_SIZE);
         int safePage = Math.max(page, 0);
+        Pageable pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "updatedAt"));
+
+        // Keyword/loc gia/sort gia chi tinh duoc SAU enrich (ten o revision,
+        // gia o price_schedules) nen phai loc tren TOAN BO tap published roi
+        // moi cat trang. Cach cu (page SQL truoc, loc memory sau) lam trang 1
+        // rong nhung total van la tong chua loc (bug 2026-11-09). Duong nhanh
+        // khong filter giu nguyen page SQL.
+        boolean needsInMemoryFilter = (keyword != null && !keyword.isBlank())
+                || minPrice != null || maxPrice != null
+                || "price_asc".equals(sort) || "price_desc".equals(sort);
+        if (needsInMemoryFilter) {
+            List<Product> all = productRepository.findPublishedForBrowseList(
+                    categoryId, brandId, PageRequest.of(0, IN_MEMORY_FETCH_CAP,
+                            Sort.by(Sort.Direction.DESC, "updatedAt")));
+            List<ProductCardResponse> filtered = filterAndSort(
+                    enrich(all), minPrice, maxPrice, keyword, sort);
+            int from = Math.min(safePage * safeSize, filtered.size());
+            int to = Math.min(from + safeSize, filtered.size());
+            return new PageImpl<>(filtered.subList(from, to), pageable, filtered.size());
+        }
 
         // Buoc 1: page products da xuat ban theo filter SQL duoc (category/brand).
-        Pageable pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "updatedAt"));
         Page<Product> products = productRepository.findPublishedForBrowse(categoryId, brandId, pageable);
+        return new PageImpl<>(enrich(products.getContent()), pageable, products.getTotalElements());
+    }
 
-        List<Product> content = products.getContent();
+    /** Buoc 2: batch enrich 1 tap products thanh cards (tranh N+1). */
+    private List<ProductCardResponse> enrich(List<Product> content) {
         if (content.isEmpty()) {
-            return new PageImpl<>(List.of(), pageable, products.getTotalElements());
+            return List.of();
         }
 
         List<UUID> productIds = content.stream().map(Product::getId).toList();
@@ -124,16 +148,9 @@ public class ProductBrowseServiceImpl implements com.dtthuan3.ecommerce.products
                 ));
 
         // Build card + tinh gia tu (min gia ACTIVE cua SKU SELLABLE).
-        List<ProductCardResponse> cards = content.stream()
+        return content.stream()
                 .map(p -> buildCard(p, revisions, variantsByProduct, skusByVariant, schedulesBySku, primaryMedia))
                 .toList();
-
-        // Loc keyword/gia + sort gia o lop memory (giai thich o class javadoc).
-        List<ProductCardResponse> filtered = filterAndSort(cards, minPrice, maxPrice, keyword, sort);
-
-        // Filter lam giam so phan tu trong page nhung totalElements van theo
-        // page SQL — dung total goc (data hoc tap, page nho; note trong ADR).
-        return new PageImpl<>(filtered, pageable, products.getTotalElements());
     }
 
     private ProductCardResponse buildCard(

@@ -37,4 +37,26 @@ public interface ProductRepository
             @Param("brandId") UUID brandId,
             Pageable pageable
     );
+
+    /**
+     * Ban List cua findPublishedForBrowse cho nhanh browse co keyword/loc gia/
+     * sort gia: cac filter do nam o product_revisions + price_schedules nen
+     * phai enrich het roi loc TRUOC khi cat trang. Neu loc sau khi page SQL
+     * (cach cu) thi trang 1 co the rong trong khi total van la tong chua loc
+     * — bug 2026-11-09: browse?keyword=samssung tra content=[] nhung total=27.
+     * Gioi han bang Pageable (service truyen cap 1000) de tranh keo vo han.
+     */
+    @Query("""
+        SELECT p FROM Product p
+        WHERE p.status = 'ACTIVE'
+          AND p.publishedRevisionId IS NOT NULL
+          AND (:categoryId IS NULL OR p.categoryId = :categoryId)
+          AND (:brandId IS NULL OR p.brandId = :brandId)
+        ORDER BY p.updatedAt DESC
+        """)
+    java.util.List<Product> findPublishedForBrowseList(
+            @Param("categoryId") UUID categoryId,
+            @Param("brandId") UUID brandId,
+            Pageable pageable
+    );
 }
